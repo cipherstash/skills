@@ -1,0 +1,14 @@
+{
+  "name": "company",
+  "owner": {
+    "name": "Company Skills contributors"
+  },
+  "description": "Company-maintained agent skills for Codex and Claude Code.",
+  "plugins": [
+    {
+      "name": "company-skills",
+      "source": "./plugins/company-skills",
+      "description": "Shared company agent skills for Codex and Claude Code."
+    }
+  ]
+}

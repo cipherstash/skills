@@ -1,0 +1,26 @@
+{
+  "name": "company-skills",
+  "version": "0.1.0",
+  "description": "Shared company agent skills for Codex and Claude Code.",
+  "author": {
+    "name": "Company Skills contributors"
+  },
+  "license": "MIT",
+  "keywords": [
+    "agent-skills",
+    "codex",
+    "claude"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Company Skills",
+    "shortDescription": "Reusable company workflows for coding agents.",
+    "longDescription": "Shared company workflows packaged as open Agent Skills for Codex and Claude Code.",
+    "developerName": "Company Skills contributors",
+    "category": "Productivity",
+    "capabilities": [],
+    "defaultPrompt": [
+      "Show me the available company skills."
+    ]
+  }
+}

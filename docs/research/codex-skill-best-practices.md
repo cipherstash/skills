@@ -1,58 +1,40 @@
-# Codex skill best-practices audit
+# Codex plugin and skill audit
 
-Date: 2026-09-22
+Date: 2026-10-09. Baseline: `origin/main` at `4d9e829`.
 
 ## Verdict
 
-**Aligned as a distribution and authoring scaffold after the follow-up changes.** The repository now has a portable Agent Plugins `plugin.json`, retains the supported Codex compatibility manifest, uses a single-source skill layout, validates changes in CI, and documents the required authoring and behavior-test contract. The repository still has no real skills, so instruction quality, triggering, progressive disclosure, and runtime behavior cannot yet be validated.
+The checked-in package structure is configured correctly for Codex. No manifest relocation, duplicated skills, or release version change is needed. This audit supersedes the scaffold-only assessment from 2026-09-22.
 
-## What aligns
+## Verified structure
 
-- `plugins/company-skills/skills/<skill-name>/SKILL.md` matches the standard skill shape and keeps optional `scripts/`, `references/`, and `assets/` with the skill. OpenAI describes a skill as a folder containing `SKILL.md` plus those optional resources. [OpenAI: Build skills](https://developers.openai.com/codex/skills/) [Agent Skills specification](https://agentskills.io/specification)
-- The repository packages reusable skills as a plugin instead of relying on `.agents/skills`, which OpenAI recommends for reusable distribution beyond one repository. [OpenAI: Build skills](https://developers.openai.com/codex/skills/)
-- `.agents/plugins/marketplace.json` is in the documented repository marketplace location. Its local source begins with `./` and points to the plugin directory, matching OpenAI's marketplace guidance. [OpenAI: Package your plugin](https://developers.openai.com/plugins/build/plugins)
-- The current `.codex-plugin/plugin.json` declares `skills: "./skills/"`; this is the supported compatibility structure produced by OpenAI's plugin creator. [OpenAI: Package your plugin](https://developers.openai.com/plugins/build/plugins)
-- `AGENTS.md` correctly requires lowercase hyphenated names, concrete trigger conditions, colocated resources, and validation. The README also advises keeping each skill focused on one job. These align with OpenAI's advice to keep a skill focused, make descriptions drive reliable triggering, and test the trigger behavior. [OpenAI: Build skills](https://developers.openai.com/codex/skills/)
-- The repository has an MIT `LICENSE`, and both product manifests identify the license as MIT.
+- The Codex marketplace is `.agents/plugins/marketplace.json`, named `company`, with a local source at `./plugins/company-skills`, display metadata, install/authentication policy, and category.
+- The portable manifest declares Agent Plugins 1.0. The Codex compatibility manifest points to `./skills/`. There is no `extensions.com.openai` override that would shadow the compatibility metadata. This matches [OpenAI's packaging guidance](https://developers.openai.com/plugins/build/plugins).
+- Portable, Codex, and Claude manifests agree on name, version (`0.1.0`), description, publisher, and license. Both catalogs resolve to the same plugin directory.
+- Three canonical skill directories contain entrypoints and behavior cases: `address-code-review`, `audit-pr-feedback`, and `cross-check-review-findings`. Their linked resources exist within their own skill directories.
+- `address-code-review/agents/openai.yaml` disables implicit invocation in Codex; its Claude frontmatter has the corresponding explicit-only setting. The other skills need no Codex metadata file. See [Codex invocation policy](https://learn.chatgpt.com/docs/build-skills#optional-metadata).
+- The workflows support sequential execution when subagents are unavailable. PR feedback scripts document Python and authenticated `gh` prerequisites.
 
-## Gaps and risks
+## Corrections made
 
-### Resolved: portable plugin packaging
+- README now includes Codex remote/local installation, skill discovery, refresh instructions, prerequisites, and a skill inventory. CLI syntax was checked with installed `codex-cli 0.160.0` help; desktop instructions follow the packaging guide.
+- CONTRIBUTING and AGENTS now cover Codex invocation policy, host verification, installation pointers, and alignment of all three manifests.
+- The validator now catches broken Codex skill paths, missing marketplace policy/category/display metadata, incorrect marketplace identity/source type, missing publisher metadata, absent skills, and a portable OpenAI extension shadowing the compatibility manifest. Packaging regression tests run in CI.
+- Removed the obsolete claims that no skills exist and Codex metadata is undocumented.
 
-`plugins/company-skills/plugin.json` now declares the Agent Plugins 1.0 schema. The `.codex-plugin/plugin.json` file remains as a supported compatibility fallback. [OpenAI: Package your plugin](https://developers.openai.com/plugins/build/plugins)
+## Verification and limits
 
-### High: no actual skill can be audited or behavior-tested
+Run from the repository root:
 
-`skills/` contains only `.gitkeep`. A valid directory structure does not demonstrate that future descriptions trigger correctly, instructions have explicit inputs and outputs, scripts are safe, or realistic prompts produce the desired result. OpenAI explicitly recommends testing prompts against each description. [OpenAI: Build skills](https://developers.openai.com/codex/skills/)
+```sh
+python3 scripts/validate.py
+python3 -m unittest discover -s scripts/tests
+python3 -m unittest discover -s plugins/company-skills/skills/audit-pr-feedback/tests
+python3 -m unittest discover -s plugins/company-skills/skills/cross-check-review-findings/tests
+claude plugin validate . --strict
+claude plugin validate plugins/company-skills --strict
+```
 
-### Resolved: complete authoring constraints
+Validation passed for all three skills. All 10 packaging regression tests and all 10 existing PR feedback script tests passed. Both Claude strict manifest checks and `git diff --check` passed.
 
-`CONTRIBUTING.md` now records the exact name and description constraints, and `scripts/validate.py` enforces their structural parts. [Agent Skills specification](https://agentskills.io/specification)
-
-### Resolved: progressive disclosure and instruction quality
-
-`CONTRIBUTING.md` now defines concise entrypoints, focused references, imperative inputs and outputs, scripts only for deterministic mechanics, and behavior cases covering activation boundaries and edge cases. The validator enforces the line limit and safe, existing relative links. [Agent Skills specification](https://agentskills.io/specification) [OpenAI: Build skills](https://developers.openai.com/codex/skills/)
-
-### Resolved: reproducible validation and CI
-
-`python3 scripts/validate.py` now validates manifests, skill metadata, links, entrypoint size, and behavior fixtures without third-party dependencies. `.github/workflows/validate.yml` runs the same command for pushes to `main` and pull requests.
-
-### Low: Codex-specific per-skill metadata is not discussed
-
-OpenAI supports optional `agents/openai.yaml` inside a skill for UI metadata, invocation policy, and tool dependencies. It is not needed for an instruction-only skill, so this is not a current defect; the authoring guide should mention it when a skill needs icons, explicit-only invocation, or MCP dependencies. [OpenAI: Build skills](https://developers.openai.com/codex/skills/#optional-metadata)
-
-## Concrete recommendations
-
-1. Completed: add the portable Agent Plugins 1.0 manifest while retaining compatibility manifests.
-2. Completed: document and validate the expanded authoring contract.
-3. Completed: add a repository-level validator and CI workflow.
-4. Completed: require positive, negative, incomplete-input, and expected-behavior cases for every skill.
-5. Remaining: re-run this audit after the first real skill is added; only then can triggering, instruction quality, progressive disclosure, script safety, and output quality be assessed.
-
-## Sources
-
-- [OpenAI — Build skills](https://developers.openai.com/codex/skills/)
-- [OpenAI — Plugin architecture](https://developers.openai.com/plugins/concepts/plugins)
-- [OpenAI — Package your plugin](https://developers.openai.com/plugins/build/plugins)
-- [Agent Skills — Specification](https://agentskills.io/specification)
-- [Agent Skills — Reference implementation](https://github.com/agentskills/agentskills/tree/main/skills-ref)
+This is a structural and documentation audit, not an end-to-end installation or behavioral evaluation. No plugin was installed into the user's configuration, no PR feedback was posted, and live prompt cases were not executed in either host. The validator enforces repository conventions; it is not a full upstream schema validator, particularly for optional `agents/openai.yaml` fields. Use CONTRIBUTING's host checks before claiming runtime compatibility.

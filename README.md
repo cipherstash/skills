@@ -6,6 +6,8 @@ Reusable company workflows published as [open Agent Skills](https://agentskills.
 
 Both products install at user scope by default, so the skills are available in every project.
 
+Both products cache the plugin by version, so updates arrive only when a release bumps the plugin version (see [Releases](CONTRIBUTING.md#releases)).
+
 ### Claude Code
 
 ```sh
@@ -15,10 +17,11 @@ claude plugin install company-skills@company
 
 Inside a session, `/plugin marketplace add cipherstash/skills` and `/plugin install company-skills@company` do the same. Start a new session, then invoke a skill by its namespaced name, for example `/company-skills:address-code-review`.
 
-To update to the latest published skills:
+To update to the latest published skills, refresh the marketplace, update the plugin, then start a new session:
 
 ```sh
 claude plugin marketplace update company
+claude plugin update company-skills@company
 ```
 
 ### Codex
@@ -28,7 +31,13 @@ codex plugin marketplace add cipherstash/skills
 codex plugin add company-skills@company
 ```
 
-To update, run `codex plugin marketplace upgrade company`.
+To update, refresh the marketplace, then reinstall the plugin:
+
+```sh
+codex plugin marketplace upgrade company
+codex plugin remove company-skills@company
+codex plugin add company-skills@company
+```
 
 ## Develop locally
 
@@ -44,7 +53,7 @@ codex plugin add company-skills@company
 
 Both products install a cached copy, so edits in the clone are not live:
 
-- **Claude Code:** run `claude plugin marketplace update company` and start a new session. If a change still does not appear, bump `version` in `plugins/company-skills/.claude-plugin/plugin.json`. To test edits without reinstalling, start a session with `claude --plugin-dir /path/to/skills/plugins/company-skills`.
+- **Claude Code:** run `claude plugin marketplace update company`, then `claude plugin update company-skills@company`, and start a new session. If a change still does not appear, bump the plugin version in all three manifests as described in [Releases](CONTRIBUTING.md#releases). To test edits without reinstalling, start a session with `claude --plugin-dir /path/to/skills/plugins/company-skills`.
 - **Codex:** `marketplace upgrade` refreshes Git marketplaces only. For a local clone, run `codex plugin remove company-skills@company`, then `codex plugin add company-skills@company`.
 
 ## Structure
@@ -64,7 +73,7 @@ Each skill is authored once under `plugins/company-skills/skills/`. Both plugin 
 
 ## Contribute
 
-Follow [CONTRIBUTING.md](CONTRIBUTING.md) to add or change a skill: naming, progressive disclosure, required behavior cases, and the validation commands to run. Pull requests run the same validator in GitHub Actions.
+Follow [CONTRIBUTING.md](CONTRIBUTING.md) to add or change a skill: naming, progressive disclosure, required behavior cases, releases, and the validation commands to run. Pull requests run `python3 scripts/validate.py` in GitHub Actions; the `claude plugin validate --strict` checks run locally only.
 
 See the official [Codex skills documentation](https://developers.openai.com/codex/skills/) and [Claude Code plugin marketplace documentation](https://code.claude.com/docs/en/plugin-marketplaces) for current publishing and installation options.
 

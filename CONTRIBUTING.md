@@ -2,6 +2,19 @@
 
 Add skills under `plugins/company-skills/skills/<skill-name>/`. The directory is the single source published to Codex and Claude Code.
 
+## Skill skeleton
+
+Start each skill from this `plugins/company-skills/skills/<skill-name>/SKILL.md`:
+
+```markdown
+---
+name: skill-name
+description: Describes what the skill does and the requests that should activate it.
+---
+
+Write the instructions the agent should follow.
+```
+
 ## Authoring contract
 
 - Give each skill one recognizable user goal. Split workflows with different triggers, inputs, or success criteria.
@@ -36,6 +49,10 @@ Every skill must include `tests/prompts.md` with these sections:
 ```
 
 Use the cases for forward testing; they are evaluation inputs, not exact-output snapshots.
+
+## Releases
+
+Installed copies are cached by plugin version, so users receive a change only when the version changes. For every change meant to reach installed users, bump `version` in all three manifests together: `plugins/company-skills/plugin.json`, `plugins/company-skills/.codex-plugin/plugin.json`, and `plugins/company-skills/.claude-plugin/plugin.json`. The validator fails when they differ.
 
 ## Validation
 

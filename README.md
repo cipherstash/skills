@@ -27,9 +27,14 @@ claude plugin update company-skills@company
 ### Codex
 
 ```sh
-codex plugin marketplace add cipherstash/skills
+codex plugin marketplace add cipherstash/skills --ref main
 codex plugin add company-skills@company
+codex plugin list --marketplace company
 ```
+
+The command syntax was checked against `codex-cli 0.160.0`. Start a fresh session and use `/skills` or type `$` to select an installed skill, then supply its inputs. `address-code-review` requires explicit selection; the PR feedback skills can also match requests automatically.
+
+If your CLI does not provide `plugin add`, restart the desktop app, choose **Company** in the Plugins Directory, and install **Company Skills** there. See [OpenAI’s plugin packaging guide](https://developers.openai.com/plugins/build/plugins) for marketplace configuration.
 
 To update, refresh the marketplace, then reinstall the plugin:
 
@@ -41,7 +46,7 @@ codex plugin add company-skills@company
 
 ## Develop locally
 
-Install from a clone by passing its path instead of `cipherstash/skills`:
+Install from a clone by passing its path instead of `cipherstash/skills`. Use one source for the `company` marketplace at a time; cloning alone does not install the plugin:
 
 ```sh
 claude plugin marketplace add /path/to/skills
@@ -54,7 +59,7 @@ codex plugin add company-skills@company
 Both products install a cached copy, so edits in the clone are not live:
 
 - **Claude Code:** run `claude plugin marketplace update company`, then `claude plugin update company-skills@company`, and start a new session. If a change still does not appear, bump the plugin version in all three manifests as described in [Releases](CONTRIBUTING.md#releases). To test edits without reinstalling, start a session with `claude --plugin-dir /path/to/skills/plugins/company-skills`.
-- **Codex:** `marketplace upgrade` refreshes Git marketplaces only. For a local clone, run `codex plugin remove company-skills@company`, then `codex plugin add company-skills@company`.
+- **Codex:** `marketplace upgrade` refreshes Git marketplaces only. For a local clone, run `codex plugin remove company-skills@company`, then `codex plugin add company-skills@company`, and start a new session.
 
 ## Structure
 
@@ -69,11 +74,21 @@ Both products install a cached copy, so edits in the clone are not live:
     └── skills/<skill-name>/SKILL.md        # Shared skill source
 ```
 
-Each skill is authored once under `plugins/company-skills/skills/`. Both plugin manifests publish that same directory, so product-specific copies cannot drift.
+Each skill is authored once under `plugins/company-skills/skills/`. The portable manifest discovers `skills/`; the Codex compatibility manifest explicitly points to `./skills/`; Claude Code uses the same directory. Marketplace source paths resolve from the repository root, and plugin resource paths resolve from `plugins/company-skills/`.
+
+## Available skills
+
+| Skill | Purpose | Invocation |
+| --- | --- | --- |
+| `address-code-review` | Verify findings and fix confirmed defects | Explicit only |
+| `audit-pr-feedback` | Audit existing PR feedback against the PR head | Explicit or automatic |
+| `cross-check-review-findings` | Compare new findings with existing PR feedback and draft a response | Explicit or automatic |
+
+The PR feedback skills require Python 3, Git, and `gh` authenticated for the target repository. These are local CLI dependencies; the plugin does not bundle an MCP server.
 
 ## Contribute
 
-Follow [CONTRIBUTING.md](CONTRIBUTING.md) to add or change a skill: naming, progressive disclosure, required behavior cases, releases, and the validation commands to run. Pull requests run `python3 scripts/validate.py` in GitHub Actions; the `claude plugin validate --strict` checks run locally only.
+Follow [CONTRIBUTING.md](CONTRIBUTING.md) to add or change a skill: naming, progressive disclosure, required behavior cases, releases, and the validation commands to run. Pull requests run `python3 scripts/validate.py` and `python3 -m unittest discover -s scripts/tests` in GitHub Actions; the `claude plugin validate --strict` checks run locally only.
 
 See the official [Codex skills documentation](https://developers.openai.com/codex/skills/) and [Claude Code plugin marketplace documentation](https://code.claude.com/docs/en/plugin-marketplaces) for current publishing and installation options.
 

@@ -50,9 +50,19 @@ Every skill must include `tests/prompts.md` with these sections:
 
 Use the cases for forward testing; they are evaluation inputs, not exact-output snapshots.
 
+## Codex compatibility
+
+Keep the shared workflow usable with the host's available tools. If a workflow delegates, describe a sequential fallback for hosts without subagents. Resolve bundled scripts and references from the installed skill directory, since the working directory is usually the user's project.
+
+For explicit-only skills, set `policy.allow_implicit_invocation: false` in the skill's `agents/openai.yaml`, as `address-code-review` does. Keep Claude Code's `disable-model-invocation: true` in `SKILL.md` as well; it is not the Codex policy setting. Other skills may omit `agents/openai.yaml`. See [Codex optional metadata](https://learn.chatgpt.com/docs/build-skills#optional-metadata).
+
+Install and refresh the plugin using the [README's Codex instructions](README.md#codex). In a fresh session, confirm each added skill appears in `/skills` or the `$` picker, then exercise its behavior cases. For explicit-only skills, check both selection and non-activation on an unselected matching request. Record the host/version and observed results; structural validation does not establish runtime behavior.
+
 ## Releases
 
 Installed copies are cached by plugin version, so users receive a change only when the version changes. For every change meant to reach installed users, bump `version` in all three manifests together: `plugins/company-skills/plugin.json`, `plugins/company-skills/.codex-plugin/plugin.json`, and `plugins/company-skills/.claude-plugin/plugin.json`. The validator fails when they differ.
+
+Keep all three manifests aligned on identity as well. The Codex compatibility manifest must publish `./skills/`. Both marketplace catalogs must point to `./plugins/company-skills` relative to the repository root. Keep Codex marketplace policies and its display name populated. Update the README's skill list when adding or removing a workflow.
 
 ## Validation
 
@@ -60,8 +70,9 @@ Run the repository validator before opening a pull request:
 
 ```sh
 python3 scripts/validate.py
+python3 -m unittest discover -s scripts/tests
 ```
 
 With Claude Code installed, also run `claude plugin validate . --strict` and `claude plugin validate plugins/company-skills --strict`.
 
-The validator checks manifests, skill metadata, reference paths, size limits, and the behavior-case structure. It cannot prove instruction quality, so also exercise representative prompts in Codex or Claude Code.
+The validator checks this repository's packaging contract, skill metadata, reference paths, size limits, and the behavior-case structure. Its regression tests cover broken packaging configurations. It is not a complete upstream JSON/YAML schema validator and does not validate every optional `agents/openai.yaml` field. Run each skill's script tests separately when changing those scripts. Exercise representative prompts in both Codex and Claude Code for changes that affect both hosts, and report any host you could not test.

@@ -23,6 +23,9 @@ The skill sets `disable-model-invocation: true` (Claude Code) and `allow_implici
 - Groups own disjoint file sets, including covering tests and every planned new test file; a delegate needing an unplanned file defers. A test file covering several groups belongs to none, so one shared integration suite does not pool every finding into one group.
 - At most three delegates run at once; delegates never stage, commit, or push. Without subagent support (e.g. Codex without them), the main agent works the groups in turn under the same rules.
 - Dispatch runs in two batches: every verify delegate (verdicts and red tests, no other edits) returns before any fix starts, so no red or refutation rests on a sibling's half-made edit.
+- Each delegate prompt is built from `references/delegate-brief.md`: entries verbatim, owned files, baseline failures, and the brief's rules and return format pasted unchanged — never ledger ids alone.
+- An entry deferred during the verify batch re-dispatches into verify, and no fix delegate starts until every entry has a verify verdict and none is deferred.
+- Severities from mixed scales (P0–P3, blocker/nit, CodeRabbit "nitpick") normalise to critical/major/minor with the original wording kept.
 - A confirmed behavioural finding gets a regression test that fails on its own assertion before the fix; a compile error is not accepted as red.
 - A finding that will not go red is re-verified, not fixed blind; a refuted or needs-decision entry has any test written for it reverted.
 - A confirmed finding with no behaviour to regress, or untestable in practice, is reported `fixed` with `no test — <reason>`.

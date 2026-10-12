@@ -79,19 +79,65 @@ def validate_manifests() -> None:
         fail(portable_path, "version must be semantic versioning")
     if portable.get("license") != "MIT":
         fail(portable_path, "license must be MIT")
+    author = portable.get("author")
+    if (
+        not isinstance(author, dict)
+        or not isinstance(author.get("name"), str)
+        or not author["name"].strip()
+    ):
+        fail(portable_path, "author.name is required")
+    if not isinstance(portable.get("description"), str) or not portable["description"].strip():
+        fail(portable_path, "description is required")
 
     for relative in (".codex-plugin/plugin.json", ".claude-plugin/plugin.json"):
         path = PLUGIN / relative
         manifest = load_json(path)
-        for field in ("name", "version", "description", "license"):
+        for field in ("name", "version", "description", "license", "author"):
             if manifest.get(field) != portable.get(field):
                 fail(path, f"{field} must match plugin.json")
+        if relative == ".codex-plugin/plugin.json" and manifest.get("skills") != "./skills/":
+            fail(path, "skills must be ./skills/ (relative to the plugin root)")
+
+    if not SKILLS.is_dir():
+        fail(SKILLS, "shared skills directory is required")
+
+    # A portable OpenAI extension overrides the compatibility fallback. This
+    # repository keeps its OpenAI settings in the latter, so reject a shadow.
+    extensions = portable.get("extensions", {})
+    if isinstance(extensions, dict) and "com.openai" in extensions:
+        fail(portable_path, "keep OpenAI settings in .codex-plugin/plugin.json; com.openai would override it")
 
     codex_market_path = ROOT / ".agents" / "plugins" / "marketplace.json"
     codex_market = load_json(codex_market_path)
+    if codex_market.get("name") != "company":
+        fail(codex_market_path, "name must be company (the documented install selector)")
+    interface = codex_market.get("interface", {})
+    if (
+        not isinstance(interface, dict)
+        or not isinstance(interface.get("displayName"), str)
+        or not interface["displayName"].strip()
+    ):
+        fail(codex_market_path, "interface.displayName is required")
     codex_entries = codex_market.get("plugins", [])
+    if not isinstance(codex_entries, list):
+        fail(codex_market_path, "plugins must be an array")
+        codex_entries = []
+    for entry in codex_entries:
+        if not isinstance(entry, dict):
+            fail(codex_market_path, "each plugin entry must be an object")
+            continue
+        policy = entry.get("policy", {})
+        if (
+            not isinstance(policy, dict)
+            or policy.get("installation") != "AVAILABLE"
+            or policy.get("authentication") != "ON_INSTALL"
+        ):
+            fail(codex_market_path, "plugin policy must use AVAILABLE installation and ON_INSTALL authentication")
+        if entry.get("category") != "Productivity":
+            fail(codex_market_path, "plugin category must be Productivity")
     if not any(
         entry.get("name") == portable.get("name")
+        and entry.get("source", {}).get("source") == "local"
         and entry.get("source", {}).get("path") == "./plugins/company-skills"
         for entry in codex_entries
         if isinstance(entry, dict) and isinstance(entry.get("source"), dict)
@@ -100,7 +146,12 @@ def validate_manifests() -> None:
 
     claude_market_path = ROOT / ".claude-plugin" / "marketplace.json"
     claude_market = load_json(claude_market_path)
+    if claude_market.get("name") != "company":
+        fail(claude_market_path, "name must be company (the documented install selector)")
     claude_entries = claude_market.get("plugins", [])
+    if not isinstance(claude_entries, list):
+        fail(claude_market_path, "plugins must be an array")
+        claude_entries = []
     if not any(
         entry.get("name") == portable.get("name")
         and entry.get("source") == "./plugins/company-skills"
@@ -167,15 +218,22 @@ def validate_skill(skill: Path) -> None:
 
 
 def main() -> int:
+    errors.clear()
     validate_manifests()
-    for skill in sorted(path for path in SKILLS.iterdir() if path.is_dir() and not path.name.startswith(".")):
+    skills = (
+        sorted(path for path in SKILLS.iterdir() if path.is_dir() and not path.name.startswith("."))
+        if SKILLS.is_dir() else []
+    )
+    if SKILLS.is_dir() and not skills:
+        fail(SKILLS, "must contain at least one skill")
+    for skill in skills:
         validate_skill(skill)
     if errors:
         print("Validation failed:", file=sys.stderr)
         for error in errors:
             print(f"- {error}", file=sys.stderr)
         return 1
-    count = sum(1 for path in SKILLS.iterdir() if path.is_dir() and not path.name.startswith("."))
+    count = len(skills)
     print(f"Validation passed ({count} skill{'s' if count != 1 else ''}).")
     return 0
 

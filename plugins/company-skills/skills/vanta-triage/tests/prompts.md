@@ -27,6 +27,8 @@
 - A `resolve` closes the issue as Done with a comment citing Vanta's absence of the finding; the mass-resolve guard blocks all resolves when the fetch looks partial.
 - A finding matching an issue closed in the last 7 days with a covering version is reported as awaiting rescan, not refiled.
 - Container findings group per image and package, link any legacy umbrella issue for the image, and name images missing from the config map.
+- Each open issue serves at most one group; when a title fits several groups (npm and Rust `tar` in one repo), the issue's `Vanta key:` line is fetched to settle it rather than retargeting the issue back and forth.
+- Issues in custom open states (for example "Blocked") count as open; canceled issues are ignored.
 - Unparsed `[Vanta]` issues (AWS configuration findings, legacy umbrellas) are listed and never edited or closed.
 - Dry-run mode performs no Linear writes and says so.
 - The run never stops to ask a question.

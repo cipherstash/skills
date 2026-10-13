@@ -233,6 +233,75 @@ class Plan(unittest.TestCase):
         self.assertEqual(self.actions(plan), {("keep", "CIP-1")})
 
 
+class Regressions(unittest.TestCase):
+    TAR = [finding(id="1", packageIdentifier="npm-tar < 6.2.1", fixedVersion="6.2.1"),
+           finding(id="2", packageIdentifier="rust-tar < 0.4.40", fixedVersion="0.4.40", name="CVE-2")]
+
+    def actions(self, plan):
+        return {(a["action"], a.get("issue")) for a in plan["actions"]}
+
+    def test_dependabot_bare_version_identifier_does_not_crash(self):
+        [g] = vanta.group_findings([finding(packageIdentifier="npm-foo 1.2.3")])
+        self.assertEqual(g["repo"], "acme/stack")
+        self.assertIn("(stack)", g["title"])
+
+    def test_non_dependabot_dependency_does_not_crash_plan(self):
+        plan = run_plan([finding(externalURL="https://example.com/scanner/finding/1")], [])
+        self.assertEqual(len(plan["groups"]), 1)
+        self.assertIn("(stack)", plan["groups"][0]["title"])
+
+    def test_null_advisory_name_with_unfixed_findings(self):
+        fs = [finding(id="1", name=None, fixedVersion=None), finding(id="2", name="CVE-2", fixedVersion=None)]
+        [g] = vanta.group_findings(fs)
+        self.assertEqual(len(g["advisories"]), 2)
+
+    def test_null_advisory_name_in_container_title(self):
+        f = finding(targetId="a-img", packageIdentifier="glibc:2.41", fixedVersion="NotAvailable",
+                    externalURL="https://aws/x", name=None)
+        [g] = vanta.group_findings([f])
+        self.assertTrue(g["title"].startswith("[Vanta] Assess glibc"))
+
+    def test_custom_open_state_is_matched(self):
+        issue = {"id": "CIP-1", "title": "[Vanta] Remediate left-pad to 1.2.2 (stack)", "status": "Blocked"}
+        self.assertEqual(self.actions(run_plan([finding()], [issue])), {("keep", "CIP-1")})
+
+    def test_canceled_issue_is_not_open(self):
+        issue = {"id": "CIP-1", "title": "[Vanta] Remediate left-pad to 1.2.2 (stack)", "status": "Canceled",
+                 "statusType": "canceled"}
+        self.assertEqual(self.actions(run_plan([finding()], [issue])), {("create", None)})
+
+    def test_one_issue_does_not_satisfy_two_ecosystems(self):
+        issue = {"id": "CIP-1", "title": "[Vanta] Remediate tar to 6.2.1 (stack)", "status": "Todo"}
+        self.assertEqual(self.actions(run_plan(self.TAR, [issue])), {("keep", "CIP-1"), ("create", None)})
+
+    def test_two_ecosystem_issues_are_stable(self):
+        issues = [{"id": "CIP-1", "title": "[Vanta] Remediate tar to 6.2.1 (stack)", "status": "Todo"},
+                  {"id": "CIP-2", "title": "[Vanta] Remediate tar to 0.4.40 (stack)", "status": "Todo"}]
+        self.assertEqual(self.actions(run_plan(self.TAR, issues)), {("keep", "CIP-1"), ("keep", "CIP-2")})
+
+    def test_ambiguous_match_is_flagged(self):
+        issue = {"id": "CIP-1", "title": "[Vanta] Remediate tar to 9.9.9 (stack)", "status": "Todo"}
+        plan = run_plan(self.TAR, [issue])
+        [a] = [a for a in plan["actions"] if a.get("issue") == "CIP-1"]
+        self.assertEqual(len(a["ambiguous"]), 2)
+
+    def test_fetched_description_resolves_ambiguity(self):
+        key = "dependency:acme/stack:rust:tar"
+        issues = [{"id": "CIP-1", "title": "[Vanta] Remediate tar to 9.9.9 (stack)", "status": "Todo"},
+                  {"id": "CIP-1", "title": "[Vanta] Remediate tar to 9.9.9 (stack)", "status": "Todo",
+                   "description": f"...\n\nVanta key: `{key}`"}]
+        plan = run_plan(self.TAR, issues)
+        self.assertEqual(self.actions(plan), {("retarget", "CIP-1"), ("create", None)})
+        [r] = [a for a in plan["actions"] if a["action"] == "retarget"]
+        self.assertEqual(r["key"], key)
+
+    def test_track_upstream_retarget_reason(self):
+        plan = run_plan([finding()], [{"id": "CIP-1", "title": "[Vanta] Track upstream fix for left-pad (stack)", "status": "Todo"}])
+        [a] = plan["actions"]
+        self.assertEqual(a["action"], "retarget")
+        self.assertIn("a fix is now available", a["reason"])
+
+
 class Credentials(unittest.TestCase):
     def test_missing_credentials_exit(self):
         env = {k: v for k, v in os.environ.items() if not k.startswith("VANTA_")}

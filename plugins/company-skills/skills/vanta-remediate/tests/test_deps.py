@@ -3,6 +3,7 @@
 import contextlib
 import io
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -245,6 +246,53 @@ class Scan(unittest.TestCase):
         self.assertEqual(r["manifests"][0]["field"], "workspace.dependencies")
         _, r = run(root, "--ecosystem", "rust", "--package", "hickory-resolver")
         self.assertEqual(r["manifests"][0]["spec"], '"0.26"')
+
+    def test_go_mod_ignores_exclude_and_replace_sources(self):
+        go_mod = ("module example.com/app\n\ngo 1.22\n\nrequire golang.org/x/net v0.20.0\n\n"
+                  "exclude (\n\tgolang.org/x/net v0.1.0\n)\n\n"
+                  "replace (\n\tgolang.org/x/net v0.2.0 => golang.org/x/net v0.20.0\n)\n\n"
+                  "exclude golang.org/x/net v0.3.0\n"
+                  "replace golang.org/x/net v0.4.0 => golang.org/x/net v0.20.0\n"
+                  "retract v1.0.0\n")
+        root = make_repo({"go.mod": go_mod})
+        code, r = run(root, "--ecosystem", "go", "--package", "golang.org/x/net", "--target", "v0.20.0")
+        self.assertEqual(r["lockfiles"][0]["versions"], ["v0.20.0"])
+        self.assertEqual(r["manifests"], [{"path": "go.mod", "field": "require", "spec": "v0.20.0"}])
+        self.assertEqual(code, 0)
+
+    def assert_unreadable(self, root, name):
+        with contextlib.redirect_stderr(io.StringIO()):
+            code, r = run(root, "--ecosystem", "npm", "--package", "x")
+        self.assertEqual(code, 2)
+        self.assertFalse(r["ok"])
+        self.assertIn(name, [u["path"] for u in r["unsupported"]])
+
+    def test_broken_symlink_lockfile_is_not_vulnerable(self):
+        root = make_repo({})
+        (root / "package-lock.json").symlink_to(root / "missing-target.json")
+        self.assert_unreadable(root, "package-lock.json")
+
+    @unittest.skipIf(hasattr(os, "geteuid") and os.geteuid() == 0, "root ignores file permissions")
+    def test_permission_denied_lockfile_is_not_vulnerable(self):
+        root = make_repo({"package-lock.json": PACKAGE_LOCK})
+        lock = root / "package-lock.json"
+        lock.chmod(0)
+        try:
+            self.assert_unreadable(root, "package-lock.json")
+        finally:
+            lock.chmod(0o644)
+
+    def test_malformed_lockfile_shapes_are_not_vulnerable(self):
+        for files in ({"package-lock.json": {"packages": ["x"]}}, {"package-lock.json": ["x"]}):
+            with self.subTest(files=files):
+                self.assert_unreadable(make_repo(files), "package-lock.json")
+
+    def test_malformed_manifest_is_reported_not_fatal(self):
+        root = make_repo({"package.json": {"dependencies": ["x"]}, "pnpm-lock.yaml": PNPM_V9})
+        code, r = run(root, "--ecosystem", "npm", "--package", "source-map-js", "--target", "1.2.2")
+        self.assertEqual(code, 1)
+        self.assertEqual(r["manifests"], [])
+        self.assertIn("package.json", [u["path"] for u in r["unsupported"]])
 
     def test_bad_usage(self):
         root = make_repo({})

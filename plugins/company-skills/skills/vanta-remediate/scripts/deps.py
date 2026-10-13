@@ -13,7 +13,8 @@ and other generated directories) and reads every lockfile for the ecosystem:
             (classic and berry), bun.lock (text; binary bun.lockb is reported
             as unsupported)
   rust      Cargo.lock
-  go        go.mod (require lines; "// indirect" marks a transitive dependency)
+  go        go.mod (require lines; "// indirect" marks a transitive dependency;
+            exclude, replace and retract lines are ignored)
   pip       poetry.lock, uv.lock, Pipfile.lock, requirements*.txt (== pins)
             (aliases: python, pypi)
   composer  composer.lock (alias: php)
@@ -31,9 +32,11 @@ neither, versions are listed and nothing is judged.
 Prints JSON: package, ecosystem, lockfiles [{path, versions, vulnerable}],
 manifests [{path, field, spec}], vulnerable [{path, version, needs}],
 unsupported (lockfiles present that this script cannot read, e.g. bun.lockb),
-ok. Exit codes: 0 when nothing resolved is vulnerable (including when the
-package is absent), 1 when any resolved version is vulnerable, 2 on bad usage
-or an unreadable repository.
+ok, unreadable. Exit codes: 0 when nothing resolved is vulnerable (including
+when the package is absent), 1 when any resolved version is vulnerable, 2 on
+bad usage, an unreadable repository, or a lockfile that could not be read
+(listed in unsupported; ok is false because it may hide a vulnerable version).
+An unreadable manifest is listed in unsupported and does not change the exit.
 """
 
 from __future__ import annotations
@@ -191,11 +194,30 @@ def read_bun_lock(text: str) -> list[tuple[str, str]]:
     return [(m["name"], m["ver"]) for m in BUN_ENTRY.finditer(text)]
 
 
-def read_go_mod(text: str) -> list[tuple[str, str]]:
-    out = []
-    for m in re.finditer(r"^\s*(?:require\s+)?([a-zA-Z0-9][\w.\-/]*\.[\w.\-/]+)\s+(v[0-9][^\s]*)", text, re.M):
-        out.append((m.group(1), m.group(2)))
+GO_REQUIRE = re.compile(r"^([a-zA-Z0-9][\w.\-/]*\.[\w.\-/]+)\s+(v[0-9]\S*)(.*)$")
+
+
+def go_requires(text: str) -> list[tuple[str, str, str]]:
+    """(module, version, rest of line) for each require; exclude, replace and retract lines are not requirements."""
+    out, block = [], None
+    for line in text.splitlines():
+        s = line.strip()
+        if block:
+            if s.startswith(")"):
+                block = None
+            elif block == "require" and (m := GO_REQUIRE.match(s)):
+                out.append(m.groups())
+            continue
+        d = re.match(r"^(require|exclude|replace|retract)\s*\(\s*$", s)
+        if d:
+            block = d.group(1)
+        elif s.startswith("require ") and (m := GO_REQUIRE.match(s[len("require "):].strip())):
+            out.append(m.groups())
     return out
+
+
+def read_go_mod(text: str) -> list[tuple[str, str]]:
+    return [(mod, ver) for mod, ver, _ in go_requires(text)]
 
 
 def read_pipfile_lock(text: str) -> list[tuple[str, str]]:
@@ -261,9 +283,9 @@ def manifest_refs(path: Path, eco: str, package: str) -> list[dict]:
             elif section.endswith(f"dependencies.{package}") and line.strip().startswith("version"):
                 refs.append({"field": section, "spec": line.split("=", 1)[1].strip()})
     elif path.name == "go.mod":
-        for m in re.finditer(rf"^\s*(?:require\s+)?{re.escape(package)}\s+(v\S+)(.*)$", text, re.M):
-            if "// indirect" not in m.group(2):
-                refs.append({"field": "require", "spec": m.group(1)})
+        for mod, ver, rest in go_requires(text):
+            if mod == package and "// indirect" not in rest:
+                refs.append({"field": "require", "spec": ver})
     return refs
 
 
@@ -282,17 +304,19 @@ def scan(root: Path, eco: str, package: str, targets: list[str], affected: list[
         raise ValueError(f"unsupported ecosystem {eco!r}; supported: {', '.join(sorted(LOCKFILES))}")
     want = norm(package, eco)
     lockfiles, manifests, vulnerable, unsupported = [], [], [], []
+    unreadable = False
     for path in walk(root):
         rel = str(path.relative_to(root))
         name = path.name
         is_req = eco == "pip" and re.match(r"requirements.*\.txt$", name)
         if name in LOCKFILES[eco] or is_req:
-            text = path.read_text(encoding="utf-8", errors="replace")
             reader = read_requirements if is_req else READERS[name]
             try:
-                entries = reader(text)
-            except ValueError as exc:
-                unsupported.append({"path": rel, "reason": f"unreadable: {exc}"})
+                entries = reader(path.read_text(encoding="utf-8", errors="replace"))
+            except (OSError, ValueError, AttributeError, TypeError, KeyError) as exc:
+                # An unreadable lockfile can hide a vulnerable version, so the run cannot report ok.
+                unsupported.append({"path": rel, "reason": f"unreadable: {type(exc).__name__}: {exc}"})
+                unreadable = True
                 continue
             versions = sorted({v for n, v in entries if norm(n, eco) == want}, key=version_key)
             if versions:
@@ -306,11 +330,15 @@ def scan(root: Path, eco: str, package: str, targets: list[str], affected: list[
         if name in UNSUPPORTED.get(eco, ()):
             unsupported.append({"path": rel, "reason": "lockfile format not supported; check by hand"})
         if name in MANIFESTS.get(eco, ()):
-            for ref in manifest_refs(path, eco, package):
-                manifests.append({"path": rel, **ref})
+            try:
+                refs = manifest_refs(path, eco, package)
+            except (OSError, ValueError, AttributeError, TypeError, KeyError) as exc:
+                unsupported.append({"path": rel, "reason": f"manifest unreadable: {type(exc).__name__}: {exc}"})
+                continue
+            manifests.extend({"path": rel, **ref} for ref in refs)
     return {"package": package, "ecosystem": eco, "targets": targets, "affected": affected,
             "lockfiles": lockfiles, "manifests": manifests, "vulnerable": vulnerable,
-            "unsupported": unsupported, "ok": not vulnerable}
+            "unsupported": unsupported, "ok": not vulnerable and not unreadable, "unreadable": unreadable}
 
 
 def main(argv=None) -> int:
@@ -334,7 +362,12 @@ def main(argv=None) -> int:
         return 2
     json.dump(result, sys.stdout, indent=2)
     print()
-    return 0 if result["ok"] else 1
+    if result["vulnerable"]:
+        return 1
+    if result["unreadable"]:
+        print("error: a lockfile could not be read; see unsupported", file=sys.stderr)
+        return 2
+    return 0
 
 
 if __name__ == "__main__":

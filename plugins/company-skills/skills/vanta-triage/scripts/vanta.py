@@ -40,7 +40,11 @@ plan
              per major line), advisories, title, description (Markdown),
              match (the open Linear issue it maps to, or null).
     actions  create | retarget | resolve | keep | await-rescan, one per
-             group or unmatched open issue, each with the reason.
+             group or unmatched open issue, each with the reason. Each open
+             issue serves at most one group. A retarget or keep whose issue
+             was matched by title alone and also fits other groups carries
+             ambiguous: [group keys]; the issue's description (with its
+             "Vanta key:" line) settles it.
              await-rescan replaces create when a matching issue was closed
              as Done within --rescan-days (default 7) of --today and its
              version covers the targets: Vanta has not rescanned yet.
@@ -50,8 +54,12 @@ plan
   --issues takes one or more files, each a JSON array (or an object with an
   "issues" array, as the Linear connector returns it) of Linear
   issues with id or identifier, title, status or state (a string or an
-  object with name), and optionally description and completedAt. A description line
-  "Vanta key: `<key>`" takes precedence over the title for matching.
+  object with name and type), and optionally statusType, description and
+  completedAt. An issue whose state type is completed (or named Done) is done,
+  canceled (or named Canceled or Duplicate) is ignored, and anything else is
+  open. A description line "Vanta key: `<key>`" takes precedence over the
+  title for matching. An id listed more than once is merged, keeping any
+  description, so a get_issue result can be added to a list result.
 
   Exits 2 on bad usage or unreadable input.
 """
@@ -74,7 +82,7 @@ SCOPE = "vanta-api.all:read"
 SEVERITY_RANK = {"CRITICAL": 4, "HIGH": 3, "MEDIUM": 2, "LOW": 1}
 PRIORITY = {"CRITICAL": 1, "HIGH": 2, "MEDIUM": 3, "LOW": 4}
 DONE_STATES = {"done", "completed"}
-OPEN_STATES = {"backlog", "todo", "triage", "in progress", "in review", "unstarted", "started"}
+CANCELED_STATES = {"canceled", "cancelled", "duplicate"}
 NO_FIX = {None, "", "notavailable", "none", "n/a"}
 DEFAULT_CONFIG = Path(__file__).resolve().parent.parent / "references" / "config.json"
 
@@ -193,7 +201,7 @@ def normalise(vuln: dict, assets: dict, config: dict) -> dict:
     fixed = None if (fixed or "").strip().lower() in NO_FIX else fixed.strip()
     finding = {
         "id": vuln["id"],
-        "advisory": vuln.get("name"),
+        "advisory": vuln.get("name") or f"Vanta finding {vuln['id']}",
         "severity": (vuln.get("severity") or "MEDIUM").upper(),
         "cvss": vuln.get("cvssSeverityScore"),
         "fixed_version": fixed,
@@ -211,8 +219,10 @@ def normalise(vuln: dict, assets: dict, config: dict) -> dict:
         return finding
     image = asset.get("name") or vuln.get("externalId") or "unknown"
     os_pkg = OS_PACKAGE_RE.match(ident)
-    finding.update(kind="container" if asset.get("assetType") == "CONTAINER_REPOSITORY" or os_pkg else "dependency",
-                   target=image, repo=(config.get("images", {}).get(image) or {}).get("repo"),
+    container = asset.get("assetType") == "CONTAINER_REPOSITORY" or bool(os_pkg)
+    repo = dependabot["repo"] if dependabot and not container else (config.get("images", {}).get(image) or {}).get("repo")
+    finding.update(kind="container" if container else "dependency",
+                   target=dependabot["repo"] if dependabot and not container else image, repo=repo,
                    ecosystem="os" if os_pkg else (m["eco"] if m else "unknown"),
                    package=os_pkg["pkg"] if os_pkg else (m["pkg"] if m else ident or "unknown"),
                    affected=os_pkg["ver"] if os_pkg else (m["range"] if m else None))
@@ -250,6 +260,11 @@ def load_config(path: str | None) -> dict:
 
 def short(repo: str) -> str:
     return repo.split("/")[-1]
+
+
+def place(g: dict) -> str:
+    """Where a dependency group lives: the repo's short name, or the Vanta asset name when the repo is unknown."""
+    return short(g["repo"]) if g["repo"] else g["target"]
 
 
 def group_key(f: dict) -> str:
@@ -301,7 +316,7 @@ def group_findings(findings: list[dict]) -> list[dict]:
 def where(g: dict) -> str:
     if g["kind"] == "assess-container":
         return " + ".join(g["images"]) + (" images" if len(g["images"]) > 1 else " image")
-    return short(g["repo"])
+    return place(g)
 
 
 def render_title(g: dict) -> str:
@@ -321,7 +336,8 @@ def render_description(g: dict) -> str:
                   "**Images:** " + ", ".join(f"`{i}`" for i in g["images"])
                   + (f", built from `{g['repo']}`" if g["repo"] else ", source repo unknown")]
     else:
-        lines += [f"**Package:** `{g['package']}` ({g['ecosystem']})", f"**Repo:** `{g['repo']}`"]
+        lines += [f"**Package:** `{g['package']}` ({g['ecosystem']})",
+                  f"**Repo:** `{g['repo']}`" if g["repo"] else f"**Asset:** `{g['target']}` (source repo unknown)"]
     if g["targets"]:
         lines.append("**Fix version:** " + " / ".join(f"`>= {t}`" for t in g["targets"]))
     else:
@@ -353,12 +369,22 @@ def render_description(g: dict) -> str:
     return "\n".join(lines)
 
 
-def issue_fields(issue: dict) -> tuple[str, str, str, str]:
+def issue_fields(issue: dict) -> tuple[str, str, str, str, str]:
+    """(id, title, state name, state class, description); class is open, done or canceled."""
     ident = issue.get("identifier") or issue.get("id") or ""
     state = issue.get("status") or issue.get("state") or ""
+    stype = issue.get("statusType") or ""
     if isinstance(state, dict):
+        stype = stype or state.get("type") or ""
         state = state.get("name") or state.get("type") or ""
-    return ident, issue.get("title") or "", str(state), issue.get("description") or ""
+    name, stype = str(state).lower(), str(stype).lower()
+    if stype == "completed" or (not stype and name in DONE_STATES):
+        cls = "done"
+    elif stype == "canceled" or (not stype and name in CANCELED_STATES):
+        cls = "canceled"
+    else:
+        cls = "open"
+    return ident, issue.get("title") or "", str(state), cls, issue.get("description") or ""
 
 
 def parse_issue(title: str, description: str) -> dict | None:
@@ -408,7 +434,7 @@ def matches(g: dict, parsed: dict) -> bool:
     if g["kind"] == "assess-container":
         places = {i.lower() for i in g["images"]} | ({short(g["repo"]).lower()} if g["repo"] else set())
         return bool(parsed["where"] & places)
-    return short(g["repo"]).lower() in parsed["where"]
+    return place(g).lower() in parsed["where"]
 
 
 def cmd_plan(args) -> int:
@@ -428,21 +454,25 @@ def cmd_plan(args) -> int:
         if f.get("kind") == "container" and not f.get("repo"):
             f["repo"] = (config.get("images", {}).get(f["target"]) or {}).get("repo")
     groups = group_findings(findings)
+    merged: dict[str, dict] = {}
+    for issue in issues:
+        ident = issue.get("identifier") or issue.get("id") or ""
+        prev = merged.get(ident)
+        merged[ident] = {**prev, **{k: v for k, v in issue.items() if v not in (None, "")}} if prev else issue
+    issues = list(merged.values())
 
     today = dt.date.fromisoformat(args.today) if args.today else dt.date.today()
     open_issues, recent_done, unparsed = [], [], []
     for issue in issues:
-        ident, title, state, desc = issue_fields(issue)
-        if not title.startswith("[Vanta]"):
+        ident, title, state, cls, desc = issue_fields(issue)
+        if not title.startswith("[Vanta]") or cls == "canceled":
             continue
-        if state.lower() in DONE_STATES:
+        if cls == "done":
             done = (issue.get("completedAt") or "")[:10]
             if done and (today - dt.date.fromisoformat(done)).days <= args.rescan_days:
                 parsed = parse_issue(title, desc)
                 if parsed:
                     recent_done.append({"id": ident, "title": title, "state": state, "completed": done, **parsed})
-            continue
-        if state.lower() not in OPEN_STATES:
             continue
         parsed = parse_issue(title, desc)
         if parsed is None:
@@ -450,14 +480,31 @@ def cmd_plan(args) -> int:
         else:
             open_issues.append({"id": ident, "title": title, "state": state, **parsed})
 
-    actions, used = [], set()
+    # Each open issue serves one group. Claim in rounds so a weak title match never takes an issue
+    # that another group fits better: key line first, then titles whose versions cover the targets, then any match.
+    fits = {g["key"]: [i for i in open_issues if matches(g, i)] for g in groups}
+    claimed: dict[str, dict] = {}
+    owner: dict[str, str] = {}
+    rounds = (lambda g, i: bool(i["key"]),
+              lambda g, i: g["kind"] != "remediate" or covers(i["versions"], g["targets"]),
+              lambda g, i: True)
+    for ok in rounds:
+        for g in groups:
+            if g["key"] in claimed:
+                continue
+            pick = next((i for i in fits[g["key"]] if i["id"] not in owner and ok(g, i)), None)
+            if pick:
+                claimed[g["key"]], owner[pick["id"]] = pick, g["key"]
+    actions, used = [], set(owner)
     for g in groups:
-        found = [i for i in open_issues if matches(g, i)]
-        chosen = found[0] if found else None
+        chosen = claimed.get(g["key"])
         g["match"] = {"id": chosen["id"], "title": chosen["title"], "state": chosen["state"]} if chosen else None
-        if len(found) > 1:
-            g["duplicates"] = [i["id"] for i in found[1:]]
-        used.update(i["id"] for i in found)
+        dups = [i["id"] for i in fits[g["key"]] if i["id"] not in owner
+                and all(i not in fits[o["key"]] for o in groups if o is not g)]
+        if dups:
+            g["duplicates"] = dups
+            used.update(dups)
+        ambiguous = sorted(o["key"] for o in groups if chosen and not chosen["key"] and chosen in fits[o["key"]])
         closed = [i for i in recent_done if matches(g, i) and (g["kind"] != "remediate" or covers(i["versions"], g["targets"]))]
         if chosen is None and closed:
             actions.append({"action": "await-rescan", "key": g["key"], "issue": closed[0]["id"],
@@ -466,18 +513,20 @@ def cmd_plan(args) -> int:
         elif chosen is None:
             actions.append({"action": "create", "key": g["key"], "title": g["title"],
                             "reason": f"{g['finding_count']} open finding(s), no open Linear issue"})
-        elif g["kind"] == "remediate" and chosen["package"] is not None and not covers(chosen["versions"], g["targets"]):
-            actions.append({"action": "retarget", "key": g["key"], "issue": chosen["id"], "title": g["title"],
-                            "reason": f"issue targets {' / '.join(chosen['versions']) or 'no version'}; "
-                                      f"Vanta now requires {' / '.join(g['targets'])}"})
         elif g["kind"] == "remediate" and chosen["title"].startswith("[Vanta] Track upstream fix"):
             actions.append({"action": "retarget", "key": g["key"], "issue": chosen["id"], "title": g["title"],
                             "reason": f"a fix is now available: {' / '.join(g['targets'])}"})
+        elif g["kind"] == "remediate" and not covers(chosen["versions"], g["targets"]):
+            actions.append({"action": "retarget", "key": g["key"], "issue": chosen["id"], "title": g["title"],
+                            "reason": f"issue targets {' / '.join(chosen['versions']) or 'no version'}; "
+                                      f"Vanta now requires {' / '.join(g['targets'])}"})
         else:
             missing = [i for i in g["images"] if not chosen["key"] and i.lower() not in chosen["where"]]
             actions.append({"action": "keep", "key": g["key"], "issue": chosen["id"],
                             "reason": f"tracked ({chosen['state']})"
                                       + (f"; issue title does not name image(s) {', '.join(missing)}" if missing else "")})
+        if chosen and len(ambiguous) > 1:
+            actions[-1]["ambiguous"] = ambiguous
     for i in open_issues:
         if i["id"] not in used:
             actions.append({"action": "resolve", "issue": i["id"], "title": i["title"], "state": i["state"],

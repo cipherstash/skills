@@ -24,17 +24,18 @@ Process issues one at a time. Each issue ends in exactly one outcome: **PR opene
 
 1. **Read the issue.** `get_issue` with `description`, `status`, `attachments`. Take repo, ecosystem, and package from the `Vanta key:` line (`dependency:<owner/repo>:<ecosystem>:<package>`), or from the `**Package:**` and `**Repo:**` lines and the title on older issues. Take targets from the title's `to …` (versions split on ` / `) and each advisory's affected range from the Affected column when present. An **In Review** issue with an open PR attached is in flight: skip it. Anything that does not resolve to a repo, package, and target is **skipped**, with the reason in the report.
 
-2. **Check for a PR already in flight.** Run `gh api "repos/<owner/repo>/pulls?state=open&per_page=100"` and look for a PR, from Dependabot or a person, whose title or head branch names the package.
+2. **Check for a PR already in flight.** Run `gh api --paginate "repos/<owner/repo>/pulls?state=open&per_page=100" --jq '.[] | {number, title, head: .head.ref, user: .user.login}'` and look for a PR, from Dependabot or a person, whose title or head branch names the package.
    - A title alone proves nothing: Dependabot often bumps one `package.json` without touching the lockfile. Verify each candidate with deps.py (step 4's command) on the PR's head. Fetch it with `git -C <clone> fetch origin pull/<n>/head`, then `git -C <clone> worktree add --detach <scratch path> FETCH_HEAD`, and remove that worktree afterwards.
    - If deps.py exits 0 on the PR head, link the PR instead of duplicating it: `save_issue` with `links: [{url, title: "GitHub PR"}]` and `state: "In Review"`, plus a comment carrying the deps.py summary. Outcome **existing PR linked**.
    - If deps.py exits 1, note the PR as incomplete in the report and in the PR body, and continue.
 
 3. **Worktree from the default branch.** Never patch the user's checkout or its branch.
    - Find a clone: `$VANTA_REPOS_BASE/<repo name>` whose `origin` is the repo, else `gh repo clone <owner/repo> <scratch>/<repo name>`.
-   - `git -C <clone> fetch origin`, read the default branch from `gh api repos/<owner/repo> --jq .default_branch`, then `git -C <clone> worktree add -b fix/<id lowercased>-<package slug> <path> origin/<default>`. Use `<clone>-<id lowercased>` as the path for a local clone, or a scratch path otherwise. The package slug is the package name with `@` dropped and `/` turned into `-`.
-   - If the branch already exists on `origin`, a previous run pushed it. If it has an open PR, go to step 2's linking. Otherwise base the worktree on `origin/<branch>` and continue.
+   - `git -C <clone> fetch origin`, read the default branch from `gh api repos/<owner/repo> --jq .default_branch`, then `git -C <clone> worktree add -B fix/<id lowercased>-<package slug> <path> <base>`, with `origin/<default>` as `<base>`. Use `<clone>-<id lowercased>` as the path for a local clone, or a scratch path otherwise. The package slug is the package name with `@` dropped and `/` turned into `-`.
+   - An earlier dry run or blocked run leaves its worktree and local branch behind, and `worktree add` refuses both. If `<path>` exists, run `git -C <clone> worktree remove --force <path>` and `git -C <clone> worktree prune` first. `-B` then resets the leftover local branch, which holds no commits because only step 7 commits.
+   - If the branch already exists on `origin`, a previous run pushed it. If it has an open PR, go to step 2's linking. Otherwise use `origin/<branch>` as `<base>` and continue.
 
-4. **Measure.** `python3 <skill dir>/scripts/deps.py <worktree> --ecosystem <eco> --package <pkg> --target <v> … --affected "<range>" …`. Exit 0 means nothing resolved is vulnerable on the default branch: the package is gone or already patched. Mark the issue **Done** with a comment carrying the deps.py summary and the commit sha. Vanta clears it on its next scan, and vanta-triage reports it as awaiting rescan until then. Outcome **already fixed**. Exit 1 lists every lockfile and version to fix. Note `unsupported` lockfiles: they must be checked by hand before claiming a fix.
+4. **Measure.** `python3 <skill dir>/scripts/deps.py <worktree> --ecosystem <eco> --package <pkg> --target <v> … --affected "<range>" …`. Exit 0 means nothing resolved is vulnerable on the default branch: the package is gone or already patched. Mark the issue **Done** with a comment carrying the deps.py summary and the commit sha. Vanta clears it on its next scan, and vanta-triage reports it as awaiting rescan until then. Outcome **already fixed**. Exit 1 lists every lockfile and version to fix. Exit 2 means a lockfile could not be read (named in `unsupported`): nothing can be claimed fixed until it is, so the outcome is **blocked** with the file and error. Note other `unsupported` lockfiles: they must be checked by hand before claiming a fix.
 
 5. **Patch.** Follow [references/ecosystems.md](references/ecosystems.md) for the ecosystem. It escalates from an in-range update, to a manifest bump, to an override, and says when to stop. Fix every lockfile deps.py listed, not only the root one. Container (`[Vanta] Assess`) issues follow [references/containers.md](references/containers.md) instead.
 
@@ -51,8 +52,10 @@ Process issues one at a time. Each issue ends in exactly one outcome: **PR opene
    - Push with `git push -u origin <branch>`, then open the PR:
 
      ```sh
-     gh api repos/<owner/repo>/pulls -f title='fix(deps): patch <package> to <version>' -f head=<branch> -f base=<default> -f body=@<scratch>/pr-body.md -F draft=<true|false>
+     gh api repos/<owner/repo>/pulls -f title='fix(deps): patch <package> to <version>' -f head=<branch> -f base=<default> -F body=@<scratch>/pr-body.md -F draft=<true|false>
      ```
+
+     `-F` reads a value starting with `@` from that file and sends `true`/`false` as booleans; `-f` sends its value verbatim. Keep `-f` for title, head, and base.
 
    - PR body: each advisory (id, link, severity), each lockfile's version before and after, and the verification run. Draft when the patch changed a direct dependency's major line (0.x minor counts as major), and say why in the body.
    - Linear:

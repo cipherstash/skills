@@ -28,6 +28,9 @@
 - A bump that cannot reach the target is reported blocked, with the dependent chain and the unblocking change commented on the issue, and the issue stays in Todo.
 - Commits read `fix(deps): patch <package> to <version>` with no Linear id; the PR is opened with `gh api` REST, with the body read from a file via `-F body=@<file>`, as a draft when a direct dependency crosses a major line.
 - After a PR opens, the issue gets the PR link attachment, an In Review state, and a before/after comment.
+- Assess issues go to `references/containers.md` straight after reading the issue, without needing a target version or running deps.py.
+- A resumed fix branch already pushed by an earlier run is never treated as "already fixed"; only a clean `origin/<default>` is, and a clean resumed branch goes on to open its PR.
+- Affected ranges whose "Fixed in" no longer matches the title's targets are dropped in favour of `--target` alone.
 - Container Assess issues are worked only by id or on request, cite sources for every fix or not-affected claim, and leave Vanta determinations to a human.
 - Dry-run mode pushes nothing, writes nothing to Linear, and reports each worktree path and diff stat.
 - The run never stops to ask a question.

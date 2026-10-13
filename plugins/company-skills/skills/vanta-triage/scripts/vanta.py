@@ -268,18 +268,24 @@ def place(g: dict) -> str:
 
 
 def group_key(f: dict) -> str:
+    """Keeps the package's spelling (Go module paths are case-sensitive); compare keys with same_key()."""
     if f["kind"] == "container":
-        return f"container:{f['repo'] or f['target']}:{f['package']}".lower()
-    return f"dependency:{f['repo']}:{f['ecosystem']}:{f['package']}".lower()
+        return f"container:{f['repo'] or f['target']}:{f['package']}"
+    return f"dependency:{f['repo']}:{f['ecosystem']}:{f['package']}"
+
+
+def same_key(a: str, b: str) -> bool:
+    return a.lower() == b.lower()
 
 
 def group_findings(findings: list[dict]) -> list[dict]:
     buckets: dict[str, list[dict]] = {}
     for f in findings:
-        buckets.setdefault(group_key(f), []).append(f)
+        buckets.setdefault(group_key(f).lower(), []).append(f)
     groups = []
-    for key, items in buckets.items():
+    for items in buckets.values():
         first = items[0]
+        key = group_key(first)
         severity = max((f["severity"] for f in items), key=lambda s: SEVERITY_RANK.get(s, 0))
         fixes = [f["fixed_version"] for f in items if f["fixed_version"]]
         unfixed = [f for f in items if not f["fixed_version"]]
@@ -289,9 +295,9 @@ def group_findings(findings: list[dict]) -> list[dict]:
             kind = "remediate"
         else:
             kind = "track-upstream"
-        advisories: dict[str, dict] = {}
-        for f in items:
-            a = advisories.setdefault(f["advisory"], {"id": f["advisory"], "url": f["advisory_url"], "cvss": f["cvss"],
+        advisories: dict[tuple, dict] = {}
+        for f in items:  # one row per advisory and affected range: an advisory can span several version lines
+            a = advisories.setdefault((f["advisory"], f["affected"]), {"id": f["advisory"], "url": f["advisory_url"], "cvss": f["cvss"],
                                                      "fixed_version": f["fixed_version"], "affected": f["affected"],
                                                      "summary": f["summary"], "findings": []})
             if f["url"] and f["url"] not in a["findings"]:
@@ -324,7 +330,8 @@ def render_title(g: dict) -> str:
         return f"[Vanta] Remediate {g['package']} to {' / '.join(g['targets'])} ({where(g)})"
     if g["kind"] == "track-upstream":
         return f"[Vanta] Track upstream fix for {g['package']} ({where(g)})"
-    ids = ", ".join(a["id"] for a in g["advisories"][:3]) + (" …" if len(g["advisories"]) > 3 else "")
+    unique = list(dict.fromkeys(a["id"] for a in g["advisories"]))
+    ids = ", ".join(unique[:3]) + (" …" if len(unique) > 3 else "")
     return f"[Vanta] Assess {g['package']} {ids} ({where(g)})"
 
 
@@ -393,9 +400,9 @@ def parse_issue(title: str, description: str) -> dict | None:
     if m:
         parts = m.group(1).split(":")
         if parts[0] == "container" and len(parts) >= 3:
-            return {"key": m.group(1).lower(), "package": parts[2], "where": {short(parts[1])}, "versions": parse_versions(title)}
+            return {"key": m.group(1), "package": parts[2], "where": {short(parts[1])}, "versions": parse_versions(title)}
         if parts[0] == "dependency" and len(parts) >= 4:
-            return {"key": m.group(1).lower(), "package": parts[3], "where": {short(parts[1])}, "versions": parse_versions(title)}
+            return {"key": m.group(1), "package": parts[3], "where": {short(parts[1])}, "versions": parse_versions(title)}
     for kind, rx in TITLE_RES:
         t = rx.match(title)
         if not t:
@@ -428,7 +435,7 @@ def covers(have: list[str], need: list[str]) -> bool:
 
 def matches(g: dict, parsed: dict) -> bool:
     if parsed["key"]:
-        return parsed["key"] == g["key"]
+        return same_key(parsed["key"], g["key"])
     if parsed["package"] != g["package"].lower():
         return False
     if g["kind"] == "assess-container":

@@ -302,6 +302,35 @@ class Regressions(unittest.TestCase):
         self.assertIn("a fix is now available", a["reason"])
 
 
+class SecondReview(unittest.TestCase):
+    def test_advisory_keeps_every_affected_range(self):
+        fs = [finding(id="1", packageIdentifier="npm-left-pad >= 1.0.0, < 1.2.3", fixedVersion="1.2.3"),
+              finding(id="2", packageIdentifier="npm-left-pad >= 2.0.0, < 2.0.5", fixedVersion="2.0.5",
+                      externalURL="https://github.com/acme/stack/security/dependabot/8")]
+        [g] = vanta.group_findings(fs)
+        self.assertIn(">= 1.0.0, < 1.2.3", g["description"])
+        self.assertIn(">= 2.0.0, < 2.0.5", g["description"])
+        self.assertEqual(g["targets"], ["2.0.5", "1.2.3"])
+        self.assertEqual(g["title"].count("CVE-2026-0001"), 0)  # remediate titles carry no advisory ids
+
+    def test_assess_title_lists_each_advisory_once(self):
+        fs = [finding(id=str(i), targetId="a-img", packageIdentifier=f"glibc:2.4{i}", fixedVersion="NotAvailable",
+                      externalURL="https://aws/x") for i in (1, 2)]
+        [g] = vanta.group_findings(fs)
+        self.assertEqual(g["title"].count("CVE-2026-0001"), 1)
+
+    def test_key_preserves_package_case(self):
+        f = finding(packageIdentifier="go-github.com/BurntSushi/toml < 1.4.0", fixedVersion="1.4.0")
+        [g] = vanta.group_findings([f])
+        self.assertEqual(g["key"], "dependency:acme/stack:go:github.com/BurntSushi/toml")
+
+    def test_lowercase_key_line_still_matches(self):
+        f = finding(packageIdentifier="go-github.com/BurntSushi/toml < 1.4.0", fixedVersion="1.4.0")
+        issue = {"id": "CIP-1", "title": "[Vanta] Remediate github.com/BurntSushi/toml to 1.4.0 (stack)", "status": "Todo",
+                 "description": "Vanta key: `dependency:acme/stack:go:github.com/burntsushi/toml`"}
+        self.assertEqual([(a["action"], a.get("issue")) for a in run_plan([f], [issue])["actions"]], [("keep", "CIP-1")])
+
+
 class Credentials(unittest.TestCase):
     def test_missing_credentials_exit(self):
         env = {k: v for k, v in os.environ.items() if not k.startswith("VANTA_")}

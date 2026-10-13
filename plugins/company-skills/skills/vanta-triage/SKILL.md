@@ -39,7 +39,11 @@ Work in a scratch directory. Resolve scripts from this skill's directory, not th
 
 5. **Apply** (skip in dry-run mode). Act on each action; one failed call is reported and the run continues.
    - **create** — `save_issue` with `team`, `project`, and `assignee` from the config, the group's `title`, `description`, and `priority`, `dueDate` set to the group's `sla`, and `state: "Todo"`.
-   - **retarget** — `save_issue` with the new `title`, then `save_comment` explaining the change (the `reason`) with the group's `description` below it. Leave the existing description; it may carry human notes. If the issue was **In Review**, move it to **Todo** and say in the comment that the linked PR does not reach the new version.
+   - **retarget** — `get_issue` for the current description, then `save_issue` with the new `title` and the group's vulnerability section swapped in. vanta-remediate reads its affected ranges from the description, so a stale table would let it pass a version the new target rejects.
+     - If the description has a `## Vulnerability` heading and a `Vanta key:` line, use `patch: [{op: "replace_range", from: "## Vulnerability", to: "Vanta key:", new_string: <the group's description, cut just before its own "Vanta key:" line>}]`. Text above the heading and after the key line is human notes and stays.
+     - Otherwise (an issue filed before this format), use `patch: [{op: "prepend", text: <the group's description> + "\n\n---\n\n"}]`, which keeps the old text below the rule.
+     - Then `save_comment` with the `reason`.
+     - If the issue was **In Review**, move it to **Todo** and say in the comment that the linked PR does not reach the new version.
    - **resolve** — `get_issue` with `attachments` first. Then `save_issue` with `state: "Done"` and a `save_comment` saying Vanta no longer reports an active finding for it as of today's run, naming any linked PR. Vanta is the evidence here, not the PR: a finding can clear through Dependabot or another change.
    - **duplicates** — `save_issue` with `duplicateOf` set to the kept issue, and a comment saying so.
    - **keep**, **await-rescan** — no write.

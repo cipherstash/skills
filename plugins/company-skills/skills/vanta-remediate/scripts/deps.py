@@ -14,7 +14,9 @@ and other generated directories) and reads every lockfile for the ecosystem:
             as unsupported)
   rust      Cargo.lock
   go        go.mod (require lines; "// indirect" marks a transitive dependency;
-            exclude, replace and retract lines are ignored)
+            a replace to another version of the same module is applied, and
+            a replace of the package to a fork or local path is unreadable;
+            exclude and retract lines are ignored)
   pip       poetry.lock, uv.lock, Pipfile.lock, requirements*.txt (== pins)
             (aliases: python, pypi)
   composer  composer.lock (alias: php)
@@ -24,7 +26,9 @@ dependency fields, overrides and resolutions; pnpm-workspace.yaml catalogs;
 Cargo.toml dependency tables; go.mod direct requires.
 
 A resolved version is vulnerable when it falls inside any --affected range
-(comparators joined by commas, e.g. ">= 1.0.0, < 1.2.2"). Without --affected,
+(comparators joined by commas, alternatives by ||, e.g. ">= 1.0.0, < 1.2.2";
+any other syntax is rejected). Versions order by semver, with PEP 440 rc,
+.post and .dev suffixes understood; a version it cannot order is an error. Without --affected,
 it is vulnerable when a --target exists on its major line (0.x counts minor
 as major) and it is lower, or when it is below every target line. With
 neither, versions are listed and nothing is judged.
@@ -65,18 +69,44 @@ MANIFESTS = {"npm": ("package.json", "pnpm-workspace.yaml"), "rust": ("Cargo.tom
 
 # ---------------------------------------------------------------- versions
 
+PY_SUFFIX = re.compile(
+    r"^(?:[-_.]?(?P<pre>a|alpha|b|beta|c|rc|pre|preview)[-_.]?(?P<pre_n>\d*))?"
+    r"(?:[-_.]?(?:post|rev|r)[-_.]?(?P<post>\d*))?"
+    r"(?:[-_.]?(?P<dev>dev)[-_.]?(?P<dev_n>\d*))?$", re.I)
+PY_PRE = {"a": "a", "alpha": "a", "b": "b", "beta": "b"}
+
+
 def version_key(version: str) -> tuple:
-    v = version.strip().lstrip("vV=")
-    v = v.split("+", 1)[0]
-    release, _, pre = v.partition("-")
-    parts = []
-    for piece in release.split("."):
-        m = re.match(r"\d+", piece)
-        parts.append(int(m.group()) if m else 0)
+    """Order semver (1.2.3-rc.1), Go pseudo-versions, and PEP 440 suffixes (rc1, .post1, .dev1).
+
+    Raises ValueError for a version it cannot order, rather than guessing."""
+    v = version.strip().lstrip("vV=").split("+", 1)[0]
+    m = re.match(r"(\d+(?:\.\d+)*)(.*)$", v)
+    if not m:
+        raise ValueError(f"unsupported version: {version!r}")
+    parts = [int(p) for p in m.group(1).split(".")]
+    while len(parts) > 3 and parts[-1] == 0:
+        parts.pop()
     while len(parts) < 3:
         parts.append(0)
-    pre_key = (1,) if not pre else (0, tuple((0, int(p)) if p.isdigit() else (1, p) for p in pre.split(".")))
-    return (tuple(parts), pre_key)
+    rest = m.group(2)
+    py = PY_SUFFIX.match(rest) if rest else None
+    if not rest:
+        pre_key, post_key, dev_key = (1,), (-1,), (1,)
+    elif py and (py["pre"] or py["post"] is not None or py["dev"]):
+        if py["pre"]:
+            label = PY_PRE.get(py["pre"].lower(), "rc")
+            pre_key = (0, ((1, label), (0, int(py["pre_n"] or 0))))
+        else:
+            pre_key = (-1,) if py["dev"] and py["post"] is None else (1,)
+        post_key = (int(py["post"] or 0),) if py["post"] is not None else (-1,)
+        dev_key = (0, int(py["dev_n"] or 0)) if py["dev"] else (1,)
+    elif rest.startswith("-") and len(rest) > 1:
+        pre_key = (0, tuple((0, int(x)) if x.isdigit() else (1, x) for x in rest[1:].split(".")))
+        post_key, dev_key = (-1,), (1,)
+    else:
+        raise ValueError(f"unsupported version: {version!r}")
+    return (tuple(parts), pre_key, post_key, dev_key)
 
 
 def major_line(version: str) -> str:
@@ -90,13 +120,27 @@ OPS = {
 }
 
 
+COMPARATOR = re.compile(r"\s*(<=|>=|==|=|<|>)?\s*v?([0-9][^\s,|]*)\s*")
+
+
+def parse_range(rng: str) -> list[list[tuple[str, str]]]:
+    """'>= 1.0.0, < 1.2.2 || >= 2.0.0, < 2.0.5' -> alternatives of comparators. Rejects anything else."""
+    alternatives = []
+    for alt in rng.split("||"):
+        comparators = []
+        for part in alt.split(","):
+            m = COMPARATOR.fullmatch(part)
+            if not m:
+                raise ValueError(f"unparseable range: {rng!r}")
+            comparators.append((m.group(1) or "=", m.group(2)))
+        alternatives.append(comparators)
+    return alternatives
+
+
 def in_range(version: str, rng: str) -> bool:
-    """True when version satisfies every comparator in rng, e.g. '>= 1.0.0, < 1.2.2'."""
-    comparators = re.findall(r"(<=|>=|==|=|<|>)\s*v?([0-9][^\s,]*)", rng)
-    if not comparators:
-        raise ValueError(f"unparseable range: {rng!r}")
+    """True when version satisfies every comparator of any alternative in rng, e.g. '>= 1.0.0, < 1.2.2'."""
     vk = version_key(version)
-    return all(OPS[op](vk, version_key(bound)) for op, bound in comparators)
+    return any(all(OPS[op](vk, version_key(bound)) for op, bound in alt) for alt in parse_range(rng))
 
 
 def judge(version: str, targets: list[str], affected: list[str]) -> str | None:
@@ -140,13 +184,18 @@ def read_package_lock(text: str) -> list[tuple[str, str]]:
     out = []
     for path, meta in (data.get("packages") or {}).items():
         if "node_modules/" in path and isinstance(meta, dict) and meta.get("version") and not meta.get("link"):
-            out.append((path.rsplit("node_modules/", 1)[1], meta["version"]))
+            # An alias installs under its alias path; "name" holds the real package.
+            out.append((meta.get("name") or path.rsplit("node_modules/", 1)[1], meta["version"]))
 
     def walk(deps):
         for name, meta in (deps or {}).items():
             if isinstance(meta, dict):
-                if meta.get("version") and not str(meta["version"]).startswith(("file:", "link:")):
-                    out.append((name, meta["version"]))
+                version = str(meta.get("version") or "")
+                alias = re.match(r"npm:((?:@[^/@]+/)?[^@]+)@(.+)$", version)
+                if alias:
+                    out.append((alias.group(1), alias.group(2)))
+                elif version and not version.startswith(("file:", "link:")):
+                    out.append((name, version))
                 walk(meta.get("dependencies"))
     if not data.get("packages"):
         walk(data.get("dependencies"))
@@ -216,8 +265,44 @@ def go_requires(text: str) -> list[tuple[str, str, str]]:
     return out
 
 
+GO_REPLACE = re.compile(r"^(\S+)(?:\s+(v\S+))?\s*=>\s*(\S+)(?:\s+(v\S+))?\s*(?://.*)?$")
+
+
+def go_replaces(text: str) -> list[tuple[str, str | None, str, str | None]]:
+    """(module, version or None, destination, destination version or None) for each replace directive."""
+    out, block = [], False
+    for line in text.splitlines():
+        s = line.strip()
+        if block:
+            if s.startswith(")"):
+                block = False
+            elif m := GO_REPLACE.match(s):
+                out.append(m.groups())
+            continue
+        if re.match(r"^replace\s*\(\s*$", s):
+            block = True
+        elif s.startswith("replace ") and (m := GO_REPLACE.match(s[len("replace "):].strip())):
+            out.append(m.groups())
+    return out
+
+
 def read_go_mod(text: str) -> list[tuple[str, str]]:
-    return [(mod, ver) for mod, ver, _ in go_requires(text)]
+    """Resolved module versions: each require, with any replace pointing at the same module applied.
+
+    A replace that points at a different module or a local path cannot be judged here: its version is
+    reported as "=> <destination>", which scan() lists as unreadable when it is the package asked about."""
+    replaces = go_replaces(text)
+    out = []
+    for mod, ver, _ in go_requires(text):
+        rule = next((r for r in replaces if r[0] == mod and r[1] == ver), None) \
+            or next((r for r in replaces if r[0] == mod and r[1] is None), None)
+        if rule is None:
+            out.append((mod, ver))
+        elif rule[2] == mod and rule[3]:
+            out.append((mod, rule[3]))
+        else:
+            out.append((mod, f"=> {rule[2]} {rule[3] or ''}".strip()))
+    return out
 
 
 def read_pipfile_lock(text: str) -> list[tuple[str, str]]:
@@ -318,7 +403,11 @@ def scan(root: Path, eco: str, package: str, targets: list[str], affected: list[
                 unsupported.append({"path": rel, "reason": f"unreadable: {type(exc).__name__}: {exc}"})
                 unreadable = True
                 continue
-            versions = sorted({v for n, v in entries if norm(n, eco) == want}, key=version_key)
+            found = {v for n, v in entries if norm(n, eco) == want}
+            for v in sorted(v for v in found if v.startswith("=>")):
+                unsupported.append({"path": rel, "reason": f"{package} is replaced {v}; check by hand"})
+                unreadable = True
+            versions = sorted((v for v in found if not v.startswith("=>")), key=version_key)
             if versions:
                 bad = []
                 for v in versions:

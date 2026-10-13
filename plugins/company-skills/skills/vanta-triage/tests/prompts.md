@@ -23,12 +23,13 @@
 - Each `create` uses the plan's title, description, priority, and the SLA as due date, with the configured team, project, and assignee, in Todo.
 - Multiple Dependabot alerts for one package in one repo become one issue; fix versions on different major lines appear joined with ` / `.
 - A package with no fixed version gets a `Track upstream fix` issue; one that later gains a fix is retargeted to `Remediate … to …`, not duplicated.
-- A retarget updates the title and adds a comment without overwriting the description; an In Review issue being retargeted moves to Todo with the PR's shortfall noted.
+- A retarget updates the title and replaces only the generated vulnerability section of the description (from `## Vulnerability` to the `Vanta key:` line), keeping human notes, and adds a comment; an In Review issue being retargeted moves to Todo with the PR's shortfall noted.
 - A `resolve` closes the issue as Done with a comment citing Vanta's absence of the finding; the mass-resolve guard blocks all resolves when the fetch looks partial.
 - A finding matching an issue closed in the last 7 days with a covering version is reported as awaiting rescan, not refiled.
 - Container findings group per image and package, link any legacy umbrella issue for the image, and name images missing from the config map.
 - Each open issue serves at most one group; when a title fits several groups (npm and Rust `tar` in one repo), the issue's `Vanta key:` line is fetched to settle it rather than retargeting the issue back and forth.
 - Issues in custom open states (for example "Blocked") count as open; canceled issues are ignored.
+- An advisory that spans several version lines appears once per affected range in the description table; package names keep their spelling in the `Vanta key:` line.
 - Unparsed `[Vanta]` issues (AWS configuration findings, legacy umbrellas) are listed and never edited or closed.
 - Dry-run mode performs no Linear writes and says so.
 - The run never stops to ask a question.

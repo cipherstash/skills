@@ -146,6 +146,39 @@ class Ranges(unittest.TestCase):
         self.assertEqual(deps.judge("0.23.36", ["0.23.45"], []), "0.23.45")
         self.assertEqual(deps.judge("0.21.12", ["0.23.45"], []), "0.23.45")  # below every target line: conservative
 
+    def test_python_versions(self):
+        k = deps.version_key
+        self.assertLess(k("1.2.3rc1"), k("1.2.3"))
+        self.assertLess(k("1.2.3.dev1"), k("1.2.3a1"))
+        self.assertLess(k("1.2.3a1"), k("1.2.3b1"))
+        self.assertLess(k("1.2.3b1"), k("1.2.3rc1"))
+        self.assertLess(k("1.2.3"), k("1.2.3.post1"))
+        self.assertLess(k("1.2.3.post1"), k("1.2.3.post2"))
+        self.assertLess(k("1.2.3.post1.dev1"), k("1.2.3.post1"))
+        self.assertEqual(k("1.2.3"), k("1.2.3.0"))
+        self.assertEqual(deps.judge("1.2.3rc1", ["1.2.3"], []), "1.2.3")
+        self.assertEqual(deps.judge("1.2.3.post1", ["1.2.3.post2"], []), "1.2.3.post2")
+
+    def test_semver_prereleases_still_order(self):
+        k = deps.version_key
+        self.assertLess(k("1.0.0-alpha"), k("1.0.0-alpha.1"))
+        self.assertLess(k("1.0.0-alpha.1"), k("1.0.0-beta"))
+        self.assertLess(k("1.0.0-rc.1"), k("1.0.0"))
+        self.assertLess(k("v0.0.0-20230101000000-abcdef123456"), k("v0.1.0"))
+        with self.assertRaises(ValueError):
+            k("latest")
+
+    def test_range_alternatives(self):
+        rng = "< 1.2.3 || >= 2.0.0, < 2.0.5"
+        self.assertTrue(deps.in_range("1.0.0", rng))
+        self.assertTrue(deps.in_range("2.0.1", rng))
+        self.assertFalse(deps.in_range("1.5.0", rng))
+
+    def test_range_rejects_partial_syntax(self):
+        for rng in (">= 1.0.0 && < 2.0.0", ">= 1.0.0, ~2.0", ">= 1.0.0,", "< 1.2.3 | >= 2.0.0"):
+            with self.subTest(rng=rng), self.assertRaises(ValueError):
+                deps.in_range("1.0.0", rng)
+
     def test_judge_by_range(self):
         self.assertIsNone(deps.judge("0.21.12", ["0.23.45"], [">= 0.23.13, < 0.23.45"]))
         self.assertEqual(deps.judge("0.23.36", ["0.23.45"], [">= 0.23.13, < 0.23.45"]), "0.23.45")
@@ -293,6 +326,52 @@ class Scan(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertEqual(r["manifests"], [])
         self.assertIn("package.json", [u["path"] for u in r["unsupported"]])
+
+    def test_go_replace_to_older_version_is_used(self):
+        go_mod = ("module example.com/app\n\nrequire golang.org/x/net v0.20.0\n\n"
+                  "replace golang.org/x/net => golang.org/x/net v0.10.0\n")
+        code, r = run(make_repo({"go.mod": go_mod}), "--ecosystem", "go", "--package", "golang.org/x/net", "--target", "v0.20.0")
+        self.assertEqual(r["lockfiles"][0]["versions"], ["v0.10.0"])
+        self.assertEqual(code, 1)
+
+    def test_go_replace_version_specific_and_block(self):
+        go_mod = ("module example.com/app\n\nrequire golang.org/x/net v0.20.0\n\n"
+                  "replace (\n\tgolang.org/x/net v0.19.0 => golang.org/x/net v0.1.0\n"
+                  "\tgolang.org/x/net v0.20.0 => golang.org/x/net v0.21.0\n)\n")
+        code, r = run(make_repo({"go.mod": go_mod}), "--ecosystem", "go", "--package", "golang.org/x/net", "--target", "v0.20.0")
+        self.assertEqual((code, r["lockfiles"][0]["versions"]), (0, ["v0.21.0"]))
+
+    def test_go_replace_to_fork_or_path_is_unreadable(self):
+        for dest in ("../net", "github.com/fork/net v0.20.0"):
+            with self.subTest(dest=dest):
+                go_mod = f"module example.com/app\n\nrequire golang.org/x/net v0.20.0\n\nreplace golang.org/x/net => {dest}\n"
+                root = make_repo({"go.mod": go_mod})
+                with contextlib.redirect_stderr(io.StringIO()):
+                    code, r = run(root, "--ecosystem", "go", "--package", "golang.org/x/net", "--target", "v0.20.0")
+                self.assertEqual(code, 2)
+                self.assertIn("go.mod", [u["path"] for u in r["unsupported"]])
+
+    def test_go_replace_of_other_module_does_not_block(self):
+        go_mod = ("module example.com/app\n\nrequire (\n\tgolang.org/x/net v0.20.0\n\tgolang.org/x/text v0.3.0\n)\n\n"
+                  "replace golang.org/x/text => ../text\n")
+        code, r = run(make_repo({"go.mod": go_mod}), "--ecosystem", "go", "--package", "golang.org/x/net", "--target", "v0.20.0")
+        self.assertEqual((code, r["unsupported"]), (0, []))
+
+    def test_npm_alias_uses_real_package_name(self):
+        lock = {"lockfileVersion": 3, "packages": {"": {}, "node_modules/demo-alias": {"name": "demo", "version": "1.0.0"}}}
+        code, r = run(make_repo({"package-lock.json": lock}), "--ecosystem", "npm", "--package", "demo", "--target", "1.0.1")
+        self.assertEqual((code, r["lockfiles"][0]["versions"]), (1, ["1.0.0"]))
+
+    def test_npm_v1_alias_uses_real_package_name(self):
+        lock = {"lockfileVersion": 1, "dependencies": {"demo-alias": {"version": "npm:demo@1.0.0"}}}
+        code, r = run(make_repo({"package-lock.json": lock}), "--ecosystem", "npm", "--package", "demo", "--target", "1.0.1")
+        self.assertEqual((code, r["lockfiles"][0]["versions"]), (1, ["1.0.0"]))
+
+    def test_unparseable_version_is_an_error(self):
+        root = make_repo({"requirements.txt": "demo==1.2.3~weird\n"})
+        with contextlib.redirect_stderr(io.StringIO()):
+            code, _ = run(root, "--ecosystem", "pip", "--package", "demo", "--target", "1.2.3")
+        self.assertEqual(code, 2)
 
     def test_bad_usage(self):
         root = make_repo({})

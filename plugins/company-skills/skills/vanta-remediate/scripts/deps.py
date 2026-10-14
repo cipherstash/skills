@@ -6,24 +6,43 @@ Usage:
 
 Standard library only. Python 3.9+.
 
-Walks the repository (skipping .git, node_modules, target, vendor, dist, build
-and other generated directories) and reads every lockfile for the ecosystem:
+Lists the repository's files and reads every lockfile for the ecosystem. In a git work tree it reads every
+tracked or untracked, non-ignored file wherever it lives (git ls-files -co --exclude-standard; submodules and
+nested repositories are walked); otherwise it walks the tree, skipping .git, node_modules, target, vendor,
+dist, build, hidden and other generated directories. node_modules, .git and package-manager stores (.pnpm-store,
+.yarn, .cargo, .venv, venv) are skipped in both modes. The report's "discovery" field says which mode ran.
 
   npm       package-lock.json, npm-shrinkwrap.json, pnpm-lock.yaml, yarn.lock
-            (classic and berry; npm: aliases resolve to the real package), bun.lock (text; binary bun.lockb is reported
-            as unsupported)
+            (classic and berry; npm: aliases resolve to the real package), bun.lock (text), deno.lock (its npm
+            packages). A binary bun.lockb cannot be read, so it makes the scan exit 2.
   rust      Cargo.lock
   go        go.mod (require lines; "// indirect" marks a transitive dependency;
             a replace to another version of the same module is applied, and
             a replace of the package to a fork or local path is unreadable;
-            exclude and retract lines are ignored)
-  pip       poetry.lock, uv.lock, Pipfile.lock, requirements*.txt (== pins)
+            exclude and retract lines are ignored). go.work: its replace
+            directives override the go.mod of every module it uses, and a used
+            module outside the repository is unreadable.
+  pip       poetry.lock, uv.lock, pdm.lock, Pipfile.lock, pylock.toml and pylock.<name>.toml,
+            and requirements files: requirements*.txt, requirements*.lock (rye), constraints*.txt and any .txt in
+            a requirements*/ directory (== pins). -r/--requirement and -c/--constraint includes are followed
+            relative to the including file (cycles stop); an include that is missing, a URL or outside the
+            repository is unreadable. A requirements file with requirements is a complete lock only when every
+            requirement is == pinned and it shows it was compiled (a pip-compile or uv header, # via
+            annotations, or --hash on every requirement); otherwise it lists only top-level packages, so a
+            package it does not list exits 2. A constraints file never adds packages and is exempt.
             (aliases: python, pypi)
   composer  composer.lock (alias: php)
 
 It also lists manifests that name the package directly: package.json
 dependency fields, overrides and resolutions; pnpm-workspace.yaml catalogs;
-Cargo.toml dependency tables; go.mod direct requires.
+Cargo.toml dependency tables; go.mod direct requires; pyproject.toml
+([project] dependencies and optional-dependencies, [dependency-groups], uv, pdm
+and poetry dependency tables); Pipfile package sections; composer.json require
+and require-dev. A manifest that names the package with no lockfile for the
+ecosystem in its directory or any ancestor up to the repository root makes the
+scan exit 2: nothing read resolves it. Known residual: a manifest without a
+lockfile that does not name the package may still resolve it transitively;
+that is not detected.
 
 A resolved version is vulnerable when it falls inside any --affected range
 (comparators joined by commas, alternatives by ||, e.g. ">= 1.0.0, < 1.2.2";
@@ -36,16 +55,19 @@ neither, versions are listed and nothing is judged.
 Prints JSON: package, ecosystem, lockfiles [{path, versions, vulnerable}],
 manifests [{path, field, spec}], vulnerable [{path, version, needs}],
 unsupported [{path, reason}] (what could not be read or judged, and why),
-ok, unreadable.
+ok, unreadable, discovery ("git" or "walk").
 
 Exit codes:
-  0  every lockfile was read in full and no resolved version of the package
-     is vulnerable (including when the package is absent). Only this proves
-     the package is safe.
+  0  every file that determines the package's resolved versions was found and
+     read in full (lockfiles, followed includes, go.work) and no resolved
+     version of the package is vulnerable (including when the package is
+     absent). Only this proves the package is safe.
   1  a resolved version is vulnerable (even if something was also unreadable).
   2  bad usage or an unreadable repository, or the scan cannot prove safety:
-     a lockfile could not be read, or the package is locked without a version
-     this script can judge (listed in unsupported; ok is false, unreadable true).
+     a lockfile or include could not be read, the package is locked without a
+     version this script can judge, a file may resolve it without listing it,
+     or a manifest names it with no lockfile (listed in unsupported; ok is
+     false, unreadable true).
 
 Reader contract: every entry a reader sees yields its real package name and
 version, or the lockfile is unreadable. A file is unreadable when its text is
@@ -55,7 +77,8 @@ not valid for the ecosystem, or lacks a version where the format always
 records one. Such an entry is never dropped, so it never reads as absence.
 An entry with a known name whose format records no version (a bun github: or
 tarball dependency, a Pipfile.lock git/file/path entry, a v1 package-lock git
-version, an unpinned, URL or editable-VCS requirements line) does not block
+version, an unpinned, URL or editable-VCS requirements line, a pylock vcs,
+directory or archive package) does not block
 other packages: it makes the scan exit 2 only when it is the package asked
 about. A go.mod before go 1.17 (or with no go directive) lists only direct
 requirements, so a package it does not list exits 2.
@@ -71,7 +94,8 @@ repository's own source, not a third-party install):
   bun.lock       workspace:, file: and link: refs
   uv.lock        source = { virtual } or { editable } members
   Pipfile.lock   editable path entries
-  requirements   options (-r, -c, --index-url, ...) and local paths, '-e .'
+  requirements   options (--index-url, ...; -r and -c are followed) and local paths, '-e .'
+  pylock.toml    editable directory packages
 An unreadable manifest is listed in unsupported and does not change the exit.
 """
 
@@ -81,6 +105,7 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 import urllib.parse
 from pathlib import Path
@@ -91,18 +116,23 @@ except ImportError:  # pragma: no cover - exercised by patching deps.tomllib in 
     tomllib = None
 
 SKIP_DIRS = {".git", "node_modules", "target", "vendor", "dist", "build", ".next", ".turbo", ".pnpm-store",
-             ".venv", "venv", "__pycache__", ".cargo", ".yarn"}
+             ".venv", "venv", "__pycache__", ".cargo", ".yarn"}  # walk fallback only (no git work tree)
+# Installed packages and package-manager stores: never the repository's own dependency files, in either discovery mode.
+ALWAYS_SKIP = {".git", "node_modules", ".pnpm-store", ".yarn", ".cargo", ".venv", "venv", "__pycache__"}
 ALIASES = {"python": "pip", "pypi": "pip", "php": "composer", "cargo": "rust", "crates": "rust",
            "golang": "go", "node": "npm", "pnpm": "npm", "yarn": "npm"}
 LOCKFILES = {
-    "npm": ("package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock"),
+    "npm": ("package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock", "deno.lock"),
     "rust": ("Cargo.lock",),
     "go": ("go.mod",),
-    "pip": ("poetry.lock", "uv.lock", "Pipfile.lock"),
+    "pip": ("poetry.lock", "uv.lock", "Pipfile.lock", "pdm.lock"),
     "composer": ("composer.lock",),
 }
 UNSUPPORTED = {"npm": ("bun.lockb",)}
-MANIFESTS = {"npm": ("package.json", "pnpm-workspace.yaml"), "rust": ("Cargo.toml",), "go": ("go.mod",)}
+MANIFESTS = {"npm": ("package.json", "pnpm-workspace.yaml"), "rust": ("Cargo.toml",), "go": ("go.mod",),
+             "pip": ("pyproject.toml", "Pipfile"), "composer": ("composer.json",)}
+PYLOCK_NAME = re.compile(r"pylock(?:\.[^.]+)?\.toml")  # PEP 751: pylock.toml or pylock.<name>.toml
+REQ_NAME = re.compile(r"(?:requirements[^/]*\.(?:txt|lock)|constraints[^/]*\.txt)", re.I)
 
 
 # ---------------------------------------------------------------- versions
@@ -209,6 +239,7 @@ def judge(version: str, targets: list[str], affected: list[str]) -> str | None:
 # names outside the ecosystem's grammar and non-string or empty versions, so a garbled entry is never dropped.
 
 INCOMPLETE = "<incomplete>"  # entry name: the file may resolve packages it does not list (old go.mod)
+INCLUDE = "<include>"  # entry name: (INCLUDE, "r" or "c", path or URL) for a requirements -r/-c include
 
 NAME_RE = {
     "npm": re.compile(r"(?:@[a-z0-9~][\w.~-]*/)?[a-z0-9~][\w.~-]*", re.I),
@@ -231,6 +262,9 @@ def check_entries(entries, eco: str) -> list[tuple[str, str | None, str | None]]
         name, version, detail = (tuple(entry) + (None,))[:3]
         if name == INCOMPLETE:
             out.append((name, None, detail))
+            continue
+        if name == INCLUDE:
+            out.append((name, version, detail))
             continue
         if not isinstance(name, str) or not NAME_RE[eco].fullmatch(name):
             raise ValueError(f"unrecognized package name {name!r}")
@@ -557,40 +591,139 @@ def read_pipfile_lock(text: str) -> list[tuple]:
 
 REQ_LINE = re.compile(r"^([A-Za-z0-9][\w.-]*)\s*(?:\[[^\]]*\])?\s*(.*)$")
 REQ_SPECIFIERS = re.compile(r"(?:(?:~=|==|!=|<=|>=|<|>)\s*[\w.*+!-]+\s*,?\s*)+")
+REQ_INCLUDE = re.compile(r"^(?:-([rc])\s*|--(requirement|constraint)(?:\s*=\s*|\s+))(\S.*?)\s*$")
+REQ_COMPILED = re.compile(r"^#.*\b(?:pip-compile|uv pip compile|autogenerated by uv|uv export|generated by rye)\b"
+                          r"|#\s*via\b", re.M | re.I)
+REQ_INCOMPLETE = ("not a complete lock: a requirements file counts as one only when every requirement is == pinned and it"
+                  " was compiled (a pip-compile or uv header, # via annotations, or --hash on every requirement)")
 
 
-def read_requirements(text: str) -> list[tuple]:
-    """requirements*.txt: 'name==version' pins; any other requirement of a named package yields (name, None).
+def read_requirements(text: str, constraints: bool = False) -> list[tuple]:
+    """requirements files: 'name==version' pins; any other requirement of a named package yields (name, None).
 
-    Skipped: options (-r, -c, --index-url, --hash, …) and local paths, including '-e .' (first-party source).
+    -r/--requirement and -c/--constraint includes yield (INCLUDE, "r" or "c", target) for scan() to follow.
+    Skipped: other options (--index-url, --hash, …) and local paths, including '-e .' (first-party source).
+    A file with requirements that is not compiled (see REQ_INCOMPLETE) lists only top-level packages, so it also
+    yields an INCOMPLETE marker; a constraints file never adds packages, so it does not.
     A line that is none of these raises ValueError."""
     out = []
+    named = pinned = hashed = local = 0
     for raw in re.sub(r"\\\r?\n", " ", text).splitlines():
         line = re.sub(r"(?:^|\s)#.*$", "", raw).strip()
         if not line:
+            continue
+        inc = REQ_INCLUDE.match(line)
+        if inc:
+            out.append((INCLUDE, "r" if (inc.group(1) or inc.group(2)[0]) == "r" else "c", inc.group(3)))
             continue
         if re.match(r"^(?:-e|--editable)(?:\s+|=)", line):
             target = re.split(r"(?:\s+|=)", line, maxsplit=1)[1].strip()
             egg = re.search(r"#(?:.*&)?egg=([A-Za-z0-9][\w.-]*)", target)
             if egg:
+                named += 1
                 out.append((egg.group(1), None, target))
             elif not re.match(r"^(?:\.|/|~|file:)", target):
                 raise ValueError(f"unrecognized requirement line: {raw!r}")
+            else:
+                local += 1
             continue
-        if line.startswith("-") or re.match(r"^(?:\.|/|~|file:)", line):
+        if line.startswith("-"):
+            continue
+        if re.match(r"^(?:\.|/|~|file:)", line):
+            local += 1
             continue
         m = REQ_LINE.match(line)
         if not m:
             raise ValueError(f"unrecognized requirement line: {raw!r}")
+        named += 1
+        hashed += "--hash" in line
         name, rest = m.group(1), m.group(2).split(";", 1)[0]
         rest = re.split(r"\s--?[a-z]", " " + rest, maxsplit=1)[0].strip()  # drop per-line options (--hash=…)
         pin = re.fullmatch(r"===?\s*([^\s,]+)", rest)
         if pin:
+            pinned += 1
             out.append((name, pin.group(1)))
         elif not rest or rest.startswith("@") or REQ_SPECIFIERS.fullmatch(rest):
             out.append((name, None, rest or "unpinned"))
         else:
             raise ValueError(f"unrecognized requirement line: {raw!r}")
+    compiled = bool(REQ_COMPILED.search(text)) or (named > 0 and hashed == named)
+    if not constraints and (named or local) and (pinned < named or not compiled):
+        out.append((INCOMPLETE, None, REQ_INCOMPLETE))
+    return out
+
+
+def read_pylock(text: str) -> list[tuple]:
+    """pylock.toml / pylock.<name>.toml (PEP 751): [[packages]] tables with name and version.
+
+    A package without a version must come from a vcs, directory or archive source; it yields (name, None), except an
+    editable directory, which is the project's own source and is skipped. Any other package without a version is
+    unreadable."""
+    if tomllib is not None:
+        data = tomllib.loads(text)
+        if "lock-version" not in data:
+            raise ValueError("unrecognized pylock.toml: no lock-version")
+        packages = data.get("packages", [])
+        if not isinstance(packages, list):
+            raise ValueError("unrecognized pylock.toml: packages is not an array of tables")
+        blocks = []
+        for pkg in packages:
+            if not isinstance(pkg, dict) or not isinstance(pkg.get("name"), str):
+                raise ValueError(f"unrecognized pylock.toml: package entry without a name: {pkg!r}")
+            directory = pkg.get("directory")
+            blocks.append((pkg["name"], pkg.get("version"), next((k for k in ("vcs", "directory", "archive") if k in pkg), None),
+                           isinstance(directory, dict) and directory.get("editable") is True))
+    else:
+        if not re.search(r"^lock-version\s*=", text, re.M):
+            raise ValueError("unrecognized pylock.toml: no lock-version")
+        blocks = []
+        for block in re.split(r"^\[\[packages\]\]\s*$", text, flags=re.M)[1:]:
+            head, _, tables = block.partition("\n[")
+            tables = "[" + tables
+            name = re.search(r'^name\s*=\s*"([^"]+)"', head, re.M)
+            ver = re.search(r'^version\s*=\s*"([^"]+)"', head, re.M)
+            if not name:
+                raise ValueError("unrecognized pylock.toml: package entry without a name")
+            source = next((k for k in ("vcs", "directory", "archive")
+                           if re.search(rf"^{k}\s*=", head, re.M) or re.search(rf"^\[packages\.{k}\]", tables, re.M)), None)
+            editable = source == "directory" and bool(re.search(r"\beditable\s*=\s*true\b", block))
+            blocks.append((name.group(1), ver.group(1) if ver else None, source, editable))
+    out = []
+    for name, version, source, editable in blocks:
+        if version is not None:
+            out.append((name, version))
+        elif editable:
+            continue
+        elif source:
+            out.append((name, None, f"{source} source"))
+        else:
+            raise ValueError(f"unrecognized pylock.toml: package {name!r} has no version")
+    return out
+
+
+def read_deno_lock(text: str) -> list[tuple]:
+    """deno.lock v2-v5: its npm packages, keyed 'name@version' (peer suffixes after '_' dropped). jsr: and remote
+    modules are other registries and are not read. A lock with no npm section has no npm packages."""
+    data = json.loads(text)
+    if not isinstance(data, dict) or not isinstance(data.get("version"), str):
+        raise ValueError("unrecognized deno.lock: no version")
+    major = data["version"].split(".", 1)[0]
+    if major in ("4", "5"):
+        npm = data.get("npm")
+    elif major == "3":
+        npm = (data.get("packages") or {}).get("npm")
+    elif major == "2":
+        npm = (data.get("npm") or {}).get("packages")
+    else:
+        raise ValueError(f"unrecognized deno.lock version {data['version']!r}")
+    if not isinstance(npm or {}, dict):
+        raise ValueError("unrecognized deno.lock: npm is not an object")
+    out = []
+    for key, meta in (npm or {}).items():
+        name, ref = split_spec(key)
+        if not is_semver_ref(ref) or not isinstance(meta, dict):
+            raise ValueError(f"unrecognized deno.lock: npm entry {key!r} has no version")
+        out.append((name, re.match(r"[^_(\s]+", ref).group(0)))
     return out
 
 
@@ -614,11 +747,104 @@ READERS = {
     "package-lock.json": read_package_lock, "npm-shrinkwrap.json": read_package_lock,
     "pnpm-lock.yaml": read_pnpm_lock, "yarn.lock": read_yarn_lock, "bun.lock": read_bun_lock, "Cargo.lock": read_toml_packages,
     "poetry.lock": read_toml_packages, "uv.lock": read_toml_packages, "Pipfile.lock": read_pipfile_lock,
-    "go.mod": read_go_mod, "composer.lock": read_composer_lock,
+    "go.mod": read_go_mod, "composer.lock": read_composer_lock, "pdm.lock": read_toml_packages, "deno.lock": read_deno_lock,
 }
 
 
 # ---------------------------------------------------------------- manifests
+
+TOML_STRING = re.compile(r'"((?:[^"\\]|\\.)*)"|\'([^\']*)\'')
+
+
+def toml_tables(text: str) -> dict:
+    """{table path tuple: {key: value}} of a TOML document. With tomllib every nested table is listed; without it,
+    a line-based reading that keeps string and array-of-string values (enough for dependency tables)."""
+    if tomllib is not None:
+        out = {}
+
+        def flat(d, path):
+            out[path] = d
+            for k, v in d.items():
+                if isinstance(v, dict):
+                    flat(v, path + (k,))
+        flat(tomllib.loads(text), ())
+        return out
+    out, table, pending = {(): {}}, (), None
+    for line in text.splitlines():
+        if pending is not None:
+            key, buf = pending
+            buf += "\n" + line
+        else:
+            stripped = line.strip()
+            header = re.match(r"^\[([^\[\]]+)\]\s*(?:#.*)?$", stripped)
+            if header:
+                table = tuple(p.strip().strip("'\"") for p in header.group(1).split("."))
+                out.setdefault(table, {})
+                continue
+            if stripped.startswith("[["):
+                table = None
+                continue
+            kv = re.match(r"""^(['"]?[\w.-]+['"]?)\s*=\s*(.*)$""", stripped)
+            if not kv or table is None:
+                continue
+            key, buf = kv.group(1).strip("'\""), kv.group(2)
+        if buf.startswith("["):
+            depth, quote = 0, None
+            for ch in buf:
+                if quote:
+                    quote = None if ch == quote else quote
+                elif ch in "'\"":
+                    quote = ch
+                elif ch in "[{":
+                    depth += 1
+                elif ch in "]}":
+                    depth -= 1
+            if depth > 0:
+                pending = (key, buf)
+                continue
+            value = [a or b for a, b in TOML_STRING.findall(buf)]
+        else:
+            m = TOML_STRING.match(buf)
+            value = (m.group(1) or m.group(2)) if m else buf
+        pending = None
+        out[table][key] = value
+    return out
+
+
+def pep508_name(spec) -> str | None:
+    m = re.match(r"\s*([A-Za-z0-9][A-Za-z0-9._-]*)", spec) if isinstance(spec, str) else None
+    return m.group(1) if m else None
+
+
+def python_manifest_deps(fname: str, text: str) -> list[tuple[str, str, str]]:
+    """(field, name, spec) for each dependency a pyproject.toml or Pipfile names."""
+    tables, out = toml_tables(text), []
+
+    def strings(field, values):
+        for v in values if isinstance(values, list) else []:
+            if pep508_name(v):
+                out.append((field, pep508_name(v), v))
+
+    def keys(field, table):
+        for k, v in (table or {}).items():
+            out.append((field, k, v if isinstance(v, str) else json.dumps(v, sort_keys=True)))
+
+    if fname == "Pipfile":
+        for path, table in tables.items():
+            if len(path) == 1 and path[0] not in ("source", "requires", "pipenv", "scripts"):
+                keys(path[0], table)
+        return out
+    strings("project.dependencies", tables.get(("project",), {}).get("dependencies"))
+    strings("tool.uv.dev-dependencies", tables.get(("tool", "uv"), {}).get("dev-dependencies"))
+    for path, table in tables.items():
+        if path in (("project", "optional-dependencies"), ("dependency-groups",), ("tool", "pdm", "dev-dependencies")):
+            for group, values in table.items():
+                strings(".".join(path + (group,)), values)
+        elif path[:2] == ("tool", "poetry") and path[-1] in ("dependencies", "dev-dependencies") and \
+                (len(path) == 3 or (len(path) == 5 and path[2] == "group")):
+            keys(".".join(path), {k: v for k, v in table.items() if k != "python"})
+    return out
+
 
 def manifest_refs(path: Path, eco: str, package: str) -> list[dict]:
     text = path.read_text(encoding="utf-8", errors="replace")
@@ -656,10 +882,21 @@ def manifest_refs(path: Path, eco: str, package: str) -> list[dict]:
         for mod, ver, rest in go_requires(text):
             if mod == package and "// indirect" not in rest:
                 refs.append({"field": "require", "spec": ver})
+    elif path.name in ("pyproject.toml", "Pipfile"):
+        want = norm(package, "pip")
+        for field, name, spec in python_manifest_deps(path.name, text):
+            if norm(name, "pip") == want:
+                refs.append({"field": field, "spec": spec})
+    elif path.name == "composer.json":
+        data = json.loads(text)
+        for field in ("require", "require-dev"):
+            for name, spec in ((data.get(field) or {}) if isinstance(data, dict) else {}).items():
+                if name.lower() == package.lower():
+                    refs.append({"field": field, "spec": spec})
     return refs
 
 
-# ---------------------------------------------------------------- scan
+# ---------------------------------------------------------------- discovery
 
 def walk(root: Path):
     for dirpath, dirnames, filenames in os.walk(root):
@@ -668,50 +905,133 @@ def walk(root: Path):
             yield Path(dirpath, f)
 
 
+def list_files(root: Path) -> tuple[str, list[Path]]:
+    """("git", files) in a git work tree: every tracked or untracked, non-ignored file, wherever it lives; a tracked
+    submodule is walked. An untracked nested repository (another clone or worktree) is not this repository's content
+    and is skipped. ("walk", files) otherwise, skipping SKIP_DIRS and hidden directories. ALWAYS_SKIP directories are
+    excluded in both modes."""
+    def git(*args):
+        done = subprocess.run(["git", "-C", str(root), *args], capture_output=True, timeout=600)
+        if done.returncode != 0:
+            raise OSError(done.stderr.decode("utf-8", "replace").strip())
+        return done.stdout.decode("utf-8", "surrogateescape")
+
+    try:
+        if git("rev-parse", "--is-inside-work-tree").strip() == "true":
+            tracked = set(git("ls-files", "-z", "-c", "--", ".").split("\0")) - {""}
+            untracked = set(git("ls-files", "-z", "-o", "--exclude-standard", "--", ".").split("\0")) - {""}
+            files = []
+            for rel in sorted(tracked | untracked):
+                if ALWAYS_SKIP & set(Path(rel).parts[:-1]):
+                    continue
+                path = root / rel
+                if path.is_dir() and not path.is_symlink():
+                    if rel in tracked:  # a submodule
+                        files.extend(p for p in walk(path) if not ALWAYS_SKIP & set(p.relative_to(root).parts[:-1]))
+                elif os.path.lexists(path):
+                    files.append(path)
+            return "git", files
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return "walk", list(walk(root))
+
+
+def lockfile_reader(eco: str, parts: tuple):
+    """The reader for a file at relative path `parts` that resolves `eco` packages, or None."""
+    name = parts[-1]
+    if name in LOCKFILES[eco]:
+        return READERS[name]
+    if eco == "pip" and PYLOCK_NAME.fullmatch(name):
+        return read_pylock
+    if eco == "pip" and (REQ_NAME.fullmatch(name) or (name.lower().endswith(".txt") and len(parts) > 1
+                                                      and parts[-2].lower().startswith("requirements"))):
+        constraints = name.lower().startswith("constraints")
+        return lambda text: read_requirements(text, constraints)
+    return None
+
+
+# ---------------------------------------------------------------- scan
+
 def scan(root: Path, eco: str, package: str, targets: list[str], affected: list[str]) -> dict:
     eco = ALIASES.get(eco, eco)
     if eco not in LOCKFILES:
         raise ValueError(f"unsupported ecosystem {eco!r}; supported: {', '.join(sorted(LOCKFILES))}")
     want = norm(package, eco)
     lockfiles, manifests, vulnerable, unsupported = [], [], [], []
-    unreadable = False
-    for path in walk(root):
-        rel = str(path.relative_to(root))
-        name = path.name
-        is_req = eco == "pip" and re.match(r"requirements.*\.txt$", name)
-        if name in LOCKFILES[eco] or is_req:
-            reader = read_requirements if is_req else READERS[name]
-            try:
-                entries = check_entries(reader(path.read_text(encoding="utf-8", errors="replace")), eco)
-            except (OSError, ValueError, AttributeError, TypeError, KeyError) as exc:
-                # An unreadable lockfile can hide a vulnerable version, so the run cannot report ok.
-                unsupported.append({"path": rel, "reason": f"unreadable: {type(exc).__name__}: {exc}"})
-                unreadable = True
-                continue
-            matched = [(v, d) for n, v, d in entries if n != INCOMPLETE and norm(n, eco) == want]
-            for detail in sorted({d or "" for v, d in matched if v is None}):
-                unsupported.append({"path": rel, "reason": f"{package} is locked without a resolved version"
-                                                           f" ({detail or 'no version recorded'}); check by hand"})
-                unreadable = True
-            if not matched:
-                for _, _, detail in (e for e in entries if e[0] == INCOMPLETE):
-                    unsupported.append({"path": rel, "reason": f"{package} not listed, but {detail}; check by hand"})
-                    unreadable = True
-            found = {v for v, _ in matched if v is not None}
-            for v in sorted(v for v in found if v.startswith("=>")):
-                unsupported.append({"path": rel, "reason": f"{package} is replaced {v}; check by hand"})
-                unreadable = True
-            versions = sorted((v for v in found if not v.startswith("=>")), key=version_key)
-            if versions:
-                bad = []
-                for v in versions:
-                    need = judge(v, targets, affected)
-                    if need is not None:
-                        bad.append(v)
-                        vulnerable.append({"path": rel, "version": v, "needs": need or None})
-                lockfiles.append({"path": rel, "versions": versions, "vulnerable": bad})
+    state = {"unreadable": False}
+    root_real = os.path.realpath(root)
+    seen = set()
+
+    def block(rel, reason):
+        unsupported.append({"path": rel, "reason": reason})
+        state["unreadable"] = True
+
+    def within(p) -> bool:
+        real = os.path.realpath(p)
+        return real == root_real or real.startswith(root_real + os.sep)
+
+    def record(rel, entries):
+        matched = [(v, d) for n, v, d in entries if n not in (INCOMPLETE, INCLUDE) and norm(n, eco) == want]
+        for detail in sorted({d or "" for v, d in matched if v is None}):
+            block(rel, f"{package} is locked without a resolved version ({detail or 'no version recorded'}); check by hand")
+        if not matched:
+            for _, _, detail in (e for e in entries if e[0] == INCOMPLETE):
+                block(rel, f"{package} not listed, but {detail}; check by hand")
+        found = {v for v, _ in matched if v is not None}
+        for v in sorted(v for v in found if v.startswith("=>")):
+            block(rel, f"{package} is replaced {v}; check by hand")
+        versions = sorted((v for v in found if not v.startswith("=>")), key=version_key)
+        if versions:
+            bad = []
+            for v in versions:
+                need = judge(v, targets, affected)
+                if need is not None:
+                    bad.append(v)
+                    vulnerable.append({"path": rel, "version": v, "needs": need or None})
+            lockfiles.append({"path": rel, "versions": versions, "vulnerable": bad})
+
+    def read(path: Path, reader):
+        real = os.path.realpath(path)
+        if real in seen:
+            return
+        seen.add(real)
+        rel = os.path.normpath(os.path.relpath(path, root))
+        try:
+            entries = check_entries(reader(path.read_text(encoding="utf-8", errors="replace")), eco)
+        except (OSError, ValueError, AttributeError, TypeError, KeyError) as exc:
+            # An unreadable lockfile can hide a vulnerable version, so the run cannot report ok.
+            block(rel, f"unreadable: {type(exc).__name__}: {exc}")
+            return
+        record(rel, entries)
+        for _, kind, target in (e for e in entries if e[0] == INCLUDE):
+            # pip resolves an include relative to the file that names it; what it includes resolves packages too.
+            what = "constraints" if kind == "c" else "requirements"
+            inc = path.parent / target
+            if re.match(r"^[A-Za-z][\w+.-]+:", target) or "$" in target:
+                block(rel, f"includes {what} {target}, which cannot be read here; check by hand")
+            elif not within(inc):
+                block(rel, f"includes {what} {target}, outside the repository; check by hand")
+            elif not inc.is_file():
+                block(rel, f"includes {what} {target}, which does not exist; check by hand")
+            else:
+                read(inc, lambda text, c=(kind == "c"): read_requirements(text, c))
+
+    method, files = list_files(root)
+    lock_dirs = set()
+    for path in files:
+        parts = path.relative_to(root).parts
+        if lockfile_reader(eco, parts) or parts[-1] in UNSUPPORTED.get(eco, ()):
+            lock_dirs.add(parts[:-1])
+    for path in files:
+        parts = path.relative_to(root).parts
+        rel, name = str(path.relative_to(root)), path.name
+        reader = lockfile_reader(eco, parts)
+        if reader:
+            read(path, reader)
         if name in UNSUPPORTED.get(eco, ()):
-            unsupported.append({"path": rel, "reason": "lockfile format not supported; check by hand"})
+            block(rel, "lockfile format not supported, so it cannot prove the package absent or fixed; check by hand")
+        if eco == "go" and name == "go.work":
+            go_work(path, rel, record, block, within, package)
         if name in MANIFESTS.get(eco, ()):
             try:
                 refs = manifest_refs(path, eco, package)
@@ -719,9 +1039,49 @@ def scan(root: Path, eco: str, package: str, targets: list[str], affected: list[
                 unsupported.append({"path": rel, "reason": f"manifest unreadable: {type(exc).__name__}: {exc}"})
                 continue
             manifests.extend({"path": rel, **ref} for ref in refs)
+            # A manifest that names the package with no lockfile beside or above it: nothing read resolves it.
+            if refs and eco != "go" and not any(parts[:i] in lock_dirs for i in range(len(parts))):
+                block(rel, f"{package} is named here ({refs[0]['field']}), but no {eco} lockfile in this directory or"
+                           f" above resolves it; check by hand")
     return {"package": package, "ecosystem": eco, "targets": targets, "affected": affected,
             "lockfiles": lockfiles, "manifests": manifests, "vulnerable": vulnerable,
-            "unsupported": unsupported, "ok": not vulnerable and not unreadable, "unreadable": unreadable}
+            "unsupported": unsupported, "ok": not vulnerable and not state["unreadable"],
+            "unreadable": state["unreadable"], "discovery": method}
+
+
+def go_work(path: Path, rel: str, record, block, within, package: str) -> None:
+    """Apply a go.work file: its replace directives override every used module's go.mod, and a used module outside
+    the repository resolves versions this scan cannot read."""
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+        if not re.search(r"^\s*(?:go\s+\d|use\b)", text, re.M):
+            raise ValueError("unrecognized go.work: no go or use directive")
+        uses = go_directives(text, "use")
+        if any(len(toks) != 1 for toks, _ in uses):
+            raise ValueError("unrecognized go.work use directive")
+        replaces = go_replaces(text)
+    except (OSError, ValueError) as exc:
+        block(rel, f"unreadable: {type(exc).__name__}: {exc}")
+        return
+    required = set()
+    for (use,), _ in uses:
+        module = path.parent / use
+        if not within(module):
+            block(rel, f"uses module {use}, outside the repository; check by hand")
+            continue
+        try:
+            required |= {v for m, v, _ in go_requires((module / "go.mod").read_text(encoding="utf-8")) if m == package}
+        except (OSError, ValueError) as exc:
+            block(rel, f"uses module {use}, whose go.mod cannot be read: {type(exc).__name__}: {exc}")
+    entries = []
+    for ver in sorted(required):
+        rule = next((r for r in replaces if r[0] == package and r[1] == ver), None) \
+            or next((r for r in replaces if r[0] == package and r[1] is None), None)
+        if rule and rule[2] == package and rule[3]:
+            entries.append((package, rule[3], None))
+        elif rule:
+            entries.append((package, f"=> {rule[2]} {rule[3] or ''}".strip(), None))
+    record(rel, entries)
 
 
 def main(argv=None) -> int:

@@ -74,8 +74,10 @@ plan
   completedAt. An issue whose state type is completed (or named Done) is done,
   canceled (or named Canceled or Duplicate) is ignored, and anything else is
   open. A description line "Vanta key: `<key>`" takes precedence over the
-  title for matching. An id listed more than once is merged; a get_issue
-  result's description (even an empty one) wins over a list's.
+  title for matching. Records that share any of id, identifier or uuid are
+  one issue and are merged; a get_issue result's description (even an empty
+  one) wins over a list's. Every issue id the plan emits (match, duplicates,
+  issue) is the issue's identifier (CIP-123) whenever any record carries it.
 
   Exits 2 on bad usage or unreadable input.
 """
@@ -358,7 +360,7 @@ def group_findings(findings: list[dict]) -> list[dict]:
             "finding_count": len(items),
             "images": sorted({f["target"] for f in items}) if first["kind"] == "container" else [],
         })
-        groups[-1]["advisory_digest"] = advisory_digest(groups[-1]["advisories"], groups[-1]["images"])
+        groups[-1]["advisory_digest"] = advisory_digest(groups[-1])
     groups.sort(key=lambda g: (g["priority"], g["sla"] or "9999", g["key"]))
     for g in groups:
         g["title"] = render_title(g)
@@ -366,12 +368,59 @@ def group_findings(findings: list[dict]) -> list[dict]:
     return groups
 
 
-def advisory_digest(advisories: list[dict], images=()) -> str:
-    """Fingerprint of what remediation reads from the generated section: each advisory's id, affected range and fix
-    (not CVSS or alert links), plus the affected images for a container group."""
-    rows = sorted([a["id"] or "", a["affected"] or "", a["fixed_version"] or ""] for a in advisories)
-    payload = {"rows": rows, "images": sorted(images)} if images else rows
-    return hashlib.sha256(json.dumps(payload).encode()).hexdigest()[:12]
+BLOCK_SCHEMA = 1
+# Characters escaped as \uXXXX inside the advisory block's JSON strings, so no value can end the generated span
+# ("Vanta key:", "Advisory set:") or the fence (```), or be rewritten as Markdown by Linear.
+BLOCK_ESCAPE = re.compile(r"[:`|<>&*_\[\]~#]")
+
+
+def advisory_digest(g: dict) -> str:
+    """Fingerprint of what remediation reads from the generated section: the advisory block's schema, the group's
+    key and targets, each advisory's id, affected range and fix (not CVSS or alert links), and the affected images.
+    vanta-remediate's checks.py recomputes it from the block, so the payload and algorithm must stay identical."""
+    rows = sorted([a["id"] or "", a["affected"] or "", a["fixed_version"] or ""] for a in g["advisories"])
+    payload = {"schema": BLOCK_SCHEMA, "key": g["key"], "targets": list(g["targets"]), "images": sorted(g["images"]),
+               "rows": rows}
+    return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:12]
+
+
+def block_json(value) -> str:
+    """JSON with every string value escaped by BLOCK_ESCAPE; json.loads reads it back unchanged."""
+    if isinstance(value, str):
+        return BLOCK_ESCAPE.sub(lambda m: f"\\u{ord(m.group()):04x}", json.dumps(value))
+    if isinstance(value, list):
+        return "[" + ", ".join(block_json(v) for v in value) + "]"
+    if isinstance(value, dict):
+        return "{" + ", ".join(f"{json.dumps(k)}: {block_json(v)}" for k, v in value.items()) + "}"
+    return json.dumps(value)
+
+
+def advisory_block(g: dict) -> list[str]:
+    """The machine-readable advisory block remediation reads: a fenced JSON object, one advisory per line."""
+    container = g["kind"] == "assess-container"
+    head = {"schema": BLOCK_SCHEMA, "kind": "container" if container else "dependency", "key": g["key"],
+            "repo": g["repo"], "asset": None if container or g["repo"] else g["target"],
+            "ecosystem": g["ecosystem"], "package": g["package"], "targets": list(g["targets"]),
+            "images": sorted(g["images"])}
+    advisories = [{"id": a["id"], "affected": a["affected"], "fixed_version": a["fixed_version"]}
+                  for a in g["advisories"]]
+    body = block_json(head)[:-1] + ', "advisories": [\n'
+    body += ",\n".join("  " + block_json(a) for a in advisories) + "\n]}"
+    return ["```json", *body.split("\n"), "```"]
+
+
+SPAN_MARKERS = re.compile(r"(Vanta key|Advisory set):")
+
+
+def cell(text: str) -> str:
+    """A Markdown table cell: | would split the cell, even inside a code span; a newline would end the row."""
+    return " ".join(text.split("\n")).replace("|", "\\|")
+
+
+def display_only(text: str) -> str:
+    """Human-facing text above the advisory block: a value spelling "Vanta key:" or "Advisory set:" would end the
+    generated span early or forge its digest, so its colon becomes U+2236 (display only; the block keeps the value)."""
+    return SPAN_MARKERS.sub(lambda m: m.group(1) + "\u2236", text)
 
 
 def generated_span(description: str) -> str | None:
@@ -428,17 +477,18 @@ def render_description(g: dict) -> str:
               "### Advisories", "", "| Advisory | CVSS | Affected | Fixed in | Vanta findings |", "| -- | -- | -- | -- | -- |"]
     for a in g["advisories"]:
         ghsa = re.search(r"GHSA(-[0-9a-z]{4}){3}", a["url"] or "")
-        label = f"{a['id']} / {ghsa.group()}" if ghsa and ghsa.group() != a["id"] else a["id"]
+        label = cell(f"{a['id']} / {ghsa.group()}" if ghsa and ghsa.group() != a["id"] else a["id"])
         link = f"[{label}](<{a['url']}>)" if a["url"] else label
         finds = " ".join(f"[{i + 1}](<{u}>)" for i, u in enumerate(a["findings"])) or "n/a"
-        affected = f"`{a['affected']}`" if a["affected"] else "n/a"
-        lines.append(f"| {link} | {a['cvss'] if a['cvss'] is not None else 'n/a'} | {affected} | {a['fixed_version'] or 'none'} | {finds} |")
+        affected = f"`{cell(a['affected'])}`" if a["affected"] else "n/a"
+        lines.append(f"| {link} | {a['cvss'] if a['cvss'] is not None else 'n/a'} | {affected} | "
+                     f"{cell(a['fixed_version'] or 'none')} | {finds} |")
     lines += ["", "## Action", ""]
     if g["kind"] == "remediate":
         lines.append(f"Bump `{g['package']}` to " + " / ".join(f"`>= {t}`" for t in g["targets"])
                      + " in every lockfile location that resolves a vulnerable version.")
         if g["unfixed_advisories"]:
-            lines += ["", "Advisories with no fixed version yet: " + ", ".join(g["unfixed_advisories"]) + "."]
+            lines += ["", "Advisories with no fixed version yet: " + ", ".join(cell(i) for i in g["unfixed_advisories"]) + "."]
     elif g["kind"] == "track-upstream":
         lines.append(f"No patched `{g['package']}` release exists. Watch the advisory for a fix, check whether the "
                      "vulnerable code path is reachable, and remove the dependency path or record a risk acceptance in "
@@ -447,13 +497,14 @@ def render_description(g: dict) -> str:
         lines.append("Check whether the distribution has a fixed or staged package version, whether the vulnerable "
                      "code is present and reachable in this image, and whether a base-image refresh or Dockerfile "
                      "change clears it. Record a not-affected determination in Vanta where the code is absent.")
-    lines += ["", f"Advisory set: `{g['advisory_digest']}`", f"Vanta key: `{g['key']}`"]
-    return "\n".join(lines)
+    lines += ["", "The table above is for reading; vanta-remediate reads the advisory block below."]
+    tail = ["", *advisory_block(g), "", f"Advisory set: `{g['advisory_digest']}`", f"Vanta key: `{g['key']}`"]
+    return display_only("\n".join(lines)) + "\n" + "\n".join(tail)
 
 
 def issue_fields(issue: dict) -> tuple[str, str, str, str, str]:
     """(id, title, state name, state class, description); class is open, done or canceled."""
-    ident = issue.get("identifier") or issue.get("id") or ""
+    ident = issue.get("_ident") or issue.get("identifier") or issue.get("id") or ""
     state = issue.get("status") or issue.get("state") or ""
     stype = issue.get("statusType") or ""
     if isinstance(state, dict):
@@ -553,6 +604,57 @@ def load_issues(data) -> tuple[str | None, list[dict]]:
     return None, []
 
 
+UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.I)
+
+
+def aliases(issue: dict) -> list[str]:
+    return [str(issue[k]) for k in ("identifier", "id", "uuid") if issue.get(k)]
+
+
+def merge_issues(listed: list[dict], fetched: list[dict]) -> list[dict]:
+    """One record per Linear issue. Records sharing any alias (id, identifier or uuid) are the same issue: the
+    connector may key one response by the CIP identifier and another by the uuid. Listed records merge in order;
+    a get_issue result is the whole issue, so its description (even an empty one) wins over a list's. Each record's
+    "_ident" is the issue's identifier (CIP-123) when any record carries one, else its first id."""
+    records = [(i, False) for i in listed] + [(i, True) for i in fetched]
+    parent = list(range(len(records)))
+
+    def root(n: int) -> int:
+        while parent[n] != n:
+            parent[n] = parent[parent[n]]
+            n = parent[n]
+        return n
+
+    seen: dict[str, int] = {}
+    for n, (issue, _) in enumerate(records):
+        for a in aliases(issue):
+            if a in seen:
+                parent[root(n)] = root(seen[a])
+            else:
+                seen[a] = n
+    components: dict[int, list[int]] = {}
+    for n in range(len(records)):
+        components.setdefault(root(n), []).append(n)
+    out = []
+    for members in sorted(components.values()):
+        merged: dict = {}
+        names: list[str] = []
+        for n in members:
+            issue, is_fetched = records[n]
+            if not is_fetched:
+                merged.update({k: v for k, v in issue.items() if v not in (None, "")} if merged else dict(issue))
+        for n in members:
+            issue, is_fetched = records[n]
+            if is_fetched:
+                merged.update({k: v for k, v in issue.items() if v not in (None, "")})
+                merged.update(description=issue.get("description") or "", _fetched=True)
+        for n in members:
+            names += aliases(records[n][0])
+        merged["_ident"] = next((a for a in names if not UUID_RE.match(a)), names[0] if names else "")
+        out.append(merged)
+    return out
+
+
 def cmd_plan(args) -> int:
     try:
         findings = json.loads(Path(args.findings).read_text())
@@ -571,17 +673,7 @@ def cmd_plan(args) -> int:
         if f.get("kind") == "container" and not f.get("repo"):
             f["repo"] = (config.get("images", {}).get(f["target"]) or {}).get("repo")
     groups = group_findings(findings)
-    merged: dict[str, dict] = {}
-    for issue in listed:
-        ident = issue.get("identifier") or issue.get("id") or ""
-        prev = merged.get(ident)
-        merged[ident] = {**prev, **{k: v for k, v in issue.items() if v not in (None, "")}} if prev else dict(issue)
-    for issue in fetched:  # a get_issue result is the whole issue: its description wins over a list's
-        ident = issue.get("identifier") or issue.get("id") or ""
-        prev = merged.get(ident) or {}
-        merged[ident] = {**prev, **{k: v for k, v in issue.items() if v not in (None, "")},
-                         "description": issue.get("description") or "", "_fetched": True}
-    issues = list(merged.values())
+    issues = merge_issues(listed, fetched)
 
     today = dt.date.fromisoformat(args.today) if args.today else dt.date.today()
     open_issues, recent_done, unparsed = [], [], []

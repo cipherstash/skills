@@ -3,21 +3,24 @@
 
 Usage:
   gate.py --claim already-fixed|linked|opened --ref-kind default|merge|head|fix-branch
-          [--fix FILE --fix-exit N] [--residual FILE --residual-exit N]
+          [--fix FILE --fix-exit N ...] [--residual FILE --residual-exit N]
           [--unfixed-advisory ID ...] [--scope-ok | --scope-bad | --diff-files PATH ...]
           [--pr-base BRANCH --default-branch BRANCH]
   gate.py --claim container --ref-kind fix-branch --determinations FILE [--diff-files PATH ...]
 
 Standard library only. Python 3.9+. Reads only the files named; writes nothing.
 
-Remediate claims (FILE is deps.py's JSON output, N its exit code):
+Remediate claims (FILE is deps.py's JSON output, N its exit code). Pass one --fix/--fix-exit pair per
+fix check that checks.py lists, in the same order; the n-th --fix-exit is the n-th --fix's exit code.
+"Fix check exit 0" below means every fix check exits 0: one exit 1 among them is still vulnerable.
   already-fixed  ref-kind default.         Fix check exit 0; residual exit 0 when one is needed.
   linked         ref-kind merge or head.   Fix check exit 0; residual exit 0 or 1; --pr-base must
                                            equal --default-branch; scope enforced when given.
   opened         ref-kind fix-branch.      Fix check exit 0; residual exit 0 or 1; scope required.
   Outcome on a pass is the claim. On a failure: not-linked for linked; patch for already-fixed
   when the fix check is a valid exit 1 (still vulnerable: go on and patch); blocked otherwise.
-  Every claim fails when: the claim and ref kind do not pair; the fix check is missing or exits
+  Every claim fails when: the claim and ref kind do not pair; the fix check is missing (no --fix, or
+  --fix and --fix-exit counts differ) or any one exits
   anything but 0; the JSON is unreadable, lacks a stable field, or contradicts its exit code; any
   `unsupported` entry is listed (an unattended run cannot check a file by hand); a residual check
   is needed (--unfixed-advisory given) but missing, or exits anything but 0 or 1; scope is bad.
@@ -129,17 +132,24 @@ def gate_remediate(args) -> dict:
         reasons.append(f"ref kind {args.ref_kind} cannot support {claim} "
                        f"(needs {' or '.join(sorted(PAIRS[claim]))})")
     pairing_ok = not reasons
-    # The fix check: exit 1 is a valid measurement (still vulnerable) but never a pass.
+    # The fix checks: each must exit 0. Exit 1 is a valid measurement (still vulnerable) but never a pass.
     fix_reasons: list[str] = []
-    fix_code = args.fix_exit
-    if args.fix is None:
+    fixes, fix_codes = args.fix or [], args.fix_exit or []
+    fix_valid, fix_code = False, None
+    if not fixes:
         fix_reasons.append("fix check: missing")
-        fix_valid = False
+    elif len(fixes) != len(fix_codes):
+        fix_reasons.append(f"fix check: {len(fixes)} --fix file(s) but {len(fix_codes)} --fix-exit code(s)")
     else:
-        fix = load_json(args.fix, "fix check", fix_reasons)
-        fix_valid = fix is not None and check_deps("fix check", fix, fix_code, {0, 1}, fix_reasons)
-        if fix_valid and fix_code == 1:
-            fix_reasons.append("fix check: exit 1 (a resolved version is still vulnerable)")
+        fix_valid = True
+        for n, (path, code) in enumerate(zip(fixes, fix_codes), 1):
+            label = "fix check" if len(fixes) == 1 else f"fix check {n}"
+            data = load_json(path, label, fix_reasons)
+            if data is None or not check_deps(label, data, code, {0, 1}, fix_reasons):
+                fix_valid = False
+            elif code == 1:
+                fix_reasons.append(f"{label}: exit 1 (a resolved version is still vulnerable)")
+        fix_code = max(fix_codes) if fix_valid else None
     reasons += fix_reasons
     needed = bool(args.unfixed_advisory)
     residual_valid, residual_code = not needed, None
@@ -248,8 +258,8 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--claim", required=True, choices=sorted(PAIRS))
     parser.add_argument("--ref-kind", required=True, choices=["default", "merge", "head", "fix-branch"])
-    parser.add_argument("--fix")
-    parser.add_argument("--fix-exit", type=int)
+    parser.add_argument("--fix", action="append")
+    parser.add_argument("--fix-exit", type=int, action="append")
     parser.add_argument("--residual")
     parser.add_argument("--residual-exit", type=int)
     parser.add_argument("--unfixed-advisory", action="append", default=[])

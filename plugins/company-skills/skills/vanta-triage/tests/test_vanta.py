@@ -4,6 +4,7 @@ import contextlib
 import io
 import json
 import os
+import re
 import sys
 import tempfile
 import unittest
@@ -555,6 +556,54 @@ class FifthReview(unittest.TestCase):
         fetched = self.described([self.FIXED])
         plan = run_plan_files([self.FIXED], {"z-list.json": [listed], "CIP-1.json": fetched})
         self.assertEqual([a["action"] for a in plan["actions"]], ["keep"])
+
+
+class SixthReview(unittest.TestCase):
+    """J1: one Linear issue is one record, whichever of its ids (uuid or CIP identifier) each response carries.
+
+    The connector observed on 2026-10-14 returns {"id": "CIP-4920", "uuid": "9b16d9ac-…"} from both list_issues
+    and get_issue, but the plan's own contract accepts id or identifier, so every shape below must merge."""
+    UUID = "9b16d9ac-46a0-4652-af85-1a59690e7e06"
+
+    def shapes(self):
+        [g] = vanta.group_findings([FifthReview.FIXED])
+        row = {"title": g["title"], "status": "Todo", "statusType": "unstarted"}
+        detail = {**row, "description": g["description"]}
+        return {
+            "list uuid id, get both (review's shape)": ({"id": self.UUID, **row},
+                                                        {"id": self.UUID, "identifier": "CIP-1", **detail}),
+            "list uuid id, get identifier as id": ({"id": self.UUID, **row}, {"id": "CIP-1", "uuid": self.UUID, **detail}),
+            "list identifier+uuid, get uuid id": ({"id": "CIP-1", "uuid": self.UUID, **row},
+                                                  {"id": self.UUID, "identifier": "CIP-1", **detail}),
+            "connector shape (control)": ({"id": "CIP-1", "uuid": self.UUID, **row},
+                                          {"id": "CIP-1", "uuid": self.UUID, **detail}),
+        }
+
+    def test_j1_list_and_get_records_of_one_issue_merge(self):
+        for name, (listed, fetched) in self.shapes().items():
+            with self.subTest(name):
+                plan = run_plan_files([FifthReview.FIXED], {"a-list.json": {"issues": [listed], "hasNextPage": False},
+                                                            "CIP-1.json": fetched})
+                [g] = plan["groups"]
+                self.assertIsNone(g.get("duplicates"), "an issue was marked as its own duplicate")
+                self.assertEqual([(a["action"], a.get("issue")) for a in plan["actions"]], [("keep", "CIP-1")])
+
+
+    def test_j4_issue_rendered_before_the_advisory_block_refreshes_once(self):
+        # Issues filed before the JSON advisory block carry the old digest (rows only); the block's schema is in
+        # the new digest, so each such issue is refreshed once and gains the block remediation reads.
+        import hashlib
+        [g] = vanta.group_findings([FifthReview.FIXED])
+        rows = sorted([a["id"], a["affected"] or "", a["fixed_version"] or ""] for a in g["advisories"])
+        old_digest = hashlib.sha256(json.dumps(rows).encode()).hexdigest()[:12]
+        old = re.sub(r"\n\nThe table above.*?```\n", "\n", g["description"], flags=re.S)
+        old = old.replace(g["advisory_digest"], old_digest)
+        self.assertNotIn("```json", old)
+        plan = run_plan_files([FifthReview.FIXED], {"CIP-1.json": {"id": "CIP-1", "title": g["title"], "status": "Todo",
+                                                                   "description": old}})
+        [a] = plan["actions"]
+        self.assertEqual(a["action"], "refresh")
+        self.assertIn("```json", a["patch"][0]["new_string"])
 
 
 class Credentials(unittest.TestCase):

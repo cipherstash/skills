@@ -27,8 +27,8 @@ def lock(version):
 # name: (files, expected deps.py exit, has unsupported)
 FIXTURES = {
     "clean": ({"package-lock.json": lock("4.17.21")}, 0, False),
-    "clean_bun": ({"package-lock.json": lock("4.17.21"), "bun.lockb": "bin"}, 0, True),
-    "bun_only": ({"bun.lockb": "bin"}, 0, True),
+    "clean_bun": ({"package-lock.json": lock("4.17.21"), "bun.lockb": "bin"}, 2, True),
+    "bun_only": ({"bun.lockb": "bin"}, 2, True),
     "vuln": ({"package-lock.json": lock("4.17.20")}, 1, False),
     "vuln_bun": ({"package-lock.json": lock("4.17.20"), "bun.lockb": "bin"}, 1, True),
     "unreadable": ({"package-lock.json": "not json"}, 2, True),
@@ -55,6 +55,13 @@ class GateCase(unittest.TestCase):
             assert proc.returncode == want, (name, proc.returncode, proc.stderr)
             assert bool(data["unsupported"]) == unsupported, (name, data["unsupported"])
             cls.out[name] = (str(path), proc.returncode)
+        # Synthetic: exit 0 with an unsupported entry. Current deps.py never produces it (an unsupported lockfile
+        # now exits 2), but the gate must stay fail-closed against any deps.py output, so the table keeps this row.
+        data = json.loads(Path(cls.out["clean"][0]).read_text())
+        data["unsupported"] = [{"path": "bun.lockb", "reason": "binary bun lockfile"}]
+        path = cls.tmp / "clean_unsupported.json"
+        path.write_text(json.dumps(data))
+        cls.out["clean_unsupported"] = (str(path), 0)
 
     @classmethod
     def tearDownClass(cls):
@@ -76,7 +83,9 @@ class GateCase(unittest.TestCase):
 CLAIMS = ("already-fixed", "linked", "opened")
 REFS = ("default", "merge", "head", "fix-branch")
 PAIRS = {"already-fixed": {"default"}, "linked": {"merge", "head"}, "opened": {"fix-branch"}}
-FIX = {(0, False): "clean", (0, True): "clean_bun", (1, False): "vuln", (1, True): "vuln_bun", (2, True): "unreadable"}
+# (deps.py exit, has unsupported, variant): fixture name. Unsupported is covered with exit 0 (synthetic), 1 and 2.
+FIX = {(0, False, ""): "clean", (0, True, ""): "clean_unsupported", (1, False, ""): "vuln", (1, True, ""): "vuln_bun",
+       (2, True, "bun"): "clean_bun", (2, True, ""): "unreadable"}
 RESIDUAL = {None: None, 0: "clean", 1: "vuln", 2: "unreadable"}
 SCOPES = {"absent": [], "ok": ["--scope-ok"], "bad": ["--scope-bad"],
           "manifests": ["--diff-files", "package.json", "web/package-lock.json"],
@@ -86,9 +95,12 @@ BASES = {"match": ["--pr-base", "main", "--default-branch", "main"],
          "mismatch": ["--pr-base", "release/1.x", "--default-branch", "main"], "absent": []}
 
 
-def expected(claim, ref, fix, unsupported, residual, scope, base):
-    """The allowed set, stated independently of gate.py."""
+def expected(claim, ref, fixes, residual, scope, base):
+    """The allowed set, stated independently of gate.py. fixes is a sequence of FIX keys, one per fix check."""
     scope_bad = scope in ("bad", "source", "dockerfile")
+    unsupported = any(u for _, u, _ in fixes)
+    codes = {c for c, _, _ in fixes}
+    fix = "missing" if not fixes else 2 if 2 in codes else 1 if 1 in codes else 0
     passed = (ref in PAIRS[claim] and fix == 0 and not unsupported and residual != 2
               and not (claim == "already-fixed" and residual == 1) and not scope_bad
               and not (claim == "opened" and scope in ("absent", "empty"))
@@ -106,29 +118,52 @@ def expected(claim, ref, fix, unsupported, residual, scope, base):
 
 
 class TestGateProperty(GateCase):
+    def check(self, claim, ref, fixes, residual, scope, base):
+        args = ["--claim", claim, "--ref-kind", ref, *SCOPES[scope], *BASES[base]]
+        for fix_key in fixes:
+            args += self.deps_args("fix", FIX[fix_key])
+        if residual is not None:
+            args += self.deps_args("residual", RESIDUAL[residual]) + ["--unfixed-advisory", "GHSA-none"]
+        want_pass, want_outcome = expected(claim, ref, fixes, residual, scope, base)
+        with self.subTest(claim=claim, ref=ref, fixes=fixes, residual=residual, scope=scope, base=base):
+            result = self.gate(*args)
+            self.assertEqual(result["pass"], want_pass, result["reasons"])
+            self.assertEqual(result["outcome"], want_outcome, result["reasons"])
+            self.assertEqual(bool(result["must_name_unfixed"]), want_pass and residual == 1)
+            if result["pass"]:
+                self.assertEqual(result["reasons"], [])
+            else:
+                self.assertTrue(result["reasons"])
+
     def test_no_combination_outside_the_allowed_set_passes(self):
-        fixes = [None, *FIX]
         checked = 0
-        for claim, ref, fix_key, residual, scope, base in itertools.product(
-                CLAIMS, REFS, fixes, RESIDUAL, SCOPES, BASES):
-            args = ["--claim", claim, "--ref-kind", ref, *SCOPES[scope], *BASES[base]]
-            if fix_key is not None:
-                args += self.deps_args("fix", FIX[fix_key])
-            if residual is not None:
-                args += self.deps_args("residual", RESIDUAL[residual]) + ["--unfixed-advisory", "GHSA-none"]
-            fix, unsupported = fix_key if fix_key else ("missing", False)
-            want_pass, want_outcome = expected(claim, ref, fix, unsupported, residual, scope, base)
-            with self.subTest(claim=claim, ref=ref, fix=fix_key, residual=residual, scope=scope, base=base):
-                result = self.gate(*args)
-                self.assertEqual(result["pass"], want_pass, result["reasons"])
-                self.assertEqual(result["outcome"], want_outcome, result["reasons"])
-                self.assertEqual(bool(result["must_name_unfixed"]), want_pass and residual == 1)
-                if result["pass"]:
-                    self.assertEqual(result["reasons"], [])
-                else:
-                    self.assertTrue(result["reasons"])
+        for claim, ref, fixes, residual, scope, base in itertools.product(
+                CLAIMS, REFS, [(), *((k,) for k in FIX)], RESIDUAL, SCOPES, BASES):
+            self.check(claim, ref, fixes, residual, scope, base)
             checked += 1
-        self.assertEqual(checked, 3 * 4 * 6 * 4 * 7 * 3)
+        self.assertEqual(checked, 3 * 4 * 7 * 4 * 7 * 3)
+
+    def test_every_fix_check_must_pass(self):
+        # checks.py can list two fix checks (ranges, and targets alone); any one failing fails the gate.
+        checked = 0
+        for claim, ref, fixes, residual in itertools.product(
+                CLAIMS, REFS, itertools.product(FIX, repeat=2), RESIDUAL):
+            self.check(claim, ref, fixes, residual, "manifests", "match")
+            checked += 1
+        self.assertEqual(checked, 3 * 4 * 36 * 4)
+
+    def test_fix_and_exit_counts_must_match(self):
+        path, code = self.out["clean"]
+        result = self.gate("--claim", "already-fixed", "--ref-kind", "default", "--fix", path, "--fix", path,
+                           "--fix-exit", str(code))
+        self.assertEqual(result["outcome"], "blocked")
+        self.assertIn("--fix-exit", result["reasons"][0])
+
+    def test_one_vulnerable_fix_check_among_clean_ones_is_patch(self):
+        result = self.gate("--claim", "already-fixed", "--ref-kind", "default", *self.deps_args("fix", "clean"),
+                           *self.deps_args("fix", "vuln"), *self.deps_args("fix", "clean"))
+        self.assertEqual((result["pass"], result["outcome"]), (False, "patch"))
+        self.assertIn("fix check 2", result["reasons"][0])
 
 
 class TestGateEntries(GateCase):

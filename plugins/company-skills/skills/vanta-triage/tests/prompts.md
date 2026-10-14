@@ -34,6 +34,8 @@
 - Each open issue serves at most one group; when a title fits several groups (npm and Rust `tar` in one repo), the issue's `Vanta key:` line is fetched to settle it rather than retargeting the issue back and forth.
 - Issues in custom open states (for example "Blocked") count as open; canceled issues are ignored.
 - An advisory that spans several version lines appears once per affected range in the description table; package names keep their spelling in the `Vanta key:` line.
+- The generated section carries a fenced `json` advisory block with every advisory's id, raw affected range (including `||`), and fixed version or null; the table escapes `|` and is for people only. Covered by vanta-remediate's `test_contract.py`.
+- The same Linear issue seen once by uuid and once by its `CIP-` identifier (a list page keyed by `id` = uuid, a `get_issue` result with both) is one issue, never its own duplicate; every id the plan emits is the `CIP-` identifier. Covered by `test_vanta.py` (`SixthReview`).
 - Unparsed `[Vanta]` issues (AWS configuration findings, legacy umbrellas) are listed and never edited or closed.
 - Dry-run mode performs no Linear writes and says so.
 - The run never stops to ask a question.

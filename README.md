@@ -83,12 +83,16 @@ Each skill is authored once under `plugins/company-skills/skills/`. The portable
 | `address-code-review` | Verify findings and fix confirmed defects | Explicit only |
 | `audit-pr-feedback` | Audit existing PR feedback against the PR head | Explicit or automatic |
 | `cross-check-review-findings` | Compare new findings with existing PR feedback and draft a response | Explicit or automatic |
+| `vanta-triage` | Reconcile open Vanta vulnerability findings with Linear issues: file, retarget, and close | Explicit or automatic |
+| `vanta-remediate` | Patch dependencies for Vanta Linear issues, verify every lockfile, and open PRs | Explicit or automatic |
 
 The PR feedback skills require Python 3, Git, and `gh` authenticated for the target repository. These are local CLI dependencies; the plugin does not bundle an MCP server.
 
+The Vanta skills also need the Linear connector, `VANTA_CLIENT_ID` and `VANTA_CLIENT_SECRET` (read-only Vanta API credentials) with network access to `api.vanta.com` for `vanta-triage`, and each target ecosystem's toolchain (`cargo`, `pnpm`/`npm`/`yarn`/`bun`, `go`, `poetry`/`uv`) for `vanta-remediate`. Both run unattended, so they suit Claude Code routines; there `gh pr create` is blocked by the GitHub proxy, which is why `vanta-remediate` opens PRs through `gh api`.
+
 ## Contribute
 
-Follow [CONTRIBUTING.md](CONTRIBUTING.md) to add or change a skill: naming, progressive disclosure, required behavior cases, releases, and the validation commands to run. Pull requests run `python3 scripts/validate.py` and `python3 -m unittest discover -s scripts/tests` in GitHub Actions; the `claude plugin validate --strict` checks run locally only.
+Follow [CONTRIBUTING.md](CONTRIBUTING.md) to add or change a skill: naming, progressive disclosure, required behavior cases, releases, and the validation commands to run. Pull requests run `python3 scripts/validate.py`, `python3 -m unittest discover -s scripts/tests`, and each skill's `tests/` suite in GitHub Actions; the `claude plugin validate --strict` checks run locally only.
 
 See the official [Codex skills documentation](https://developers.openai.com/codex/skills/) and [Claude Code plugin marketplace documentation](https://code.claude.com/docs/en/plugin-marketplaces) for current publishing and installation options.
 

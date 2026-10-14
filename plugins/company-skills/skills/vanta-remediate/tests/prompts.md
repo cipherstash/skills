@@ -30,7 +30,9 @@
 - After a PR opens, the issue gets the PR link attachment, an In Review state, and a before/after comment.
 - Assess issues go to `references/containers.md` straight after reading the issue, without needing a target version or running deps.py.
 - A resumed fix branch already pushed by an earlier run is never treated as "already fixed"; only a clean `origin/<default>` is, and a clean resumed branch goes on to open its PR.
-- Affected ranges whose "Fixed in" no longer matches the title's targets are dropped in favour of `--target` alone.
+- Fixed rows' affected ranges whose highest "Fixed in" per major line no longer matches the title's targets are dropped in favour of `--target` alone; `none` rows are never dropped.
+- An issue whose `Vanta key:` second segment is a Vanta asset name (an `**Asset:**` line, no `**Repo:**`) is skipped as having no repo; the asset name is never cloned or searched for.
+- A Fixed in of `none` is an advisory with no fix yet, not a sign of a stale table. For an issue titled `to 1.2.3` whose table has one row Fixed in `1.2.3` and another Fixed in `none`, Affected `>= 1.0.0, < 2.0.0`, the `none` row's range is still checked: a lockfile at `1.2.3` does not count as fully remediated and the issue is never marked Done while that range still matches. Rows Fixed in a lower version on the same major line as a target (for example `1.2.0` beside `1.2.3`) are not stale either.
 - Container Assess issues are worked only by id or on request, cite sources for every fix or not-affected claim, and leave Vanta determinations to a human.
 - Dry-run mode pushes nothing, writes nothing to Linear, and reports each worktree path and diff stat.
 - The run never stops to ask a question.

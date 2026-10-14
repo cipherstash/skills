@@ -99,26 +99,54 @@ TITLE_RES = [
 
 # ---------------------------------------------------------------- versions
 
+PY_SUFFIX = re.compile(
+    r"^(?:[-_.]?(?P<pre>a|alpha|b|beta|c|rc|pre|preview)[-_.]?(?P<pre_n>\d*))?"
+    r"(?:[-_.]?(?:post|rev|r)[-_.]?(?P<post>\d*))?"
+    r"(?:[-_.]?(?P<dev>dev)[-_.]?(?P<dev_n>\d*))?$", re.I)
+PY_PRE = {"a": "a", "alpha": "a", "b": "b", "beta": "b"}
+
+
 def version_key(version: str) -> tuple:
-    """Order versions semver-style: numeric release parts, then pre-release below release."""
+    """Order versions: numeric release parts, then pre-release, post-release, and dev-release.
+
+    A `-` suffix is a semver pre-release (1.2.3-rc.1); a dashless suffix is read as PEP 440
+    (1.2.3rc1, 1.2.3.post1, 1.2.3.dev1). Any other suffix is ignored."""
     v = version.strip().lstrip("vV=")
     v = v.split("+", 1)[0]
     if ":" in v and v.split(":", 1)[0].isdigit():  # Debian epoch
         v = v.split(":", 1)[1]
-    release, _, pre = v.partition("-")
-    parts = []
-    for piece in release.split("."):
-        m = re.match(r"\d+", piece)
-        parts.append(int(m.group()) if m else 0)
+    m = re.match(r"(\d+(?:\.\d+)*)(.*)$", v)
+    py = PY_SUFFIX.match(m.group(2)) if m and m.group(2) and not m.group(2).startswith("-") else None
+    pre_key, post_key, dev_key = (1,), (-1,), (1,)
+    if py and (py["pre"] or py["post"] is not None or py["dev"]):
+        parts = [int(p) for p in m.group(1).split(".")]
+        if py["pre"]:
+            label = PY_PRE.get(py["pre"].lower(), "rc")
+            pre_key = (0, ((1, label), (0, int(py["pre_n"] or 0))))
+        elif py["dev"] and py["post"] is None:
+            pre_key = (-1,)  # 1.2.3.dev1 precedes every 1.2.3 pre-release
+        if py["post"] is not None:
+            post_key = (int(py["post"] or 0),)
+        if py["dev"]:
+            dev_key = (0, int(py["dev_n"] or 0))
+    else:
+        release, _, pre = v.partition("-")
+        parts = []
+        for piece in release.split("."):
+            d = re.match(r"\d+", piece)
+            parts.append(int(d.group()) if d else 0)
+        if pre:
+            pre_key = (0, tuple((0, int(p)) if p.isdigit() else (1, p) for p in pre.split(".")))
+    while len(parts) > 3 and parts[-1] == 0:
+        parts.pop()
     while len(parts) < 3:
         parts.append(0)
-    pre_key = (1,) if not pre else (0, tuple((0, int(p)) if p.isdigit() else (1, p) for p in pre.split(".")))
-    return (tuple(parts), pre_key)
+    return (tuple(parts), pre_key, post_key, dev_key)
 
 
 def major_line(version: str) -> str:
     """The compatibility line a version belongs to: major, or 0.minor for 0.x."""
-    (parts, _) = version_key(version)
+    parts = version_key(version)[0]
     return f"0.{parts[1]}" if parts[0] == 0 else str(parts[0])
 
 
@@ -271,7 +299,7 @@ def group_key(f: dict) -> str:
     """Keeps the package's spelling (Go module paths are case-sensitive); compare keys with same_key()."""
     if f["kind"] == "container":
         return f"container:{f['repo'] or f['target']}:{f['package']}"
-    return f"dependency:{f['repo']}:{f['ecosystem']}:{f['package']}"
+    return f"dependency:{f['repo'] or f['target']}:{f['ecosystem']}:{f['package']}"
 
 
 def same_key(a: str, b: str) -> bool:

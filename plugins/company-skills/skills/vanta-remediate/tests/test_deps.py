@@ -367,6 +367,24 @@ class Scan(unittest.TestCase):
         code, r = run(make_repo({"package-lock.json": lock}), "--ecosystem", "npm", "--package", "demo", "--target", "1.0.1")
         self.assertEqual((code, r["lockfiles"][0]["versions"]), (1, ["1.0.0"]))
 
+    def test_yarn_classic_alias_uses_real_package_name(self):
+        lock = '# yarn lockfile v1\n\n"demo-alias@npm:demo@^1.0.0":\n  version "1.0.0"\n'
+        code, r = run(make_repo({"yarn.lock": lock}), "--ecosystem", "npm", "--package", "demo", "--target", "1.0.1")
+        self.assertEqual((code, [lf["versions"] for lf in r["lockfiles"]]), (1, [["1.0.0"]]))
+
+    def test_yarn_berry_alias_uses_real_package_name(self):
+        lock = '__metadata:\n  version: 8\n\n"demo-alias@npm:demo@npm:^1.0.0":\n  version: 1.0.0\n  resolution: "demo@npm:1.0.0"\n'
+        code, r = run(make_repo({"yarn.lock": lock}), "--ecosystem", "npm", "--package", "demo", "--target", "1.0.1")
+        self.assertEqual((code, [lf["versions"] for lf in r["lockfiles"]]), (1, [["1.0.0"]]))
+
+    def test_yarn_scoped_alias_uses_real_package_name(self):
+        classic = '# yarn lockfile v1\n\n"alias@npm:@scope/pkg@^1.0.0":\n  version "1.0.0"\n'
+        berry = '__metadata:\n  version: 8\n\n"alias@npm:@scope/pkg@npm:^1.0.0":\n  version: 1.0.0\n'
+        code, r = run(make_repo({"a/yarn.lock": classic, "b/yarn.lock": berry}),
+                      "--ecosystem", "npm", "--package", "@scope/pkg", "--target", "1.0.1")
+        self.assertEqual((code, {lf["path"]: lf["versions"] for lf in r["lockfiles"]}),
+                         (1, {"a/yarn.lock": ["1.0.0"], "b/yarn.lock": ["1.0.0"]}))
+
     def test_unparseable_version_is_an_error(self):
         root = make_repo({"requirements.txt": "demo==1.2.3~weird\n"})
         with contextlib.redirect_stderr(io.StringIO()):

@@ -10,7 +10,7 @@ Walks the repository (skipping .git, node_modules, target, vendor, dist, build
 and other generated directories) and reads every lockfile for the ecosystem:
 
   npm       package-lock.json, npm-shrinkwrap.json, pnpm-lock.yaml, yarn.lock
-            (classic and berry), bun.lock (text; binary bun.lockb is reported
+            (classic and berry; npm: aliases resolve to the real package), bun.lock (text; binary bun.lockb is reported
             as unsupported)
   rust      Cargo.lock
   go        go.mod (require lines; "// indirect" marks a transitive dependency;
@@ -227,7 +227,8 @@ def read_yarn_lock(text: str) -> list[tuple[str, str]]:
                 spec = spec.strip().strip('"')
                 at = spec.rfind("@")
                 if at > 0:
-                    names.append(spec[:at])
+                    # An alias ("alias@npm:pkg@^1" classic, "alias@npm:pkg@npm:^1" berry) resolves the real package.
+                    names.append(spec[:at].split("@npm:", 1)[1] if "@npm:" in spec[:at] else spec[:at])
             continue
         m = re.match(r'^\s+version:?\s+"?([^"\s]+)"?', line)
         if m and names:

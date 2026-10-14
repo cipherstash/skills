@@ -331,6 +331,27 @@ class SecondReview(unittest.TestCase):
         self.assertEqual([(a["action"], a.get("issue")) for a in run_plan([f], [issue])["actions"]], [("keep", "CIP-1")])
 
 
+class ThirdReview(unittest.TestCase):
+    def test_python_suffixes_order_against_release(self):
+        k = vanta.version_key
+        self.assertLess(k("1.2.3rc1"), k("1.2.3"))
+        self.assertLess(k("1.2.3.dev1"), k("1.2.3"))
+        self.assertLess(k("1.2.3"), k("1.2.3.post1"))
+        self.assertLess(k("1.2.3.post1"), k("1.2.4"))
+        self.assertLess(k("1.2.3-rc.1"), k("1.2.3"))  # semver pre-releases unchanged
+        self.assertFalse(vanta.covers(["1.2.3rc1"], ["1.2.3"]))
+        self.assertFalse(vanta.covers(["1.2.3.dev1"], ["1.2.3"]))
+        self.assertEqual(vanta.max_per_line(["1.2.3rc1", "1.2.3"]), ["1.2.3"])
+
+    def test_unknown_repo_dependency_keys_by_asset(self):
+        assets = dict(ASSETS, **{"a-other": {"id": "a-other", "name": "other", "assetType": "CODE_REPOSITORY"}})
+        fs = [vanta.normalise(vuln(id=str(i), targetId=t, externalURL="https://example.com/scanner/finding/1"), assets, CONFIG)
+              for i, t in ((1, "a-repo"), (2, "a-other"))]
+        groups = vanta.group_findings(fs)
+        self.assertEqual(sorted(g["key"] for g in groups),
+                         ["dependency:other:npm:left-pad", "dependency:stack:npm:left-pad"])
+
+
 class Credentials(unittest.TestCase):
     def test_missing_credentials_exit(self):
         env = {k: v for k, v in os.environ.items() if not k.startswith("VANTA_")}

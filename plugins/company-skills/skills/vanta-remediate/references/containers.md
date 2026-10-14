@@ -5,12 +5,12 @@
 - The distribution has already built a fix that hasn't reached the image yet.
 - The vulnerable code isn't in the shipped version at all.
 
-Assess each advisory. Change the Dockerfile only when the evidence supports it.
+Assess every advisory the issue carries, for every listed image. Change the Dockerfile only when the evidence supports it, and claim progress only through the evidence gate below.
 
 ## Gather
 
-1. Read the issue body for the image, its source repo (from vanta-triage's `references/config.json` `images` map), each advisory, and the installed package version.
-2. Read the image's Dockerfile in a worktree, the same way as SKILL.md step 3. Record:
+1. Read the issue's generated section only (SKILL.md step 1): every image on the `**Images:**` line, the source repo from `built from …`, the installed package version, and every row of the Advisories table. Triage keeps that section current, so don't gather advisories or images from comments. Use vanta-triage's `references/config.json` `images` map only when the description says the source repo is unknown; with no entry there either, the issue is **skipped**.
+2. Read each listed image's Dockerfile in the worktree from SKILL.md step 4. Record, per image:
    - the runtime stage's base image and tag
    - every `apt-get install`, `apk add`, or `dnf install` line
    - whether the package arrives with the base image or through the Dockerfile's own installs
@@ -34,8 +34,7 @@ Answer each of these questions with a source URL:
 - **Fixed package available in the base suite.**
   - Prefer a base-image refresh: bump the pinned tag or digest in the Dockerfile to a build that carries the fixed version.
   - Otherwise, add an `apt-get install --only-upgrade <pkg>` or equivalent to the runtime stage.
-  - Verify the rebuilt image's package version where a container runtime is available. Otherwise say the version is unverified.
-  - Open a PR as in SKILL.md step 7.
+  - Verify per the evidence gate below, then open the PR as in SKILL.md step 7.
 - **Fix only in proposed-updates or unreleased.**
   - Make no Dockerfile change unless the repo already pulls from proposed-updates.
   - Comment the staged version, its source, and the expected path (the next point release) on the issue.
@@ -45,10 +44,30 @@ Answer each of these questions with a source URL:
   - Comment the evidence (affected range, upstream source, tracker) on the issue.
   - Report that a not-affected determination should be filed in Vanta. The Vanta API credentials are read-only, so a human files it.
   - Leave the issue in Todo until the determination is filed.
-- **Removable.** The package arrives only through a Dockerfile install that the runtime doesn't need. For example, a full `perl` pulled in by `postgresql-client`. Propose the trimmed install in a PR, and say what it removes.
+- **Removable.** The package arrives only through a Dockerfile install that the runtime doesn't need. For example, a full `perl` pulled in by `postgresql-client`. Propose the trimmed install in a PR, verified per the evidence gate below, and say what it removes.
 - **Genuinely unfixed and affected.**
   - Comment the status and the reachability analysis.
   - Report the issue for a human risk decision.
   - Leave it in Todo.
 
 Each comment carries a correction-friendly table: CVE, installed version, affected range, distribution status, fixed version, and source links. Later runs then extend it rather than re-derive it. Never state a fix or a not-affected verdict without a cited source for it.
+
+## Evidence gate
+
+Write one determination per advisory row to `<scratch>/determinations.json`:
+
+```json
+{"images": ["zerokms", "cts"],
+ "advisories": [{"id": "CVE-…", "status": "fixed", "source": "https://…", "verified_images": ["zerokms", "cts"]}]}
+```
+
+- `status` is `fixed` (the PR brings in a fixed version), `removed` (the PR drops the package), `not-affected`, `staged` (proposed-updates or unreleased), or `unfixed`. `source` is the cited URL for the determination.
+- An image counts as verified only when it was rebuilt from the branch and shows the package at a fixed version, or absent: `docker build`, then `docker run --rm <image> dpkg-query -W <pkg>` (or `apk info -v`, `rpm -q`). Only then does it go in `verified_images`.
+
+Run `gate.py --claim container --ref-kind fix-branch --determinations <scratch>/determinations.json --diff-files <step 6's list>`. Only Dockerfiles may change. Act on its `outcome`:
+
+- `pr-in-review`: every advisory is fixed or removed and verified in every image. Open the PR; the issue moves to In Review.
+- `pr-todo`: the PR's fixes are verified, but other advisories remain. Open the PR; the issue stays in Todo, with a comment listing `must_name_unfixed`.
+- `draft-todo`: a fix is not verified in every image, for example because no container runtime is available. Open the PR as a draft marked unverified; the issue stays in Todo.
+- `comment-only`: nothing is fixed by a change. Make no PR, and comment per the outcomes above.
+- `blocked`: a determination lacks a source or status, or the diff touches other files. Report the reasons and open no PR.

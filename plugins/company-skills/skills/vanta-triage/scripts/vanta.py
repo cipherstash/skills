@@ -38,28 +38,44 @@ plan
              (remediate | track-upstream | assess-container), severity,
              priority (Linear 1-4), sla, images (container only), targets (highest fixed version
              per major line), advisories, title, description (Markdown),
-             match (the open Linear issue it maps to, or null).
-    actions  create | retarget | resolve | keep | await-rescan, one per
-             group or unmatched open issue, each with the reason. Each open
-             issue serves at most one group. A retarget or keep whose issue
-             was matched by title alone and also fits other groups carries
-             ambiguous: [group keys]; the issue's description (with its
-             "Vanta key:" line) settles it.
+             advisory_digest (the description's "Advisory set:" value: a
+             hash of each advisory's id, affected range and fix, plus the
+             images for a container group), match (the open Linear issue it
+             maps to, or null).
+    actions  create | retarget | refresh | resolve | keep | await-rescan,
+             one per group or unmatched open issue, each with the reason.
+             Each open issue serves at most one group. The digest in an
+             issue's generated section (from the first "## Vulnerability" to
+             the end of the first "Vanta key:" line after it) is the only
+             test of whether it is current, for every group kind: refresh
+             keeps the issue's title but its digest differs from the group's
+             (or it has none). retarget and refresh carry patch, a save_issue
+             patch to pass verbatim: a replace of that span, or a prepend for
+             an issue with no such span. An action whose issue the plan saw
+             without a description carries fetch_description: true (and no
+             patch); add get_issue's result and rerun. A retarget or keep
+             whose issue was matched by title alone and also fits other
+             groups carries ambiguous: [group keys]; the issue's description
+             (with its "Vanta key:" line) settles it.
              await-rescan replaces create when a matching issue was closed
-             as Done within --rescan-days (default 7) of --today and its
-             version covers the targets: Vanta has not rescanned yet.
+             as Done within --rescan-days (default 7) of --today, its version
+             covers the targets, and its digest equals the group's: Vanta has
+             not rescanned yet. A closed issue seen without a description
+             gives await-rescan with fetch_description: true.
     unparsed open Linear issues whose title is not a recognised Vanta
              package title, left untouched.
 
-  --issues takes one or more files, each a JSON array (or an object with an
-  "issues" array, as the Linear connector returns it) of Linear
-  issues with id or identifier, title, status or state (a string or an
+  --issues takes one or more files, each a list_issues page (a JSON array,
+  or an object with an "issues" or "nodes" array) or a get_issue result (a
+  bare issue, or {"issue": {...}}); a host-saved list of {"type": "text"}
+  blocks is unwrapped first. Any other shape exits 2 naming the file. Issues
+  carry id or identifier, title, status or state (a string or an
   object with name and type), and optionally statusType, description and
   completedAt. An issue whose state type is completed (or named Done) is done,
   canceled (or named Canceled or Duplicate) is ignored, and anything else is
   open. A description line "Vanta key: `<key>`" takes precedence over the
-  title for matching. An id listed more than once is merged, keeping any
-  description, so a get_issue result can be added to a list result.
+  title for matching. An id listed more than once is merged; a get_issue
+  result's description (even an empty one) wins over a list's.
 
   Exits 2 on bad usage or unreadable input.
 """
@@ -68,6 +84,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import hashlib
 import json
 import os
 import re
@@ -90,6 +107,7 @@ DEPENDABOT_RE = re.compile(r"^https://github\.com/(?P<repo>[^/]+/[^/]+)/security
 PACKAGE_RE = re.compile(r"^(?P<eco>[a-z0-9]+)-(?P<pkg>\S+?)(?:\s+(?P<range>[<>=!~^].*))?$")
 OS_PACKAGE_RE = re.compile(r"^(?P<pkg>[^:\s]+):(?P<ver>\S+)$")
 KEY_LINE_RE = re.compile(r"Vanta key:\s*`([^`]+)`")
+DIGEST_LINE_RE = re.compile(r"Advisory set:\s*`([0-9a-f]+)`")
 TITLE_RES = [
     ("remediate", re.compile(r"^\[Vanta\] Remediate (?P<pkg>[^\s\"]+) to (?P<ver>.+?) \((?P<where>[^()]+)\)\s*$")),
     ("track-upstream", re.compile(r"^\[Vanta\] Track upstream fix for (?P<pkg>\S+) \((?P<where>[^()]+)\)\s*$")),
@@ -340,11 +358,40 @@ def group_findings(findings: list[dict]) -> list[dict]:
             "finding_count": len(items),
             "images": sorted({f["target"] for f in items}) if first["kind"] == "container" else [],
         })
+        groups[-1]["advisory_digest"] = advisory_digest(groups[-1]["advisories"], groups[-1]["images"])
     groups.sort(key=lambda g: (g["priority"], g["sla"] or "9999", g["key"]))
     for g in groups:
         g["title"] = render_title(g)
         g["description"] = render_description(g)
     return groups
+
+
+def advisory_digest(advisories: list[dict], images=()) -> str:
+    """Fingerprint of what remediation reads from the generated section: each advisory's id, affected range and fix
+    (not CVSS or alert links), plus the affected images for a container group."""
+    rows = sorted([a["id"] or "", a["affected"] or "", a["fixed_version"] or ""] for a in advisories)
+    payload = {"rows": rows, "images": sorted(images)} if images else rows
+    return hashlib.sha256(json.dumps(payload).encode()).hexdigest()[:12]
+
+
+def generated_span(description: str) -> str | None:
+    """The generated section: from the first "## Vulnerability" to the end of the first "Vanta key:" line after it."""
+    start = description.find("## Vulnerability")
+    if start < 0:
+        return None
+    key = description.find("Vanta key:", start)
+    if key < 0:
+        return None
+    end = description.find("\n", key)
+    return description[start:end if end >= 0 else len(description)]
+
+
+def description_patch(description: str, section: str) -> list[dict]:
+    """save_issue patch that swaps the generated section in, or prepends it to an issue filed before this format."""
+    span = generated_span(description)
+    if span is not None:
+        return [{"op": "replace", "old_string": span, "new_string": section}]
+    return [{"op": "prepend", "text": section + ("\n\n---\n\n" if description.strip() else "")}]
 
 
 def where(g: dict) -> str:
@@ -400,7 +447,7 @@ def render_description(g: dict) -> str:
         lines.append("Check whether the distribution has a fixed or staged package version, whether the vulnerable "
                      "code is present and reachable in this image, and whether a base-image refresh or Dockerfile "
                      "change clears it. Record a not-affected determination in Vanta where the code is absent.")
-    lines += ["", f"Vanta key: `{g['key']}`"]
+    lines += ["", f"Advisory set: `{g['advisory_digest']}`", f"Vanta key: `{g['key']}`"]
     return "\n".join(lines)
 
 
@@ -422,8 +469,19 @@ def issue_fields(issue: dict) -> tuple[str, str, str, str, str]:
     return ident, issue.get("title") or "", str(state), cls, issue.get("description") or ""
 
 
-def parse_issue(title: str, description: str) -> dict | None:
-    """Recover (kind, package, where, version) from a Vanta issue, or None if it is not a package issue."""
+def parse_issue(title: str, description: str, fetched: bool = False) -> dict | None:
+    """Recover (kind, package, where, version) from a Vanta issue, or None if it is not a package issue.
+
+    described is True once the plan has seen the issue's description: a non-empty one, or any from get_issue."""
+    parsed = _parse_issue(title, description)
+    if parsed is not None:
+        span = generated_span(description) or ""
+        d = DIGEST_LINE_RE.search(span)
+        parsed.update(described=bool(description) or fetched, digest=d.group(1) if d else None, description=description)
+    return parsed
+
+
+def _parse_issue(title: str, description: str) -> dict | None:
     m = KEY_LINE_RE.search(description)
     if m:
         parts = m.group(1).split(":")
@@ -472,15 +530,39 @@ def matches(g: dict, parsed: dict) -> bool:
     return place(g).lower() in parsed["where"]
 
 
+def load_issues(data) -> tuple[str | None, list[dict]]:
+    """("list", issues) for an array or an {issues|nodes: [...]} page, ("issue", [issue]) for a get_issue result
+    (a bare issue or {"issue": {...}}), or (None, []) for anything else. Host-saved tool results, a list of
+    {"type": "text", "text": "<json>"} blocks, are unwrapped first."""
+    if isinstance(data, list) and data and all(isinstance(b, dict) and b.get("type") == "text" for b in data):
+        try:
+            data = json.loads("".join(b.get("text") or "" for b in data))
+        except ValueError:
+            return None, []
+    if isinstance(data, dict):
+        if isinstance(data.get("issue"), dict):
+            data = data["issue"]
+        for k in ("issues", "nodes"):
+            if isinstance(data.get(k), list):
+                return load_issues(data[k])
+        if (data.get("id") or data.get("identifier")) and "title" in data:
+            return "issue", [data]
+        return None, []
+    if isinstance(data, list) and all(isinstance(i, dict) for i in data):
+        return "list", data
+    return None, []
+
+
 def cmd_plan(args) -> int:
     try:
         findings = json.loads(Path(args.findings).read_text())
-        issues = []
+        listed, fetched = [], []
         for path in args.issues:
-            data = json.loads(Path(path).read_text())
-            if isinstance(data, dict):
-                data = data.get("issues") or data.get("nodes") or []
-            issues.extend(data)
+            kind, items = load_issues(json.loads(Path(path).read_text()))
+            if kind is None:
+                print(f"error: {path}: not a Linear issue list or issue", file=sys.stderr)
+                return 2
+            (fetched if kind == "issue" else listed).extend(items)
     except (OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -490,10 +572,15 @@ def cmd_plan(args) -> int:
             f["repo"] = (config.get("images", {}).get(f["target"]) or {}).get("repo")
     groups = group_findings(findings)
     merged: dict[str, dict] = {}
-    for issue in issues:
+    for issue in listed:
         ident = issue.get("identifier") or issue.get("id") or ""
         prev = merged.get(ident)
-        merged[ident] = {**prev, **{k: v for k, v in issue.items() if v not in (None, "")}} if prev else issue
+        merged[ident] = {**prev, **{k: v for k, v in issue.items() if v not in (None, "")}} if prev else dict(issue)
+    for issue in fetched:  # a get_issue result is the whole issue: its description wins over a list's
+        ident = issue.get("identifier") or issue.get("id") or ""
+        prev = merged.get(ident) or {}
+        merged[ident] = {**prev, **{k: v for k, v in issue.items() if v not in (None, "")},
+                         "description": issue.get("description") or "", "_fetched": True}
     issues = list(merged.values())
 
     today = dt.date.fromisoformat(args.today) if args.today else dt.date.today()
@@ -505,11 +592,11 @@ def cmd_plan(args) -> int:
         if cls == "done":
             done = (issue.get("completedAt") or "")[:10]
             if done and (today - dt.date.fromisoformat(done)).days <= args.rescan_days:
-                parsed = parse_issue(title, desc)
+                parsed = parse_issue(title, desc, issue.get("_fetched", False))
                 if parsed:
                     recent_done.append({"id": ident, "title": title, "state": state, "completed": done, **parsed})
             continue
-        parsed = parse_issue(title, desc)
+        parsed = parse_issue(title, desc, issue.get("_fetched", False))
         if parsed is None:
             unparsed.append({"id": ident, "title": title, "state": state})
         else:
@@ -540,26 +627,40 @@ def cmd_plan(args) -> int:
             g["duplicates"] = dups
             used.update(dups)
         ambiguous = sorted(o["key"] for o in groups if chosen and not chosen["key"] and chosen in fits[o["key"]])
-        closed = [i for i in recent_done if matches(g, i) and (g["kind"] != "remediate" or covers(i["versions"], g["targets"]))]
-        if chosen is None and closed:
-            actions.append({"action": "await-rescan", "key": g["key"], "issue": closed[0]["id"],
-                            "reason": f"{closed[0]['id']} closed {closed[0]['completed']} with a covering fix; "
-                                      "Vanta has not rescanned yet"})
-        elif chosen is None:
-            actions.append({"action": "create", "key": g["key"], "title": g["title"],
-                            "reason": f"{g['finding_count']} open finding(s), no open Linear issue"})
-        elif g["kind"] == "remediate" and chosen["title"].startswith("[Vanta] Track upstream fix"):
-            actions.append({"action": "retarget", "key": g["key"], "issue": chosen["id"], "title": g["title"],
-                            "reason": f"a fix is now available: {' / '.join(g['targets'])}"})
-        elif g["kind"] == "remediate" and not covers(chosen["versions"], g["targets"]):
-            actions.append({"action": "retarget", "key": g["key"], "issue": chosen["id"], "title": g["title"],
-                            "reason": f"issue targets {' / '.join(chosen['versions']) or 'no version'}; "
-                                      f"Vanta now requires {' / '.join(g['targets'])}"})
+        if chosen is None:
+            # A recently closed issue holds the group back only if it tracked exactly these advisories.
+            closed = [i for i in recent_done if matches(g, i) and (g["kind"] != "remediate" or covers(i["versions"], g["targets"]))]
+            same = next((i for i in closed if i["described"] and i["digest"] == g["advisory_digest"]), None)
+            unseen = next((i for i in closed if not i["described"]), None)
+            if same or unseen:
+                i = same or unseen
+                actions.append({"action": "await-rescan", "key": g["key"], "issue": i["id"],
+                                "reason": f"{i['id']} closed {i['completed']} with the same advisories; "
+                                          "Vanta has not rescanned yet"})
+                if not same:
+                    actions[-1]["fetch_description"] = True
+            else:
+                actions.append({"action": "create", "key": g["key"], "title": g["title"],
+                                "reason": f"{g['finding_count']} open finding(s), no open Linear issue"})
         else:
-            missing = [i for i in g["images"] if not chosen["key"] and i.lower() not in chosen["where"]]
-            actions.append({"action": "keep", "key": g["key"], "issue": chosen["id"],
-                            "reason": f"tracked ({chosen['state']})"
-                                      + (f"; issue title does not name image(s) {', '.join(missing)}" if missing else "")})
+            if g["kind"] == "remediate" and chosen["title"].startswith("[Vanta] Track upstream fix"):
+                action = {"action": "retarget", "title": g["title"],
+                          "reason": f"a fix is now available: {' / '.join(g['targets'])}"}
+            elif g["kind"] == "remediate" and not covers(chosen["versions"], g["targets"]):
+                action = {"action": "retarget", "title": g["title"],
+                          "reason": f"issue targets {' / '.join(chosen['versions']) or 'no version'}; "
+                                    f"Vanta now requires {' / '.join(g['targets'])}"}
+            elif chosen["described"] and chosen["digest"] != g["advisory_digest"]:
+                action = {"action": "refresh", "title": chosen["title"],
+                          "reason": "Vanta's advisories" + (" or affected images" if g["images"] else "")
+                                    + f" changed; the target {' / '.join(g['targets']) or '(none)'} did not"}
+            else:
+                action = {"action": "keep", "reason": f"tracked ({chosen['state']})"}
+            actions.append({"action": action.pop("action"), "key": g["key"], "issue": chosen["id"], **action})
+            if not chosen["described"]:
+                actions[-1]["fetch_description"] = True
+            elif actions[-1]["action"] in ("retarget", "refresh"):
+                actions[-1]["patch"] = description_patch(chosen["description"], g["description"])
         if chosen and len(ambiguous) > 1:
             actions[-1]["ambiguous"] = ambiguous
     for i in open_issues:

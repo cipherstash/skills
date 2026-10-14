@@ -1,6 +1,6 @@
 # Patching by ecosystem
 
-Read the section for the issue's ecosystem. Every section follows the same escalation ladder. Stop at the first rung after which deps.py exits 0.
+Read the section for the issue's ecosystem. Every section follows the same escalation ladder. Stop at the first rung after which the fix check exits 0; SKILL.md's evidence gate (gate.py) still decides the outcome, and it fails on any `unsupported` lockfile. A binary `bun.lockb` cannot be read, so a repo that has one is **blocked** until a human converts it to a text `bun.lock`. Never delete a lockfile to regenerate it.
 
 1. **In-range update.** Refresh the resolved version without touching any manifest. This works when every dependent's version range already admits the fix.
 2. **Manifest bump.** Raise the requirement where deps.py's `manifests` shows the package declared directly, then reinstall.

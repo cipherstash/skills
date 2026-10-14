@@ -18,3 +18,11 @@ jobs:
           python-version: "3.13"
       - run: python3 scripts/validate.py
       - run: python3 -m unittest discover -s scripts/tests
+      - name: Run skill script tests
+        run: |
+          for d in plugins/company-skills/skills/*/tests; do
+            if ls "$d"/test_*.py >/dev/null 2>&1; then
+              echo "== $d"
+              python3 -m unittest discover -s "$d"
+            fi
+          done

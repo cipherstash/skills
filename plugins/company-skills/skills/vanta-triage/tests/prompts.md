@@ -1,6 +1,6 @@
 # Behavior cases
 
-`test_vanta.py` covers `scripts/vanta.py` (parsing, grouping, version ordering, Linear reconciliation) without network access: `python3 -m unittest discover -s tests` from the skill directory.
+`test_vanta.py` covers `scripts/vanta.py` (parsing, grouping, version ordering, Linear reconciliation) without network access, and `test_workflow.py` runs SKILL.md's loop end to end against a fake Linear store: `python3 -m unittest discover -s tests` from the skill directory.
 
 ## Should activate
 
@@ -24,8 +24,12 @@
 - Multiple Dependabot alerts for one package in one repo become one issue; fix versions on different major lines appear joined with ` / `.
 - A package with no fixed version gets a `Track upstream fix` issue; one that later gains a fix is retargeted to `Remediate … to …`, not duplicated.
 - A retarget updates the title and replaces only the generated vulnerability section of the description (from `## Vulnerability` to the `Vanta key:` line), keeping human notes, and adds a comment; an In Review issue being retargeted moves to Todo with the PR's shortfall noted.
+- When Vanta adds or drops an advisory but the fix target is unchanged (for example, a new advisory with no fix affecting `< 2.0.0` on an issue targeting 1.2.2), the issue is refreshed: its vulnerability section is replaced, so the table includes the new row and its `Advisory set:` digest is updated. Its title stays. A tracked issue the plan saw without a description is fetched with `get_issue` before the plan is rerun, and fetching repeats until no action names an unfetched issue.
+- Every description write passes the plan's `patch` verbatim; an issue filed before this format gets the generated section prepended once, and later refreshes replace only that section.
+- A container finding that gains an advisory or spreads to another image refreshes the issue's table and `**Images:**` line; its title, including any "not affected" verdict, stays.
+- A Remediate issue whose group loses every fix, or whose title names a higher target Vanta no longer requires, is refreshed with its title unchanged.
 - A `resolve` closes the issue as Done with a comment citing Vanta's absence of the finding; the mass-resolve guard blocks all resolves when the fetch looks partial.
-- A finding matching an issue closed in the last 7 days with a covering version is reported as awaiting rescan, not refiled.
+- A finding matching an issue closed in the last 7 days with a covering version and the same `Advisory set:` digest is reported as awaiting rescan, not refiled; a new advisory on that package is filed.
 - Container findings group per image and package, link any legacy umbrella issue for the image, and name images missing from the config map.
 - Each open issue serves at most one group; when a title fits several groups (npm and Rust `tar` in one repo), the issue's `Vanta key:` line is fetched to settle it rather than retargeting the issue back and forth.
 - Issues in custom open states (for example "Blocked") count as open; canceled issues are ignored.

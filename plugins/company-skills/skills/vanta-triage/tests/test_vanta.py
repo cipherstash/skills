@@ -37,6 +37,11 @@ def finding(**kw):
     return vanta.normalise(vuln(**kw), ASSETS, CONFIG)
 
 
+def digest(findings):
+    [g] = vanta.group_findings(findings)
+    return g["advisory_digest"]
+
+
 def run_plan(findings, issues):
     with tempfile.TemporaryDirectory() as d:
         fp, ip = Path(d, "f.json"), Path(d, "i.json")
@@ -170,9 +175,11 @@ class Plan(unittest.TestCase):
 
     def test_key_line_beats_title(self):
         issue = {"id": "CIP-1", "title": "[Vanta] Remediate left-pad to 1.2.2 (old-repo-name)", "status": "Todo",
-                 "description": "x\nVanta key: `dependency:acme/stack:npm:left-pad`"}
+                 "description": f"## Vulnerability\nx\nAdvisory set: `{digest([finding()])}`\nVanta key: `dependency:acme/stack:npm:left-pad`"}
         plan = run_plan([finding()], [issue])
         self.assertEqual(self.actions(plan), {("keep", "CIP-1")})
+        issue["description"] = "## Vulnerability\nx\nVanta key: `dependency:acme/stack:npm:left-pad`"  # filed before the digest line
+        self.assertEqual(self.actions(run_plan([finding()], [issue])), {("refresh", "CIP-1")})
 
     def test_repo_name_must_match(self):
         plan = run_plan([finding()], [{"id": "CIP-1", "title": "[Vanta] Remediate left-pad to 1.2.2 (other)", "status": "Todo"}])
@@ -197,7 +204,7 @@ class Plan(unittest.TestCase):
         single = {"id": "CIP-4895", "title": "[Vanta] Assess cyrus-sasl2 CVE-2026-0001 — not affected (cts image)", "status": "Todo"}
         plan = run_plan(fs, [single])
         self.assertEqual(self.actions(plan), {("keep", "CIP-4895")})
-        self.assertIn("zerokms", plan["actions"][0]["reason"])
+        self.assertTrue(plan["actions"][0].get("fetch_description"))  # its Images line is checked by digest
 
     def test_multiple_issue_files(self):
         with tempfile.TemporaryDirectory() as d:
@@ -327,7 +334,7 @@ class SecondReview(unittest.TestCase):
     def test_lowercase_key_line_still_matches(self):
         f = finding(packageIdentifier="go-github.com/BurntSushi/toml < 1.4.0", fixedVersion="1.4.0")
         issue = {"id": "CIP-1", "title": "[Vanta] Remediate github.com/BurntSushi/toml to 1.4.0 (stack)", "status": "Todo",
-                 "description": "Vanta key: `dependency:acme/stack:go:github.com/burntsushi/toml`"}
+                 "description": f"## Vulnerability\nAdvisory set: `{digest([f])}`\nVanta key: `dependency:acme/stack:go:github.com/burntsushi/toml`"}
         self.assertEqual([(a["action"], a.get("issue")) for a in run_plan([f], [issue])["actions"]], [("keep", "CIP-1")])
 
 
@@ -350,6 +357,204 @@ class ThirdReview(unittest.TestCase):
         groups = vanta.group_findings(fs)
         self.assertEqual(sorted(g["key"] for g in groups),
                          ["dependency:other:npm:left-pad", "dependency:stack:npm:left-pad"])
+
+
+class FourthReview(unittest.TestCase):
+    """G1: the advisory table must be refreshed when the advisory set changes but the target does not."""
+    FIXED = finding(id="1")
+    UNFIXED = finding(id="2", name="CVE-2026-0002", packageIdentifier="npm-left-pad < 2.0.0", fixedVersion=None,
+                      externalURL="https://github.com/acme/stack/security/dependabot/8")
+
+    def issue(self, findings, **kw):
+        [g] = vanta.group_findings(findings)
+        return {"id": "CIP-1", "title": g["title"], "status": "Todo", "description": g["description"], **kw}
+
+    def test_new_unfixed_advisory_refreshes_unchanged_target(self):
+        issue = self.issue([self.FIXED])
+        self.assertEqual(issue["title"], "[Vanta] Remediate left-pad to 1.2.2 (stack)")
+        plan = run_plan([self.FIXED, self.UNFIXED], [issue])
+        [a] = plan["actions"]
+        self.assertEqual((a["action"], a.get("issue")), ("refresh", "CIP-1"))
+        self.assertEqual(a["title"], issue["title"])
+        self.assertIn("< 2.0.0", plan["groups"][0]["description"])
+
+    def test_removed_advisory_refreshes_unchanged_target(self):
+        issue = self.issue([self.FIXED, self.UNFIXED])
+        [a] = run_plan([self.FIXED], [issue])["actions"]
+        self.assertEqual((a["action"], a.get("issue")), ("refresh", "CIP-1"))
+
+    def test_unchanged_advisories_keep(self):
+        issue = self.issue([self.FIXED, self.UNFIXED])
+        [a] = run_plan([self.FIXED, self.UNFIXED], [issue])["actions"]
+        self.assertEqual((a["action"], a.get("issue")), ("keep", "CIP-1"))
+        self.assertFalse(a.get("fetch_description"))
+
+    def test_keep_without_description_asks_for_it(self):
+        issue = {"id": "CIP-1", "title": "[Vanta] Remediate left-pad to 1.2.2 (stack)", "status": "Todo"}
+        [a] = run_plan([self.FIXED, self.UNFIXED], [issue])["actions"]
+        self.assertEqual((a["action"], a.get("issue")), ("keep", "CIP-1"))
+        self.assertTrue(a.get("fetch_description"))
+
+
+def run_plan_files(findings, files, config=None):
+    """Plan over several --issues files, as SKILL.md step 3 passes <scratch>/issues/*; files is {name: JSON}."""
+    with tempfile.TemporaryDirectory() as d:
+        fp, cp = Path(d, "f.json"), Path(d, "c.json")
+        fp.write_text(json.dumps(findings))
+        cp.write_text(json.dumps(config or {}))
+        paths = []
+        for name, data in sorted(files.items()):
+            paths.append(str(Path(d, name)))
+            Path(paths[-1]).write_text(json.dumps(data))
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = vanta.main(["plan", "--findings", str(fp), "--issues", *paths, "--config", str(cp), "--today", "2026-10-13"])
+        assert code == 0
+        return json.loads(out.getvalue())
+
+
+def container(id, name, image="a-img", pkg="openssl:3.0.15"):
+    return finding(id=id, name=name, targetId=image, packageIdentifier=pkg, fixedVersion="NotAvailable",
+                   externalURL=f"https://aws/inspector/{id}")
+
+
+class FifthReview(unittest.TestCase):
+    """Every current advisory must reach the Linear issue that remediation reads."""
+    FIXED = finding(id="1")
+    UNFIXED = finding(id="2", name="CVE-2026-0002", packageIdentifier="npm-left-pad < 2.0.0", fixedVersion=None,
+                      externalURL="https://github.com/acme/stack/security/dependabot/8")
+
+    def described(self, findings, **kw):
+        [g] = vanta.group_findings(findings)
+        return {"id": "CIP-1", "title": g["title"], "status": "Todo", "description": g["description"], **kw}
+
+    def test_h1_bare_get_issue_file_supplies_the_description(self):
+        listed = {"issues": [{"id": "CIP-1", "title": "[Vanta] Remediate left-pad to 1.2.2 (stack)", "status": "Todo"}],
+                  "hasNextPage": False}
+        fetched = self.described([self.FIXED])  # get_issue returns the bare issue object
+        plan = run_plan_files([self.FIXED, self.UNFIXED], {"unstarted.json": listed, "CIP-1.json": fetched})
+        [a] = plan["actions"]
+        self.assertEqual((a["action"], a.get("issue")), ("refresh", "CIP-1"))
+
+    def test_h1_bare_get_issue_file_settles_ambiguity(self):
+        key = "dependency:acme/stack:rust:tar"
+        title = "[Vanta] Remediate tar to 9.9.9 (stack)"
+        plan = run_plan_files(Regressions.TAR, {
+            "unstarted.json": {"issues": [{"id": "CIP-1", "title": title, "status": "Todo"}]},
+            "CIP-1.json": {"id": "CIP-1", "title": title, "status": "Todo", "description": f"...\n\nVanta key: `{key}`"}})
+        [r] = [a for a in plan["actions"] if a.get("issue") == "CIP-1"]
+        self.assertEqual((r["action"], r["key"]), ("retarget", key))
+        self.assertNotIn("ambiguous", r)
+
+    def test_h3_container_advisory_added_refreshes_and_keeps_title(self):
+        issue = self.described([container("1", "CVE-A")])
+        issue["title"] = "[Vanta] Assess openssl CVE-A — not affected (cts image)"
+        plan = run_plan([container("1", "CVE-A"), container("2", "CVE-B")], [issue])
+        [a] = plan["actions"]
+        self.assertEqual((a["action"], a.get("issue")), ("refresh", "CIP-1"))
+        self.assertEqual(a["title"], issue["title"])
+
+    def test_h3_container_keep_without_description_asks_for_it(self):
+        issue = {"id": "CIP-1", "title": "[Vanta] Assess openssl CVE-A (cts image)", "status": "Todo"}
+        [a] = run_plan([container("1", "CVE-A")], [issue])["actions"]
+        self.assertEqual((a["action"], a.get("issue")), ("keep", "CIP-1"))
+        self.assertTrue(a.get("fetch_description"))
+
+    def test_r2a_container_image_added_refreshes_images_line(self):
+        assets = {**ASSETS, "a-img2": {"id": "a-img2", "name": "zerokms", "assetType": "CONTAINER_REPOSITORY"}}
+        config = {"images": {"cts": {"repo": "acme/suite"}, "zerokms": {"repo": "acme/suite"}}}
+        def f(id, target):
+            return vanta.normalise(vuln(id=id, name="CVE-A", targetId=target, packageIdentifier="openssl:3.0.15",
+                                        fixedVersion="NotAvailable", externalURL=f"https://aws/{id}"), assets, config)
+        issue = self.described([f("1", "a-img")])  # tracked when only cts was affected
+        plan = run_plan_files([f("1", "a-img"), f("2", "a-img2")], {"i.json": [issue]}, config)
+        [a] = plan["actions"]
+        self.assertEqual((a["action"], a.get("issue")), ("refresh", "CIP-1"))
+
+    def test_r2b_recently_done_issue_does_not_swallow_a_new_advisory(self):
+        done = {**self.described([self.FIXED]), "status": "Done", "statusType": "completed",
+                "completedAt": "2026-10-10T01:00:00Z"}
+        plan = run_plan([self.UNFIXED], [done])  # CVE-2026-0002 is new: CIP-1 never tracked it
+        self.assertEqual({(a["action"], a.get("issue")) for a in plan["actions"]}, {("create", None)})
+
+    def test_r2b_recently_done_issue_with_same_advisories_awaits_rescan(self):
+        done = {**self.described([self.FIXED]), "status": "Done", "completedAt": "2026-10-10T01:00:00Z"}
+        [a] = run_plan([self.FIXED], [done])["actions"]
+        self.assertEqual((a["action"], a.get("issue"), a.get("fetch_description")), ("await-rescan", "CIP-1", None))
+
+    def test_r2b_recently_done_issue_unseen_asks_for_description(self):
+        done = {"id": "CIP-1", "title": "[Vanta] Remediate left-pad to 1.2.2 (stack)", "status": "Done",
+                "completedAt": "2026-10-10T01:00:00Z"}
+        [a] = run_plan([self.FIXED], [done])["actions"]
+        self.assertEqual((a["action"], a.get("fetch_description")), ("await-rescan", True))
+
+    def test_r2c_refresh_patch_replaces_only_the_generated_span(self):
+        issue = self.described([self.FIXED])
+        issue["description"] = "Owner: payments.\n\n" + issue["description"] + "\n\nNotes: pinned."
+        plan = run_plan([self.FIXED, self.UNFIXED], [issue])
+        [a], [g] = plan["actions"], plan["groups"]
+        self.assertEqual(a["patch"], [{"op": "replace", "old_string": self.described([self.FIXED])["description"],
+                                       "new_string": g["description"]}])
+
+    def test_r2c_legacy_patch_prepends(self):
+        issue = {"id": "CIP-1", "title": "[Vanta] Remediate left-pad to 1.2.0 (stack)", "status": "Todo",
+                 "description": "## Vulnerability\n\nfiled by hand"}
+        plan = run_plan([self.FIXED], [issue])
+        [a], [g] = plan["actions"], plan["groups"]
+        self.assertEqual((a["action"], a["patch"]), ("retarget", [{"op": "prepend", "text": g["description"] + "\n\n---\n\n"}]))
+
+    def test_r2c_retarget_without_description_asks_for_it(self):
+        issue = {"id": "CIP-1", "title": "[Vanta] Remediate left-pad to 1.2.0 (stack)", "status": "Todo"}
+        [a] = run_plan([self.FIXED], [issue])["actions"]
+        self.assertEqual((a["action"], a.get("fetch_description"), a.get("patch")), ("retarget", True, None))
+
+    def test_r2e_remediate_losing_every_fix_refreshes_and_keeps_title(self):
+        issue = self.described([self.FIXED, self.UNFIXED])
+        [a] = run_plan([self.UNFIXED], [issue])["actions"]
+        self.assertEqual((a["action"], a["title"]), ("refresh", issue["title"]))
+
+    def test_r2f_over_covering_title_refreshes_and_keeps_title(self):
+        two = finding(id="3", name="CVE-2026-0003", packageIdentifier="npm-left-pad >= 2.0.0, < 2.0.5", fixedVersion="2.0.5",
+                      externalURL="https://github.com/acme/stack/security/dependabot/9")
+        issue = self.described([self.FIXED, two])
+        self.assertIn("2.0.5 / 1.2.2", issue["title"])
+        [a] = run_plan([self.FIXED], [issue])["actions"]
+        self.assertEqual((a["action"], a["title"]), ("refresh", issue["title"]))
+
+    def test_generated_span_contract(self):
+        """vanta-remediate reads only the first "## Vulnerability" through the first "Vanta key:" line after it."""
+        for g in vanta.group_findings([self.FIXED, self.UNFIXED, container("c1", "CVE-A")]):
+            d = g["description"]
+            self.assertEqual((d.count("## Vulnerability"), d.count("Vanta key:")), (1, 1))
+            span = vanta.generated_span(d)
+            self.assertEqual(span, d)
+            for part in ("### Advisories", f"Advisory set: `{g['advisory_digest']}`"):
+                self.assertIn(part, span)
+            if g["kind"] == "assess-container":
+                self.assertIn("**Images:** `cts`", span)
+
+    def test_h1_unknown_shape_exits_2_naming_the_file(self):
+        with tempfile.TemporaryDirectory() as d:
+            fp, ip = Path(d, "f.json"), Path(d, "odd.json")
+            fp.write_text("[]")
+            ip.write_text(json.dumps({"data": {"something": 1}}))
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+                code = vanta.main(["plan", "--findings", str(fp), "--issues", str(ip), "--today", "2026-10-13"])
+        self.assertEqual(code, 2)
+        self.assertIn("odd.json", err.getvalue())
+
+    def test_h1_host_saved_text_blocks_and_issue_wrapper(self):
+        fetched = self.described([self.FIXED])
+        blocks = [{"type": "text", "text": json.dumps({"issue": fetched})}]
+        plan = run_plan_files([self.FIXED, self.UNFIXED], {"a.json": {"issues": [], "hasNextPage": False}, "CIP-1.json": blocks})
+        self.assertEqual([(a["action"], a.get("issue")) for a in plan["actions"]], [("refresh", "CIP-1")])
+
+    def test_h1_fetched_description_wins_over_listed(self):
+        listed = {**self.described([self.FIXED, self.UNFIXED]), "description": "truncated"}
+        fetched = self.described([self.FIXED])
+        plan = run_plan_files([self.FIXED], {"z-list.json": [listed], "CIP-1.json": fetched})
+        self.assertEqual([a["action"] for a in plan["actions"]], ["keep"])
 
 
 class Credentials(unittest.TestCase):

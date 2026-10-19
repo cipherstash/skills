@@ -158,8 +158,9 @@ class Plan(unittest.TestCase):
         self.assertEqual(self.actions(plan), {("retarget", "CIP-1")})
 
     def test_resolve_open_issue_without_finding(self):
-        plan = run_plan([], [{"id": "CIP-9", "title": "[Vanta] Remediate gone to 1.0.0 (stack)", "status": "In Review"}])
-        self.assertEqual(self.actions(plan), {("resolve", "CIP-9")})
+        # One unrelated live finding: zero findings would trip the mass-resolve guard instead.
+        plan = run_plan([finding()], [{"id": "CIP-9", "title": "[Vanta] Remediate gone to 1.0.0 (stack)", "status": "In Review"}])
+        self.assertEqual(self.actions(plan), {("create", None), ("resolve", "CIP-9")})
 
     def test_recently_done_covering_issue_awaits_rescan(self):
         done = {"id": "CIP-1", "title": "[Vanta] Remediate left-pad to 1.2.2 (stack)", "status": "Done", "completedAt": "2026-10-10T01:00:00Z"}
@@ -500,7 +501,7 @@ class FifthReview(unittest.TestCase):
     def test_r2c_legacy_patch_prepends(self):
         issue = {"id": "CIP-1", "title": "[Vanta] Remediate left-pad to 1.2.0 (stack)", "status": "Todo",
                  "description": "## Vulnerability\n\nfiled by hand"}
-        plan = run_plan([self.FIXED], [issue])
+        plan = run_plan_files([self.FIXED], {"CIP-1.json": issue})  # get_issue: a list's description may be truncated
         [a], [g] = plan["actions"], plan["groups"]
         self.assertEqual((a["action"], a["patch"]), ("retarget", [{"op": "prepend", "text": g["description"] + "\n\n---\n\n"}]))
 
@@ -604,6 +605,68 @@ class SixthReview(unittest.TestCase):
         [a] = plan["actions"]
         self.assertEqual(a["action"], "refresh")
         self.assertIn("```json", a["patch"][0]["new_string"])
+
+
+class SeventhReview(unittest.TestCase):
+    """PR #6 review (coderdan): plans that close an issue whose finding is still active, or write a second section."""
+    ZK_ASSETS = {**ASSETS, "a-zk": {"id": "a-zk", "name": "zerokms", "assetType": "CONTAINER_REPOSITORY"}}
+
+    def test_f2_mapping_an_image_keeps_its_issue_open(self):
+        # Run 1: zerokms is missing from the images map, so its issue is keyed by the image name.
+        f = vanta.normalise(vuln(id="1", name="CVE-A", targetId="a-zk", packageIdentifier="openssl:3.0.15",
+                                 fixedVersion="NotAvailable", externalURL="https://aws/1"), self.ZK_ASSETS, CONFIG)
+        [g] = vanta.group_findings([dict(f)])
+        self.assertEqual(g["key"], "container:zerokms:openssl")
+        issue = {"id": "CIP-1", "title": g["title"], "status": "Todo", "description": g["description"]}
+        # Run 2: the operator adds zerokms to the map, as the report asks; the finding is still active.
+        mapped = {"images": {**CONFIG["images"], "zerokms": {"repo": "acme/suite"}}}
+        plan = run_plan_files([f], {"CIP-1.json": issue}, mapped)
+        acts = {(a["action"], a.get("issue")) for a in plan["actions"]}
+        self.assertNotIn(("resolve", "CIP-1"), acts, "the issue was closed while its finding is still active")
+        self.assertNotIn(("create", None), acts, "a duplicate issue was filed for a tracked finding")
+
+    def test_f3_issue_fitting_two_groups_is_not_resolved(self):
+        foo = [finding(id="1", packageIdentifier="npm-foo < 1.2.0", fixedVersion="1.2.0"),
+               finding(id="2", packageIdentifier="rust-foo < 1.2.0", fixedVersion="1.2.0", name="CVE-2")]
+        issues = [{"id": f"CIP-{n}", "title": "[Vanta] Remediate foo to 1.2.0 (stack)", "status": "Todo"} for n in (1, 2, 3)]
+        plan = run_plan(foo, issues)
+        acts = {(a["action"], a.get("issue")) for a in plan["actions"]}
+        self.assertNotIn(("resolve", "CIP-3"), acts, "an issue for an active finding was closed as Done")
+
+    def test_f8_truncated_list_description_does_not_prepend_a_second_section(self):
+        [g] = vanta.group_findings([FifthReview.FIXED])
+        full = g["description"]
+        truncated = full[:full.index("Vanta key:")]  # connector ignored `fields` and truncated the description
+        listed = {"id": "CIP-1", "title": g["title"], "status": "Todo", "description": truncated}
+        [a] = run_plan_files([FifthReview.FIXED], {"a-list.json": {"issues": [listed], "hasNextPage": False}})["actions"]
+        self.assertNotIn("prepend", [op["op"] for op in a.get("patch") or []],
+                         "a second generated section would be written above the existing one")
+        self.assertTrue(a.get("fetch_description"), "a truncated description must be fetched before it is judged")
+
+    def test_f5_zero_findings_withholds_every_resolve(self):
+        # A partial Vanta response (zero findings) looks exactly like everything being fixed.
+        issues = [{"id": f"CIP-{n}", "title": f"[Vanta] Remediate pkg{n} to 1.0.0 (stack)", "status": "Todo"}
+                  for n in range(10)]
+        plan = run_plan([], issues)
+        self.assertEqual([a for a in plan["actions"] if a["action"] == "resolve"], [])
+        self.assertEqual({(a["action"], a["issue"]) for a in plan["actions"]}, {("guard", i["id"]) for i in issues})
+        self.assertIn("zero findings", plan["guard"])
+
+    def test_f5_mass_resolve_guard_threshold(self):
+        # More than 5 resolves and more than half the open package issues trips it; either alone does not.
+        def issues(n):
+            return [{"id": f"CIP-{k}", "title": f"[Vanta] Remediate pkg{k} to 1.0.0 (stack)", "status": "Todo"}
+                    for k in range(n)]
+        live = [finding(id=str(k), packageIdentifier=f"npm-live{k} < 1.2.2", name=f"CVE-{k}") for k in range(7)]
+        live_issues = [{"id": f"CIP-L{k}", "title": f"[Vanta] Remediate live{k} to 1.2.2 (stack)", "status": "Todo"}
+                       for k in range(7)]
+        for stale, tracked, tripped in ((6, 0, True), (5, 0, False), (6, 7, False), (7, 6, True)):
+            with self.subTest(stale=stale, tracked=tracked):
+                plan = run_plan(live, issues(stale) + live_issues[:tracked])
+                kinds = [a["action"] for a in plan["actions"] if a.get("issue", "").startswith("CIP-") and
+                         not a["issue"].startswith("CIP-L")]
+                self.assertEqual(kinds, ["guard" if tripped else "resolve"] * stale)
+                self.assertEqual(plan["guard"] is not None, tripped)
 
 
 class Credentials(unittest.TestCase):

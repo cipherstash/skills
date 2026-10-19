@@ -18,11 +18,15 @@ digest recomputed from it (vanta-triage's algorithm, duplicated here) equal to t
 Conversion, with every advisory represented:
   fix_checks      the range check: --affected for each fixed advisory's range. Plus a --target-only check when
                   a fixed advisory has no range, the title's targets differ from the block's (a stale or
-                  hand-retargeted title), or no fixed advisory has a range. Every one must exit 0.
+                  hand-retargeted title), or no fixed advisory has a range. When the title's targets differ from
+                  the block's, a second --target-only check carries the block's targets: the title is outside the
+                  integrity check, so a title retargeted below the block can never be the only fix check.
+                  Every one must exit 0.
   residual_check  for advisories with no fix: --affected for each one's range, or a range matching every version
                   when it has none (Vanta still reports it, so no locked version clears it). null when none.
   unfixed_advisories  every advisory id with no fix, for gate.py --unfixed-advisory.
-Each check is a deps.py argument list to run after <dir>; every one carries --target for each title target.
+Each check is a deps.py argument list to run after <dir>; every one carries --target for each title target,
+except the block-targets check above.
 
 Prints JSON: status ("ok" or "skip"), reasons, kind, key, repo, asset, ecosystem, package, images, targets
 (the title's), block_targets, stale, digest, advisories [{id, affected, fixed_version}], fix_checks,
@@ -177,6 +181,8 @@ def checks(issue: dict) -> dict:
         out["fix_checks"].append(base + [a for r in ranges for a in ("--affected", r)])
     if stale or not ranges or any(not a["affected"] for a in fixed):
         out["fix_checks"].append(base)
+    if stale:  # the block's targets are integrity-checked; the title's are not
+        out["fix_checks"].append(base[:4] + [a for t in block["targets"] for a in ("--target", t)])
     if unfixed:
         residual = list(dict.fromkeys(a["affected"] or MATCH_ALL for a in unfixed))
         out["residual_check"] = base + [a for r in residual for a in ("--affected", r)]

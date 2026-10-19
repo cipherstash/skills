@@ -24,8 +24,8 @@ Inspect (the default) changes nothing. It prints JSON {action, base, pr, reasons
            default branch is noted; pushing onto it is a fast-forward.
 --pr-json is a JSON list of the PRs whose head is <branch>, each {number, state, merged_at}
 (as `gh api "repos/<o/r>/pulls?state=all&head=<owner>:<branch>"` returns them); a missing
-list means no PRs. The branch must be fix/<issue id>-<slug> or fix/vanta-<slug>, lowercase, so
-the script never adopts a human's branch.
+list means no PRs. The branch must be fix/<issue id>-<slug> or fix/vanta-<slug>, with the issue id
+lowercase (the slug keeps the package name's case), so the script never adopts a human's branch.
 
 --create inspects first and, unless blocked, runs `git worktree add -B <branch> <path> <base>`
 (or `--detach <path> <REF>`, which only needs <path> to be free) and writes an ownership marker,
@@ -51,7 +51,7 @@ import subprocess
 import sys
 
 MARKER = "vanta-remediate-owner"
-BRANCH_RE = re.compile(r"^fix/([a-z][a-z0-9]*-[0-9]+|vanta)-[a-z0-9][a-z0-9._-]*$")
+BRANCH_RE = re.compile(r"^fix/([a-z][a-z0-9]*-[0-9]+|vanta)-[A-Za-z0-9][A-Za-z0-9._-]*$")
 
 
 class GitError(Exception):
@@ -160,10 +160,10 @@ def inspect(clone: str, path: str, branch: str | None, default: str, prs: list[d
         evidence["remote_commits_beyond_default"] = ahead
         if open_prs:
             action, base, pr = "resume", f"origin/{branch}", open_prs[0]["number"]
-        elif not ahead:
-            evidence["note"] = f"origin/{branch} holds nothing beyond origin/{default}; a push onto it fast-forwards"
         elif rejected and not merged:
             reasons.append(f"PR #{rejected[0]['number']} for {branch} was closed unmerged: a human rejected it")
+        elif not ahead:
+            evidence["note"] = f"origin/{branch} holds nothing beyond origin/{default}; a push onto it fast-forwards"
         elif merged:
             reasons.append(f"PR #{merged[0]['number']} merged, but origin/{branch} still holds commits not on "
                            f"{default}; a human deletes the remote branch before this issue can be worked again")
@@ -238,7 +238,8 @@ def main(argv=None) -> int:
         if not args.branch or not args.default:
             parser.error("--branch and --default are required")
         if not BRANCH_RE.match(args.branch):
-            parser.error(f"branch {args.branch!r} must be fix/<issue id>-<slug> or fix/vanta-<slug>, lowercase")
+            parser.error(f"branch {args.branch!r} must be fix/<issue id>-<slug> or fix/vanta-<slug>, "
+                         "with the issue id lowercase")
     path = os.path.abspath(args.path)
     try:
         git(args.clone, "rev-parse", "--git-dir")

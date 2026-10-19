@@ -169,6 +169,17 @@ class ChecksCli(unittest.TestCase):
         self.assertIn(["--ecosystem", "npm", "--package", "left-pad", "--target", "1.3.0"], out["fix_checks"])
         self.assertFalse(already_fixed(issue, "1.2.2")["pass"])
 
+    def test_f1_title_retargeted_below_the_block_cannot_certify_a_rangeless_fix(self):
+        # The block says CVE-2026-0005 is fixed in 1.2.5 with no affected range; the title was hand-edited down to
+        # 1.2.4. The title is not integrity-checked, so a lockfile at 1.2.4 must not pass as already fixed.
+        issue = issue_for([finding("5", "CVE-2026-0005", "npm-left-pad", "1.2.5")])
+        self.assertIn("to 1.2.5 (stack)", issue["title"])
+        issue["title"] = "[Vanta] Remediate left-pad to 1.2.4 (stack)"
+        self.assertEqual(step1(issue)["block_targets"], ["1.2.5"])
+        result = already_fixed(issue, "1.2.4")
+        self.assertFalse(result["pass"], f"locked 1.2.4 is below the block's fix 1.2.5; step 1 produced "
+                                         f"{json.dumps(result['checks']['fix_checks'])}")
+
     def test_unfixed_rangeless_advisory_is_named_on_a_pr(self):
         issue = issue_for(self.PLAIN + [finding("3", "CVE-2026-0003", "npm-left-pad", None)])
         out = step1(issue)
@@ -187,6 +198,55 @@ class ChecksCli(unittest.TestCase):
         self.assertEqual(out["status"], "skip")
         self.assertIn("asset", out["reasons"][0])
 
+
+IMAGE_ASSETS = {"a-cts": {"id": "a-cts", "name": "cts", "assetType": "CONTAINER_REPOSITORY"},
+                "a-zerokms": {"id": "a-zerokms", "name": "zerokms", "assetType": "CONTAINER_REPOSITORY"}}
+IMAGE_CONFIG = {"images": {"cts": {"repo": "acme/suite"}, "zerokms": {"repo": "acme/suite"}}}
+
+
+def container_finding(id, advisory, image):
+    """An Inspector finding on an ECR image as vanta.py fetch normalises it."""
+    return vanta.normalise({
+        "id": id, "name": advisory, "targetId": image, "severity": "HIGH", "cvssSeverityScore": 7.5,
+        "fixedVersion": "NotAvailable", "remediateByDate": "2026-11-05T00:00:00Z",
+        "firstDetectedDate": "2026-10-05T00:00:00Z", "packageIdentifier": "cyrus-sasl2:2.1.28",
+        "externalURL": f"https://aws/inspector/{id}", "relatedUrls": [], "description": "Something is wrong.",
+        "deactivateMetadata": None}, IMAGE_ASSETS, IMAGE_CONFIG)
+
+
+def container_gate(issue: dict, determinations: dict, diff_files: list[str]) -> dict:
+    """SKILL.md step 1 then references/containers.md's evidence gate, as documented, on the agent's determinations."""
+    checks = step1(issue)
+    with tempfile.TemporaryDirectory() as d:
+        path, checks_path = Path(d, "determinations.json"), Path(d, "checks.json")
+        path.write_text(json.dumps(determinations))
+        checks_path.write_text(json.dumps(checks))
+        proc = subprocess.run([sys.executable, "-I", str(GATE), "--claim", "container", "--ref-kind", "fix-branch",
+                               "--determinations", str(path), "--checks", str(checks_path),
+                               "--diff-files", *diff_files],
+                              capture_output=True, text=True)
+    result = json.loads(proc.stdout)
+    result["checks"] = checks
+    return result
+
+
+class ContainerGate(unittest.TestCase):
+    def test_f4_determinations_that_omit_an_image_and_an_advisory_cannot_reach_in_review(self):
+        issue = issue_for([container_finding("1", "CVE-2026-0001", "a-zerokms"),
+                           container_finding("2", "CVE-2026-0002", "a-zerokms"),
+                           container_finding("3", "CVE-2026-0001", "a-cts"),
+                           container_finding("4", "CVE-2026-0002", "a-cts")])
+        checks = step1(issue)
+        self.assertEqual(checks["kind"], "container")
+        self.assertEqual(sorted(checks["images"]), ["cts", "zerokms"])
+        self.assertEqual(sorted(a["id"] for a in checks["advisories"]), ["CVE-2026-0001", "CVE-2026-0002"])
+        # The agent leaves cts and CVE-2026-0002 out of its determinations: cts was never rebuilt and
+        # CVE-2026-0002 was never assessed, so the issue must not move to In Review.
+        result = container_gate(issue, {"images": ["zerokms"], "advisories": [
+            {"id": "CVE-2026-0001", "status": "fixed", "source": "https://security-tracker.debian.org/x",
+             "verified_images": ["zerokms"]}]}, ["Dockerfile"])
+        self.assertNotEqual(result["outcome"], "pr-in-review", result["reasons"])
+        self.assertFalse(result["pass"])
 
 if __name__ == "__main__":
     unittest.main()

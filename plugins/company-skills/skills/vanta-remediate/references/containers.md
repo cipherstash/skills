@@ -64,10 +64,10 @@ Write one determination per advisory row to `<scratch>/determinations.json`:
 - `status` is `fixed` (the PR brings in a fixed version), `removed` (the PR drops the package), `not-affected`, `staged` (proposed-updates or unreleased), or `unfixed`. `source` is the cited URL for the determination.
 - An image counts as verified only when it was rebuilt from the branch and shows the package at a fixed version, or absent: `docker build`, then `docker run --rm <image> dpkg-query -W <pkg>` (or `apk info -v`, `rpm -q`). Only then does it go in `verified_images`.
 
-Run `gate.py --claim container --ref-kind fix-branch --determinations <scratch>/determinations.json --diff-files <step 6's list>`. Only Dockerfiles may change. Act on its `outcome`:
+Run `gate.py --claim container --ref-kind fix-branch --determinations <scratch>/determinations.json --checks <scratch>/<id>-checks.json --diff-files <step 6's list>`, where `<id>-checks.json` is SKILL.md step 1's checks.py output. Only Dockerfiles may change. The determinations must list exactly the images and advisories in that output: leaving one out, or adding one the issue lacks, blocks the gate. Act on its `outcome`:
 
 - `pr-in-review`: every advisory is fixed or removed and verified in every image. Open the PR; the issue moves to In Review.
 - `pr-todo`: the PR's fixes are verified, but other advisories remain. Open the PR; the issue stays in Todo, with a comment listing `must_name_unfixed`.
 - `draft-todo`: a fix is not verified in every image, for example because no container runtime is available. Open the PR as a draft marked unverified; the issue stays in Todo.
 - `comment-only`: nothing is fixed by a change. Make no PR, and comment per the outcomes above.
-- `blocked`: a determination lacks a source or status, or the diff touches other files. Report the reasons and open no PR.
+- `blocked`: a determination lacks a source or status, an image or advisory differs from the issue's, or the diff touches other files. Report the reasons and open no PR.

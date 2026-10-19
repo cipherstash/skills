@@ -572,6 +572,13 @@ class FailOpenRegressions(unittest.TestCase):
             with self.subTest(packages=packages):
                 self.assert_exit_2({"composer.lock": {"content-hash": "x", "packages": packages}}, "composer", "acme/foo")
 
+    def test_r1h_composer_unorderable_locked_version_names_the_file(self):
+        # version_key raised from record(), outside read()'s per-file handling: no JSON, no file named.
+        lock = {"content-hash": "x", "packages": [{"name": "guzzlehttp/guzzle", "version": "dev-main"}]}
+        code, r = scan_code({"composer.lock": lock}, "composer", "guzzlehttp/guzzle", "7.4.5")
+        self.assertIsNotNone(r, "deps.py printed no JSON report")
+        self.assertEqual((code, r["ok"], [u["path"] for u in r["unsupported"]]), (2, False, ["composer.lock"]), r)
+
     def test_r1i_go_mod_requires_that_are_dropped(self):
         head = "module example.com/app\n\ngo 1.22\n\n"
         for body, mod in (('require (\n\t"github.com/acme/foo" v1.0.0\n)\n', "github.com/acme/foo"),

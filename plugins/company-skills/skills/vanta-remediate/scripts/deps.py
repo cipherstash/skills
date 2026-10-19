@@ -980,7 +980,16 @@ def scan(root: Path, eco: str, package: str, targets: list[str], affected: list[
         found = {v for v, _ in matched if v is not None}
         for v in sorted(v for v in found if v.startswith("=>")):
             block(rel, f"{package} is replaced {v}; check by hand")
-        versions = sorted((v for v in found if not v.startswith("=>")), key=version_key)
+        versions = []
+        for v in sorted(v for v in found if not v.startswith("=>")):
+            try:
+                version_key(v)
+            except ValueError as exc:
+                # An unorderable version cannot be judged, so the run cannot report ok.
+                block(rel, f"{package} locked at an unorderable version: {exc}; check by hand")
+                continue
+            versions.append(v)
+        versions.sort(key=version_key)
         if versions:
             bad = []
             for v in versions:

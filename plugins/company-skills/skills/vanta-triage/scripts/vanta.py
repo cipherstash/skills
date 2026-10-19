@@ -42,9 +42,13 @@ plan
              hash of each advisory's id, affected range and fix, plus the
              images for a container group), match (the open Linear issue it
              maps to, or null).
-    actions  create | retarget | refresh | resolve | keep | await-rescan,
-             one per group or unmatched open issue, each with the reason.
-             Each open issue serves at most one group. The digest in an
+    actions  create | retarget | refresh | resolve | guard | keep |
+             await-rescan, one per group or unmatched open issue, each with
+             the reason. Each open issue serves at most one group; an open
+             issue that fits a group another issue already serves is listed
+             in the first such group's duplicates, never resolved. An issue
+             keyed container:<image>:<pkg> still fits once the image is
+             mapped to a repo, and is refreshed to the new key. The digest in an
              issue's generated section (from the first "## Vulnerability" to
              the end of the first "Vanta key:" line after it) is the only
              test of whether it is current, for every group kind: refresh
@@ -52,8 +56,10 @@ plan
              (or it has none). retarget and refresh carry patch, a save_issue
              patch to pass verbatim: a replace of that span, or a prepend for
              an issue with no such span. An action whose issue the plan saw
-             without a description carries fetch_description: true (and no
-             patch); add get_issue's result and rerun. A retarget or keep
+             without a whole generated section (no description, or a list
+             result truncated before its "Vanta key:" line) and not from
+             get_issue carries fetch_description: true (and no patch); add
+             get_issue's result and rerun. A retarget or keep
              whose issue was matched by title alone and also fits other
              groups carries ambiguous: [group keys]; the issue's description
              (with its "Vanta key:" line) settles it.
@@ -62,6 +68,12 @@ plan
              covers the targets, and its digest equals the group's: Vanta has
              not rescanned yet. A closed issue seen without a description
              gives await-rescan with fetch_description: true.
+             guard replaces every resolve when the mass-resolve guard trips
+             (see guard below); its reason says why it was withheld.
+    guard    null, or why every resolve was withheld: findings is empty while
+             open package issues exist, or resolves would exceed 5 and exceed
+             half the open package issues. A partial Vanta response looks
+             exactly like everything being fixed.
     unparsed open Linear issues whose title is not a recognised Vanta
              package title, left untouched.
 
@@ -523,12 +535,14 @@ def issue_fields(issue: dict) -> tuple[str, str, str, str, str]:
 def parse_issue(title: str, description: str, fetched: bool = False) -> dict | None:
     """Recover (kind, package, where, version) from a Vanta issue, or None if it is not a package issue.
 
-    described is True once the plan has seen the issue's description: a non-empty one, or any from get_issue."""
+    described is True once the plan has seen the issue's description: one with a whole generated section, or any
+    from get_issue. A list result may truncate the description before its "Vanta key:" line; judged as seen, its
+    missing span would prepend a second section above the existing one."""
     parsed = _parse_issue(title, description)
     if parsed is not None:
         span = generated_span(description) or ""
         d = DIGEST_LINE_RE.search(span)
-        parsed.update(described=bool(description) or fetched, digest=d.group(1) if d else None, description=description)
+        parsed.update(described=fetched or generated_span(description) is not None, digest=d.group(1) if d else None, description=description)
     return parsed
 
 
@@ -572,7 +586,13 @@ def covers(have: list[str], need: list[str]) -> bool:
 
 def matches(g: dict, parsed: dict) -> bool:
     if parsed["key"]:
-        return same_key(parsed["key"], g["key"])
+        if same_key(parsed["key"], g["key"]):
+            return True
+        # An image added to the config's images map moves its group from container:<image>:<pkg> to
+        # container:<repo>:<pkg>; the issue keyed by the image still tracks it.
+        return (g["kind"] == "assess-container" and parsed["key"].lower().startswith("container:")
+                and parsed["package"].lower() == g["package"].lower()
+                and bool(parsed["where"] & {i.lower() for i in g["images"]}))
     if parsed["package"] != g["package"].lower():
         return False
     if g["kind"] == "assess-container":
@@ -709,12 +729,17 @@ def cmd_plan(args) -> int:
             pick = next((i for i in fits[g["key"]] if i["id"] not in owner and ok(g, i)), None)
             if pick:
                 claimed[g["key"]], owner[pick["id"]] = pick, g["key"]
+    # An unclaimed issue that fits any group is a duplicate of the first group it fits, never a resolve.
+    dup_of = {}
+    for g in groups:
+        for i in fits[g["key"]]:
+            if i["id"] not in owner:
+                dup_of.setdefault(i["id"], g["key"])
     actions, used = [], set(owner)
     for g in groups:
         chosen = claimed.get(g["key"])
         g["match"] = {"id": chosen["id"], "title": chosen["title"], "state": chosen["state"]} if chosen else None
-        dups = [i["id"] for i in fits[g["key"]] if i["id"] not in owner
-                and all(i not in fits[o["key"]] for o in groups if o is not g)]
+        dups = [i["id"] for i in fits[g["key"]] if dup_of.get(i["id"]) == g["key"]]
         if dups:
             g["duplicates"] = dups
             used.update(dups)
@@ -742,6 +767,9 @@ def cmd_plan(args) -> int:
                 action = {"action": "retarget", "title": g["title"],
                           "reason": f"issue targets {' / '.join(chosen['versions']) or 'no version'}; "
                                     f"Vanta now requires {' / '.join(g['targets'])}"}
+            elif chosen["described"] and chosen["key"] and not same_key(chosen["key"], g["key"]):
+                action = {"action": "refresh", "title": chosen["title"],
+                          "reason": f"the image's source repo is now known; Vanta key is now {g['key']}"}
             elif chosen["described"] and chosen["digest"] != g["advisory_digest"]:
                 action = {"action": "refresh", "title": chosen["title"],
                           "reason": "Vanta's advisories" + (" or affected images" if g["images"] else "")
@@ -755,11 +783,19 @@ def cmd_plan(args) -> int:
                 actions[-1]["patch"] = description_patch(chosen["description"], g["description"])
         if chosen and len(ambiguous) > 1:
             actions[-1]["ambiguous"] = ambiguous
-    for i in open_issues:
-        if i["id"] not in used:
-            actions.append({"action": "resolve", "issue": i["id"], "title": i["title"], "state": i["state"],
-                            "reason": "no active Vanta finding matches this issue"})
-    json.dump({"generated": today.isoformat(), "groups": groups, "actions": actions, "unparsed": unparsed}, sys.stdout, indent=2)
+    stale = [i for i in open_issues if i["id"] not in used]
+    # A partial Vanta response looks exactly like everything being fixed, so a mass resolve is withheld.
+    guard = None
+    if not findings and open_issues:
+        guard = f"Vanta returned zero findings while {len(open_issues)} package issue(s) are open"
+    elif len(stale) > 5 and len(stale) > len(open_issues) / 2:
+        guard = f"{len(stale)} of {len(open_issues)} open package issues would be resolved"
+    for i in stale:
+        actions.append({"action": "guard" if guard else "resolve", "issue": i["id"], "title": i["title"],
+                        "state": i["state"], "reason": "no active Vanta finding matches this issue"
+                                                       + (f"; resolve withheld: {guard}" if guard else "")})
+    json.dump({"generated": today.isoformat(), "groups": groups, "actions": actions, "unparsed": unparsed,
+               "guard": guard}, sys.stdout, indent=2)
     print()
     return 0
 

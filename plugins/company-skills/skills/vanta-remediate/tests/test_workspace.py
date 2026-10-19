@@ -203,6 +203,21 @@ class TestStartingStates(WorkspaceCase):
         out = self.inspect_then_create("create", prs=[{"number": 43, "state": "closed", "merged_at": "2026-01-01"}])
         self.assertEqual(out["base"], "origin/main")
 
+    def test_closed_unmerged_pr_with_remote_branch_in_default_blocks(self):
+        # A rejected PR blocks even when its branch holds nothing beyond the default branch.
+        git(self.repo.clone, "push", "-q", "origin", f"origin/main:refs/heads/{BRANCH}")
+        git(self.repo.clone, "fetch", "-q", "origin")
+        out = self.inspect_then_create("blocked", prs=[{"number": 45, "state": "closed", "merged_at": None}])
+        self.assertIn("rejected", out["reasons"][0])
+
+    def test_mixed_case_package_slug_is_accepted(self):
+        # SKILL.md step 4 keeps the package name's case: PyPI Jinja2, PyYAML, Go BurntSushi.
+        for branch in ("fix/cip-1-Jinja2", "fix/vanta-PyYAML", "fix/cip-1-github.com-BurntSushi-toml"):
+            with self.subTest(branch=branch):
+                code, out, err = self.repo.run(branch=branch)
+                self.assertEqual(code, 0, err)
+                self.assertEqual(out["action"], "create")
+
     def test_human_branch_name_is_never_adopted(self):
         # R3l: a no-id request uses fix/vanta-<slug>; a human's fix/lodash is left alone.
         human = self.repo.commit_on("fix/lodash", "lib.rs", "human\n", push=True)

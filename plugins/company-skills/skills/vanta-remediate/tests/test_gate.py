@@ -225,6 +225,20 @@ class TestGateEntries(GateCase):
         self.assertEqual(result["outcome"], "blocked")
         self.assertIn("src/lib.rs", result["reasons"][0])
 
+    def test_f7_every_dependency_file_deps_py_reads_is_in_scope(self):
+        # deps.py reads each of these as a lockfile or requirements file, so a correct patch may change it.
+        for path in ("requirements/base.txt", "constraints.txt", "constraints-dev.txt", "pdm.lock", "deno.lock",
+                     "pylock.toml", "pylock.dev.toml", "requirements.lock", "requirements-dev.lock", "go.work",
+                     "go.work.sum", "svc/requirements-prod/linux.txt"):
+            with self.subTest(path=path):
+                result = self.gate("--claim", "opened", "--ref-kind", "fix-branch", *self.deps_args("fix", "clean"),
+                                   "--diff-files", path)
+                self.assertTrue(result["pass"], result["reasons"])
+        # Control: a .txt outside a requirements directory is still out of scope.
+        result = self.gate("--claim", "opened", "--ref-kind", "fix-branch", *self.deps_args("fix", "clean"),
+                           "--diff-files", "docs/notes.txt")
+        self.assertEqual(result["outcome"], "blocked")
+
     def test_exit_code_that_contradicts_the_json_fails(self):
         path, _ = self.out["vuln"]
         result = self.gate("--claim", "already-fixed", "--ref-kind", "default", "--fix", path, "--fix-exit", "0")
@@ -253,10 +267,19 @@ class TestGateCli(GateCase):
 
 
 class TestContainerGate(GateCase):
-    def container(self, determinations, *diff):
+    def container(self, determinations, *diff, checks=None):
+        """Run the container gate; --checks defaults to checks.py output listing exactly the determinations'
+        images and advisories."""
         path = self.tmp / "determinations.json"
         path.write_text(json.dumps(determinations))
-        return self.gate("--claim", "container", "--ref-kind", "fix-branch", "--determinations", str(path), *diff)
+        if checks is None:
+            checks = {"status": "skip", "kind": "container", "images": determinations["images"],
+                      "advisories": [{"id": a["id"], "affected": "2.1.28", "fixed_version": None}
+                                     for a in determinations["advisories"]]}
+        checks_path = self.tmp / "checks.json"
+        checks_path.write_text(json.dumps(checks))
+        return self.gate("--claim", "container", "--ref-kind", "fix-branch", "--determinations", str(path),
+                         "--checks", str(checks_path), *diff)
 
     @staticmethod
     def adv(ident, status, verified=("zerokms", "cts"), source="https://security-tracker.debian.org/x"):
@@ -290,6 +313,21 @@ class TestContainerGate(GateCase):
         self.assertEqual(other["outcome"], "blocked")
         no_diff = self.container({"images": ["zerokms"], "advisories": [self.adv("CVE-1", "fixed", ["zerokms"])]})
         self.assertEqual(no_diff["outcome"], "blocked")
+
+    def test_container_without_the_issues_checks_blocks(self):
+        determinations = {"images": ["zerokms"], "advisories": [self.adv("CVE-1", "fixed", ["zerokms"])]}
+        path = self.tmp / "determinations.json"
+        path.write_text(json.dumps(determinations))
+        missing = self.gate("--claim", "container", "--ref-kind", "fix-branch", "--determinations", str(path),
+                            "--diff-files", "Dockerfile")
+        self.assertEqual(missing["outcome"], "blocked")
+        skipped = self.container(determinations, "--diff-files", "Dockerfile",
+                                 checks={"status": "skip", "reasons": ["needs a triage refresh"]})
+        self.assertEqual(skipped["outcome"], "blocked")
+        matched = self.container(determinations, "--diff-files", "Dockerfile",
+                               checks={"status": "skip", "kind": "container", "images": ["zerokms"], "advisories": [
+                                   {"id": "CVE-1", "affected": None, "fixed_version": None}]})
+        self.assertTrue(matched["pass"])
 
     def test_container_with_nothing_fixed_is_comment_only(self):
         result = self.container({"images": ["zerokms"], "advisories": [self.adv("CVE-1", "staged", ())]})

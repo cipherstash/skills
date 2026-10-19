@@ -6,7 +6,7 @@ Usage:
           [--fix FILE --fix-exit N ...] [--residual FILE --residual-exit N]
           [--unfixed-advisory ID ...] [--scope-ok | --scope-bad | --diff-files PATH ...]
           [--pr-base BRANCH --default-branch BRANCH]
-  gate.py --claim container --ref-kind fix-branch --determinations FILE [--diff-files PATH ...]
+  gate.py --claim container --ref-kind fix-branch --determinations FILE --checks FILE [--diff-files PATH ...]
 
 Standard library only. Python 3.9+. Reads only the files named; writes nothing.
 
@@ -29,12 +29,15 @@ fix check that checks.py lists, in the same order; the n-th --fix-exit is the n-
   already-fixed.
 
 Container claim (FILE is JSON {"images": [...], "advisories": [{"id", "status", "source",
-"verified_images": [...]}]}, status one of fixed, removed, not-affected, staged, unfixed):
+"verified_images": [...]}]}, status one of fixed, removed, not-affected, staged, unfixed; --checks is checks.py's
+output for the issue, whose integrity-checked images and advisories the determinations must match exactly):
   outcome pr-in-review  every advisory fixed or removed and verified in every image; pass true
           pr-todo       every fixed or removed advisory verified in every image, others remain
           draft-todo    a fixed or removed advisory is not verified in every image
           comment-only  no advisory is fixed or removed: no PR
-          blocked       bad determinations, a missing source, a bad diff, or fixes with no diff
+          blocked       bad determinations, a missing source, a bad diff, or fixes with no diff; a missing
+                        or non-container --checks; an image or advisory the issue lists left out of the
+                        determinations, or one listed there that the issue lacks
   Only Dockerfiles may change.
 
 Prints JSON {pass, outcome, reasons, notes, must_name_unfixed}. Exit 0 when pass is true,
@@ -54,11 +57,15 @@ PAIRS = {"already-fixed": {"default"}, "linked": {"merge", "head"}, "opened": {"
          "container": {"fix-branch"}}
 OUTCOME_PASS = {"already-fixed": "already-fixed", "linked": "linked", "opened": "opened"}
 STABLE_FIELDS = ("ok", "unreadable", "unsupported", "vulnerable", "lockfiles")
-MANIFESTS = {"package.json", "pnpm-workspace.yaml", "Cargo.toml", "go.mod", "pyproject.toml",
+# Every dependency file deps.py reads, plus the files its toolchains rewrite beside them (go.sum, go.work.sum).
+# The pip patterns repeat deps.py's PYLOCK_NAME and REQ_NAME; keep them identical.
+MANIFESTS = {"package.json", "pnpm-workspace.yaml", "Cargo.toml", "go.mod", "go.work", "pyproject.toml",
              "Pipfile", "composer.json"}
-LOCKFILES = {"package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock",
-             "Cargo.lock", "go.sum", "poetry.lock", "uv.lock", "Pipfile.lock", "composer.lock"}
-REQUIREMENTS = re.compile(r"requirements.*\.txt$")
+LOCKFILES = {"package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock", "deno.lock",
+             "Cargo.lock", "go.sum", "go.work.sum", "poetry.lock", "uv.lock", "pdm.lock", "Pipfile.lock",
+             "composer.lock"}
+PYLOCK = re.compile(r"pylock(?:\.[^.]+)?\.toml")
+REQUIREMENTS = re.compile(r"(?:requirements[^/]*\.(?:txt|lock)|constraints[^/]*\.txt)", re.I)
 DOCKERFILE = re.compile(r"(^Dockerfile(\..+)?$)|(\.Dockerfile$)|(^Containerfile$)")
 STATUSES = {"fixed", "removed", "not-affected", "staged", "unfixed"}
 CLEARING = {"fixed", "removed"}
@@ -66,10 +73,14 @@ CLEARING = {"fixed", "removed"}
 
 def classify(path: str, container: bool) -> bool:
     """True when `path` may change for this kind of claim."""
-    name = PurePosixPath(path).name
+    parts = PurePosixPath(path).parts
+    name = parts[-1] if parts else ""
     if container:
         return bool(DOCKERFILE.search(name))
-    return name in MANIFESTS or name in LOCKFILES or bool(REQUIREMENTS.match(name))
+    in_requirements_dir = (name.lower().endswith(".txt") and len(parts) > 1
+                           and parts[-2].lower().startswith("requirements"))
+    return (name in MANIFESTS or name in LOCKFILES or bool(PYLOCK.fullmatch(name))
+            or bool(REQUIREMENTS.fullmatch(name)) or in_requirements_dir)
 
 
 def load_json(path: str | None, label: str, reasons: list[str]):
@@ -200,6 +211,28 @@ def gate_remediate(args) -> dict:
     return {"pass": passed, "outcome": outcome, "reasons": reasons, "notes": notes, "must_name_unfixed": name}
 
 
+def expected_images(args, images: set, ids: set, reasons: list[str]) -> None:
+    """Compare the determinations with the issue's integrity-checked images and advisories (checks.py's output)."""
+    if args.checks is None:
+        reasons.append("checks: missing (pass checks.py's output for the issue with --checks)")
+        return
+    checks = load_json(args.checks, "checks", reasons)
+    if checks is None:
+        return
+    if (not isinstance(checks, dict) or checks.get("kind") != "container"
+            or not isinstance(checks.get("images"), list) or not isinstance(checks.get("advisories"), list)):
+        reasons.append("checks: not checks.py output for a container issue whose advisory block passed its "
+                       "integrity check")
+        return
+    want_images = set(checks["images"])
+    want_ids = {a.get("id") for a in checks["advisories"] if isinstance(a, dict)}
+    for label, have, want in (("images", images, want_images), ("advisories", ids, want_ids)):
+        if want - have:
+            reasons.append(f"determinations: {label} the issue lists are missing: " + ", ".join(sorted(want - have)))
+        if have - want:
+            reasons.append(f"determinations: {label} the issue does not list: " + ", ".join(sorted(have - want)))
+
+
 def gate_container(args) -> dict:
     reasons: list[str] = []
     if args.ref_kind not in PAIRS["container"]:
@@ -233,6 +266,9 @@ def gate_container(args) -> dict:
             reasons.append(f"{a['id']}: verified_images must be a list")
             continue
         clean.append((a["id"], a["status"], set(verified)))
+    if images and advisories:
+        expected_images(args, set(images), {a["id"] for a in advisories if isinstance(a, dict) and a.get("id")},
+                        reasons)
     scope = scope_result(args, True, reasons)
     clearing = [c for c in clean if c[1] in CLEARING]
     if clearing and not args.diff_files and not args.scope_ok:
@@ -270,6 +306,7 @@ def main(argv=None) -> int:
     parser.add_argument("--pr-base")
     parser.add_argument("--default-branch")
     parser.add_argument("--determinations")
+    parser.add_argument("--checks")
     args = parser.parse_args(argv)
     result = gate_container(args) if args.claim == "container" else gate_remediate(args)
     json.dump(result, sys.stdout, indent=2)

@@ -1,0 +1,11 @@
+{
+  "linear": {
+    "team": "Product Engineering",
+    "project": "AppSec (ongoing)",
+    "assignee": "Toby Hede"
+  },
+  "images": {
+    "cts": {"repo": "cipherstash/cipherstash-suite", "dockerfile": "cts.Dockerfile"},
+    "zerokms": {"repo": "cipherstash/cipherstash-suite", "dockerfile": "zerokms.Dockerfile"}
+  }
+}

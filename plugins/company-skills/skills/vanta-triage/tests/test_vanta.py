@@ -683,6 +683,32 @@ class Credentials(unittest.TestCase):
                 vanta.load_credentials()
         self.assertIn("VANTA_CLIENT_SECRET", str(cm.exception.code))
 
+    def test_secret_alone_exits(self):
+        env = {k: v for k, v in os.environ.items() if not k.startswith("VANTA_")}
+        env["VANTA_CLIENT_SECRET"] = "s"
+        with unittest.mock.patch.dict(os.environ, env, clear=True):
+            with self.assertRaises(SystemExit) as cm:
+                vanta.load_credentials()
+        self.assertIn("VANTA_CLIENT_ID", str(cm.exception.code))
+
+    def test_env_file_wins_over_a_stray_variable(self):
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as fh:
+            json.dump({"client_id": "id", "client_secret": "s"}, fh)
+        env = {k: v for k, v in os.environ.items() if not k.startswith("VANTA_")}
+        env.update(VANTA_ENV_FILE=fh.name, VANTA_CLIENT_ID="stray")
+        with unittest.mock.patch.dict(os.environ, env, clear=True):
+            self.assertEqual(vanta.load_credentials(), ("id", "s"))
+        os.unlink(fh.name)
+
+    def test_network_secret_403_names_the_scope(self):
+        def urlopen(req, timeout):
+            raise vanta.urllib.error.HTTPError(req.full_url, 403, "Forbidden", {}, io.BytesIO(b"{}"))
+
+        with unittest.mock.patch.object(vanta.urllib.request, "urlopen", urlopen):
+            with self.assertRaises(SystemExit) as cm:
+                vanta.get_all("/v1/vulnerabilities", None)
+        self.assertIn(vanta.SCOPE, str(cm.exception.code))
+
     def test_network_secret_sends_no_authorization(self):
         sent = []
 

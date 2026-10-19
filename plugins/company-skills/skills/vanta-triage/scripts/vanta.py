@@ -14,8 +14,10 @@ fetch
   VANTA_CLIENT_SECRET, or from the JSON file named by VANTA_ENV_FILE with
   client_id and client_secret keys. With none of these set, requests go
   without an Authorization header, for an environment whose network secret
-  (OAuth 2.0 client credentials for api.vanta.com) adds it. Exits 1 on a
-  half-set credential pair or an API error, with the reason on stderr.
+  (OAuth 2.0 client credentials for api.vanta.com) adds it; a missing or
+  misconfigured secret then shows as HTTP 401 or 403. Exits 1 on a half-set
+  credential pair, an unreadable VANTA_ENV_FILE, or an API error, with the
+  reason on stderr.
 
   Each finding:
     id, advisory (CVE or GHSA), severity (CRITICAL|HIGH|MEDIUM|LOW), cvss,
@@ -200,10 +202,6 @@ def load_credentials() -> tuple[str, str] | None:
     cid, secret = os.environ.get("VANTA_CLIENT_ID"), os.environ.get("VANTA_CLIENT_SECRET")
     if cid and secret:
         return cid, secret
-    if cid or secret:
-        missing = "VANTA_CLIENT_SECRET" if cid else "VANTA_CLIENT_ID"
-        raise SystemExit(f"error: {missing} is unset; set both VANTA_CLIENT_ID and VANTA_CLIENT_SECRET, or neither "
-                         "when a network secret supplies the token")
     env_file = os.environ.get("VANTA_ENV_FILE")
     if env_file:
         try:
@@ -211,6 +209,10 @@ def load_credentials() -> tuple[str, str] | None:
             return data["client_id"], data["client_secret"]
         except (OSError, ValueError, KeyError) as exc:
             raise SystemExit(f"error: cannot read client_id/client_secret from VANTA_ENV_FILE={env_file}: {exc}")
+    if cid or secret:
+        missing = "VANTA_CLIENT_SECRET" if cid else "VANTA_CLIENT_ID"
+        raise SystemExit(f"error: {missing} is unset; set both VANTA_CLIENT_ID and VANTA_CLIENT_SECRET, or neither "
+                         "when a network secret supplies the token")
     return None
 
 
@@ -241,8 +243,8 @@ def token() -> str | None:
 def get_all(path: str, bearer: str | None) -> list[dict]:
     out, cursor = [], None
     headers = {"Authorization": f"Bearer {bearer}"} if bearer else {}
-    hint = ("" if bearer else " (no VANTA_CLIENT_ID/VANTA_CLIENT_SECRET set: is a network secret for api.vanta.com "
-            "configured on this environment?)")
+    hint = ("" if bearer else " (no Vanta credentials set in the environment: check that a network secret for "
+            f"api.vanta.com is configured, with scope {SCOPE})")
     while True:
         params = {"pageSize": 100}
         if cursor:

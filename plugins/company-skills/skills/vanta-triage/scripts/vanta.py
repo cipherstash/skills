@@ -12,8 +12,10 @@ fetch
   writes every active vulnerability, joined to its vulnerable asset, as
   normalised findings JSON. Credentials come from VANTA_CLIENT_ID and
   VANTA_CLIENT_SECRET, or from the JSON file named by VANTA_ENV_FILE with
-  client_id and client_secret keys. Exits 1 on a missing credential or an
-  API error, with the reason on stderr.
+  client_id and client_secret keys. With none of these set, requests go
+  without an Authorization header, for an environment whose network secret
+  (OAuth 2.0 client credentials for api.vanta.com) adds it. Exits 1 on a
+  half-set credential pair or an API error, with the reason on stderr.
 
   Each finding:
     id, advisory (CVE or GHSA), severity (CRITICAL|HIGH|MEDIUM|LOW), cvss,
@@ -193,10 +195,15 @@ def max_per_line(versions) -> list[str]:
 
 # ---------------------------------------------------------------- fetch
 
-def load_credentials() -> tuple[str, str]:
+def load_credentials() -> tuple[str, str] | None:
+    """The client id and secret, or None when none is set and a network secret supplies the token."""
     cid, secret = os.environ.get("VANTA_CLIENT_ID"), os.environ.get("VANTA_CLIENT_SECRET")
     if cid and secret:
         return cid, secret
+    if cid or secret:
+        missing = "VANTA_CLIENT_SECRET" if cid else "VANTA_CLIENT_ID"
+        raise SystemExit(f"error: {missing} is unset; set both VANTA_CLIENT_ID and VANTA_CLIENT_SECRET, or neither "
+                         "when a network secret supplies the token")
     env_file = os.environ.get("VANTA_ENV_FILE")
     if env_file:
         try:
@@ -204,36 +211,44 @@ def load_credentials() -> tuple[str, str]:
             return data["client_id"], data["client_secret"]
         except (OSError, ValueError, KeyError) as exc:
             raise SystemExit(f"error: cannot read client_id/client_secret from VANTA_ENV_FILE={env_file}: {exc}")
-    raise SystemExit("error: set VANTA_CLIENT_ID and VANTA_CLIENT_SECRET (or VANTA_ENV_FILE)")
+    return None
 
 
-def http_json(req: urllib.request.Request) -> dict:
+def http_json(req: urllib.request.Request, hint: str = "") -> dict:
     try:
         with urllib.request.urlopen(req, timeout=60) as resp:
             # Vanta descriptions can carry raw control characters; strict=False accepts them.
             return json.loads(resp.read().decode("utf-8"), strict=False)
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8", "replace")[:500]
-        raise SystemExit(f"error: {req.get_method()} {req.full_url} -> HTTP {exc.code}: {body}")
+        raise SystemExit(f"error: {req.get_method()} {req.full_url} -> HTTP {exc.code}: {body}"
+                         + (hint if exc.code in (401, 403) else ""))
     except urllib.error.URLError as exc:
         raise SystemExit(f"error: {req.full_url}: {exc.reason} (is api.vanta.com allowed by the network policy?)")
 
 
-def token() -> str:
-    cid, secret = load_credentials()
+def token() -> str | None:
+    """A bearer token, or None when a network secret adds the Authorization header instead."""
+    creds = load_credentials()
+    if creds is None:
+        return None
+    cid, secret = creds
     body = json.dumps({"client_id": cid, "client_secret": secret, "grant_type": "client_credentials", "scope": SCOPE})
     req = urllib.request.Request(f"{API}/oauth/token", data=body.encode(), headers={"Content-Type": "application/json"})
     return http_json(req)["access_token"]
 
 
-def get_all(path: str, bearer: str) -> list[dict]:
+def get_all(path: str, bearer: str | None) -> list[dict]:
     out, cursor = [], None
+    headers = {"Authorization": f"Bearer {bearer}"} if bearer else {}
+    hint = ("" if bearer else " (no VANTA_CLIENT_ID/VANTA_CLIENT_SECRET set: is a network secret for api.vanta.com "
+            "configured on this environment?)")
     while True:
         params = {"pageSize": 100}
         if cursor:
             params["pageCursor"] = cursor
-        req = urllib.request.Request(f"{API}{path}?{urllib.parse.urlencode(params)}", headers={"Authorization": f"Bearer {bearer}"})
-        results = http_json(req)["results"]
+        req = urllib.request.Request(f"{API}{path}?{urllib.parse.urlencode(params)}", headers=headers)
+        results = http_json(req, hint)["results"]
         out.extend(results["data"])
         if not results["pageInfo"].get("hasNextPage"):
             return out

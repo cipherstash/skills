@@ -16,7 +16,7 @@ The run is unattended-safe: it never asks a question mid-run. Where judgement is
 - **Filter** (optional): a severity floor or a repo/image. Apply it to the plan's groups and actions before step 5; never resolve issues outside the filter.
 - **Configuration**: [references/config.json](references/config.json) names the Linear team, project and assignee, and maps container images to the repos that build them. Edit it, not this file, when those change.
 
-Credentials: `VANTA_CLIENT_ID` and `VANTA_CLIENT_SECRET` (or `VANTA_ENV_FILE` pointing at a JSON file with `client_id` and `client_secret`), and network access to `api.vanta.com`. Linear access is through the Linear connector's tools (`list_issues`, `save_issue`, `save_comment`).
+Credentials: either a Claude Code environment network secret of type OAuth 2.0 client credentials for `api.vanta.com` (token URL `https://api.vanta.com/oauth/token`, scope `vanta-api.all:read`), which adds the token to each request so the session never holds the secret; or `VANTA_CLIENT_ID` and `VANTA_CLIENT_SECRET` (or `VANTA_ENV_FILE` pointing at a JSON file with `client_id` and `client_secret`). With neither variable set, the script sends requests without an Authorization header and relies on the network secret. Either way it needs network access to `api.vanta.com`. Linear access is through the Linear connector's tools (`list_issues`, `save_issue`, `save_comment`).
 
 ## Steps
 

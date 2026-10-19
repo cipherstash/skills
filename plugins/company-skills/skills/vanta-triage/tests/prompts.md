@@ -8,7 +8,8 @@
 - "Check Vanta for any new security alerts and make sure Linear is up to date."
 - "Are there new Dependabot findings in Vanta we haven't filed yet? Just tell me, don't create anything." (dry run)
 - "Sync Vanta with Linear for stack only."
-- "Run the Vanta triage" when `VANTA_CLIENT_ID` is unset: the run stops at step 1 and reports which credential is missing, without asking.
+- "Run the Vanta triage" when only one of `VANTA_CLIENT_ID` and `VANTA_CLIENT_SECRET` is set: the run stops at step 1 and reports which credential is missing, without asking.
+- "Run the Vanta triage" when neither is set and no network secret covers `api.vanta.com`: step 1 stops on the HTTP 401 and the error asks whether a network secret is configured.
 
 ## Should not activate
 

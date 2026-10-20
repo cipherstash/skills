@@ -18,7 +18,7 @@ The run is unattended-safe: it never asks a question mid-run. When a decision be
 - **Mode**: apply by default. A dry run patches and verifies in a worktree but does not push, open PRs, or write to Linear. It keeps the worktree for inspection only when it holds a diff, and later runs on that issue are blocked until a human removes it.
 - **Configuration**: the Linear team, project and assignee, and the image-to-repo map, are in vanta-triage's `references/config.json`: team **Product Engineering**, project **AppSec (ongoing)**, GitHub org **cipherstash**. Repos are looked up locally under `$VANTA_REPOS_BASE` (default `~/src`) before cloning.
 
-Needs `git`, `gh` authenticated with push access, Python 3, the target ecosystem's toolchain (`cargo`, `pnpm`/`npm`/`yarn`/`bun`, `go`, `poetry`/`uv`), and the Linear connector's tools. In Claude Code routines the GitHub proxy rejects GraphQL, so `gh pr create` fails: open PRs with `gh api` REST calls as below everywhere.
+Needs `git` with push access to the target repos, Python 3, the target ecosystem's toolchain (`cargo`, `pnpm`/`npm`/`yarn`/`bun`, `go`, `poetry`/`uv`), the GitHub MCP server's tools (`list_pull_requests`, `create_pull_request`, `update_pull_request`), and the Linear connector's tools. Use the GitHub MCP tools for every GitHub API step, never the `gh` CLI: Claude Code routines block `gh pr create`, and the tools work on every host that has the server.
 
 ## Scripts
 
@@ -51,8 +51,8 @@ Process issues one at a time. Each issue ends in exactly one outcome: **PR opene
    - **In Review.** An In Review issue with an open PR attached is in flight: skip it, unless its `Advisory set:` value differs from the one in this skill's last In Review comment. Triage refreshes a description without moving its state. In that case, measure the PR as in step 3, comment the gate result, and move the issue to Todo if the gate fails.
 
 2. **Measure the default branch.**
-   - Find a clone: `$VANTA_REPOS_BASE/<repo name>` whose `origin` is the repo, else `gh repo clone <owner/repo> <scratch>/<repo name>`. Never patch the user's checkout or its branches.
-   - Run `git -C <clone> fetch origin`, and read the default branch from `gh api repos/<owner/repo> --jq .default_branch`.
+   - Find a clone: `$VANTA_REPOS_BASE/<repo name>` whose `origin` is the repo, else `git clone https://github.com/<owner/repo>.git <scratch>/<repo name>`. Never patch the user's checkout or its branches.
+   - Run `git -C <clone> fetch origin`, and read the default branch from `git -C <clone> ls-remote --symref origin HEAD` (the `ref: refs/heads/<default>` line).
    - Create a measurement worktree: `workspace.py --clone <clone> --path <fresh scratch path> --detach origin/<default> --create --run-id <id>`. Measure in it, then `--cleanup` it.
    - Run `gate.py --claim already-fixed --ref-kind default` with every check from that measurement.
      - `already-fixed`: mark the issue **Done** with a comment carrying the deps.py summaries, the commit sha (`git -C <clone> rev-parse origin/<default>`), and the `Advisory set:` value. Vanta clears it on its next scan, and vanta-triage reports it as awaiting rescan until then. Outcome **already fixed**.
@@ -60,7 +60,7 @@ Process issues one at a time. Each issue ends in exactly one outcome: **PR opene
      - `blocked`: comment the gate's `reasons` and the deps.py summaries. Typical causes: only unfixed advisories remain, or a file could not be read. Outcome **blocked**.
 
 3. **Check for a PR already in flight.**
-   - Run `gh api --paginate "repos/<owner/repo>/pulls?state=open&per_page=100" --jq '.[] | {number, title, head: .head.ref, base: .base.ref, user: .user.login}'`. Candidates are PRs, from Dependabot or a person, whose title or head branch names the package. A PR into any branch other than the default is never a candidate.
+   - Call `list_pull_requests` with `state: "open"`, `perPage: 100`, and `fields: ["number", "title", "head", "base", "user"]`, raising `page` until a page returns fewer than 100. Candidates are PRs, from Dependabot or a person, whose title or head branch names the package. A PR into any branch other than the default is never a candidate.
    - A title alone proves nothing: Dependabot often bumps one `package.json` without touching the lockfile. Measure each candidate:
      - Run `git -C <clone> fetch origin pull/<n>/merge`, the result of merging it, and use `--ref-kind merge`.
      - When GitHub has no merge ref (a conflict), fetch `pull/<n>/head` instead and use `--ref-kind head`. The gate's note says the comment must mention this.
@@ -70,7 +70,7 @@ Process issues one at a time. Each issue ends in exactly one outcome: **PR opene
    - On `not-linked`: note the PR and the gate's reasons in the report and in this skill's PR body. A PR whose head is this issue's branch is resumed in step 4 and updated in step 7, never duplicated.
 
 4. **Worktree.** The branch is `fix/<id lowercased>-<package slug>`. The package slug is the package name with `@` dropped and `/` turned into `-`. The path is `<clone>-<id lowercased>` for a local clone, or a scratch path otherwise.
-   - Save the PRs for that head: `gh api "repos/<owner/repo>/pulls?state=all&head=<owner>:<branch>" --jq '[.[] | {number, state, merged_at}]' > <scratch>/prs.json`.
+   - Save the PRs for that head: call `list_pull_requests` with `state: "all"`, `head: "<owner>:<branch>"`, and `fields: ["number", "state", "merged_at"]`, and write the PRs to `<scratch>/prs.json` as a JSON list of `{number, state, merged_at}`.
    - Run `workspace.py --clone <clone> --path <path> --branch <branch> --default <default> --pr-json <scratch>/prs.json --create --run-id <id>`.
      - `blocked`: the outcome is **blocked**. Report its `reasons` and `evidence` (the leftover's status, including ignored files, or the commits that would be lost), and delete nothing. Never work around it with `git worktree add -B`, `worktree remove`, or `branch -D`: `-B` silently resets a branch holding commits.
      - `resume`: a previous run pushed `<branch>`. The worktree starts from `origin/<branch>`, which may already carry the patch, and may hold a human's later commits, which are kept. When `pr` is set, that open PR is this issue's PR: update it in step 7.
@@ -93,13 +93,7 @@ Process issues one at a time. Each issue ends in exactly one outcome: **PR opene
 7. **Push and open or update the PR** (skip in dry-run mode).
    - Push with `git -C <path> push -u origin <branch>`, never forced. A rejected push is **blocked**: someone pushed meanwhile.
    - PR body: each advisory (id, link, severity), each lockfile's version before and after, the verification run, and every advisory in `must_name_unfixed`, marked as still unfixed. Write it to `<scratch>/pr-body.md`.
-   - When step 4 returned a `pr`, update that PR in place: `gh api -X PATCH repos/<owner/repo>/pulls/<pr> -F body=@<scratch>/pr-body.md`. Otherwise open one:
-
-     ```sh
-     gh api repos/<owner/repo>/pulls -f title='fix(deps): patch <package> to <version>' -f head=<branch> -f base=<default> -F body=@<scratch>/pr-body.md -F draft=<true|false>
-     ```
-
-     `-F` reads a value starting with `@` from that file and sends `true`/`false` as booleans; `-f` sends its value verbatim. Keep `-f` for title, head, and base.
+   - When step 4 returned a `pr`, update that PR in place with `update_pull_request` (`pullNumber: <pr>`, `body`: the file's contents). Otherwise open one with `create_pull_request`: `title: "fix(deps): patch <package> to <version>"`, `head: <branch>`, `base: <default>`, `body`: the file's contents, and `draft: true` or `false`.
 
    - Draft when the patch changed a direct dependency's major line (0.x minor counts as major), and say why in the body.
    - Linear:

@@ -23,7 +23,7 @@ Inspect (the default) changes nothing. It prints JSON {action, base, pr, reasons
   create   otherwise: base is origin/<default>. A remote branch holding nothing beyond the
            default branch is noted; pushing onto it is a fast-forward.
 --pr-json is a JSON list of the PRs whose head is <branch>, each {number, state, merged_at}
-(as `gh api "repos/<o/r>/pulls?state=all&head=<owner>:<branch>"` returns them); a missing
+(from the GitHub MCP `list_pull_requests` with state all and head <owner>:<branch>); a missing
 list means no PRs. The branch must be fix/<issue id>-<slug> or fix/vanta-<slug>, with the issue id
 lowercase (the slug keeps the package name's case), so the script never adopts a human's branch.
 

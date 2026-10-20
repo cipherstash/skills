@@ -32,7 +32,7 @@ Script tests, run with `python3 -m unittest discover -s tests` from the skill di
 - Every lockfile `deps.py` lists is patched, including nested workspaces such as `fuzz/` and FFI packages; verification re-runs `deps.py`, and `gate.py --claim opened` must pass.
 - The branch's diff against its merge-base with the default branch contains only manifests and lockfiles (only Dockerfiles for container fixes); anything else blocks the issue. Covered by `test_gate.py`.
 - A bump that cannot reach the target is reported blocked, with the dependent chain and the unblocking change commented on the issue, and the issue stays in Todo.
-- Commits read `fix(deps): patch <package> to <version>` with no Linear id; the PR is opened with `gh api` REST, with the body read from a file via `-F body=@<file>`, as a draft when a direct dependency crosses a major line.
+- Commits read `fix(deps): patch <package> to <version>` with no Linear id; the PR is opened with the GitHub MCP `create_pull_request` tool, never the `gh` CLI, with the body written to a file first, as a draft when a direct dependency crosses a major line.
 - After a PR opens, the issue gets the PR link attachment, an In Review state, and a before/after comment.
 - Assess issues go to `references/containers.md` once the worktree exists, without needing a target version or running deps.py; their outcomes come from `gate.py --claim container`.
 - A resumed fix branch already pushed by an earlier run is never treated as "already fixed"; only a passing gate on `origin/<default>` is (`--ref-kind fix-branch` never passes already-fixed, covered by `test_gate.py`), and a passing resumed branch goes on to open its PR.

@@ -26,6 +26,17 @@ Write the instructions the agent should follow.
 - Put generated-output templates and other copied resources in `assets/`.
 - Add `agents/openai.yaml` only when the skill needs Codex UI metadata, explicit-only invocation, or declared tool dependencies.
 
+## Convention skills
+
+Most skills here are workflows: a user asks for a result and the skill runs a procedure. A **convention skill** instead carries coding rules the agent applies while it writes code (for example `rust-sdk-dx`). Author one like this:
+
+- Write the `description` as what the conventions cover, then `Use when …` naming the files or changes they apply to, then the nearest work they do not apply to (other languages, binaries, a sibling convention skill). The boundary is load-bearing: the plugin installs at user scope, so a loose description fires in every project.
+- Set `user-invocable: false` in the frontmatter so Claude Code applies the skill automatically and keeps it out of the `/` menu. Codex has no equivalent setting and invokes skills implicitly by default, so no `agents/openai.yaml` is needed.
+- Keep rules company-wide. Name a repository's own helpers, paths, task runner commands, or ticket numbers only as clearly labelled examples, and leave repository-specific rules in that repository as a small local skill that points here.
+- When two convention skills touch the same topic, one owns it and the other links to it by name instead of restating it.
+- Name the library versions an API example targets, so a reader on another version knows the advice may not compile.
+- Behavior cases still apply. "Should activate" lists change requests the rules govern rather than requests that name the skill, and the incomplete case covers a vague request in a matching codebase.
+
 ## Behavior cases
 
 Every skill must include `tests/prompts.md` with these sections:

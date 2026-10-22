@@ -86,6 +86,7 @@ Each skill is authored once under `plugins/company-skills/skills/`. The portable
 | `vanta-triage` | Reconcile open Vanta vulnerability findings with Linear issues: file, retarget, and close | Explicit or automatic |
 | `vanta-remediate` | Patch dependencies for Vanta Linear issues, verify every lockfile, and open PRs | Explicit or automatic |
 | `rust-sdk-dx` | Conventions for public Rust APIs in libraries and SDKs | Automatic while writing Rust library code |
+| `rust-security` | Rules for Rust code that handles secrets, cryptography, and authentication | Automatic while writing Rust that touches secrets |
 
 Rust convention skills (`rust-*`) carry coding rules rather than a workflow. Claude Code applies them automatically and hides them from the `/` menu; Codex selects them implicitly.
 

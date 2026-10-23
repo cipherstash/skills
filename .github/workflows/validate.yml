@@ -16,6 +16,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+      - run: python3 -m pip install pyyaml==6.0.2
       - run: python3 scripts/validate.py
       - run: python3 -m unittest discover -s scripts/tests
       - name: Run skill script tests

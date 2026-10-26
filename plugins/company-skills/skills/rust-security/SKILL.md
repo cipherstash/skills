@@ -9,7 +9,7 @@ user-invocable: false
 When writing Rust code that handles secrets, cryptographic operations, or authentication, follow these company rules to prevent information leaks, side-channel attacks, and cryptographic misuse.
 
 This skill holds the rules; it does not teach the vitaminc API.
-Whenever code names a vitaminc type or function (`Protected`, `Equatable`, `OpaqueDebug`, `encrypt` / `decrypt` and the AEAD derives, `IntoContext`, `HmacSha256Prf`, `ProtectedDigest`, `SafeRand`, `Generatable`), use the vitaminc skill if it is loaded, otherwise the docs for the version in the crate's `Cargo.toml` at <https://docs.rs/vitaminc>.
+Whenever code names a vitaminc type or function (`Protected`, `Equatable`, `OpaqueDebug`, `encrypt` / `decrypt` and the AEAD derives, `IntoContext`, `HmacSha256Prf`, `ProtectedDigest`, `SafeRand`, `Generatable`), use the vitaminc skill in this plugin, and for anything it does not cover, the docs for the version in the crate's `Cargo.toml` at <https://docs.rs/vitaminc>.
 Do not write vitaminc calls from memory: the API changes between releases.
 
 For public library API design (error enums, builders, derives, docs), follow the rust-sdk-dx skill in this plugin.

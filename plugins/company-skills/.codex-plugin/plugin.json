@@ -1,6 +1,6 @@
 {
   "name": "company-skills",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "Shared company agent skills for Codex and Claude Code.",
   "author": {
     "name": "Company Skills contributors"

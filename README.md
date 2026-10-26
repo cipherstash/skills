@@ -85,6 +85,9 @@ Each skill is authored once under `plugins/company-skills/skills/`. The portable
 | `cross-check-review-findings` | Compare new findings with existing PR feedback and draft a response | Explicit or automatic |
 | `vanta-triage` | Reconcile open Vanta vulnerability findings with Linear issues: file, retarget, and close | Explicit or automatic |
 | `vanta-remediate` | Patch dependencies for Vanta Linear issues, verify every lockfile, and open PRs | Explicit or automatic |
+| `rust-sdk-dx` | Conventions for public Rust APIs in libraries and SDKs | Automatic while writing Rust library code |
+
+Rust convention skills (`rust-*`) carry coding rules rather than a workflow. Claude Code applies them automatically and hides them from the `/` menu; Codex selects them implicitly.
 
 The PR feedback skills require Python 3, Git, and `gh` authenticated for the target repository. These are local CLI dependencies; the plugin does not bundle an MCP server.
 

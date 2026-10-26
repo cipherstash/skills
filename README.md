@@ -90,8 +90,11 @@ Each skill is authored once under `plugins/company-skills/skills/`. The portable
 | `rust-testing` | Conventions for Rust tests: nextest, scenario modules, fake data, mocktail, paused time | Automatic while writing Rust tests |
 | `filing-github-issues` | Draft and file well-structured GitHub issues on CipherStash repos | Explicit or automatic |
 | `authoring-pull-requests` | Branch, commit, and open draft pull requests with a consistent structure | Explicit or automatic |
+| `vitaminc` | Use the vitaminc crates for secrets, randomness, encryption, key wrapping, and keyed hashes | Automatic while writing Rust that touches secrets |
 
 Rust convention skills (`rust-*`) carry coding rules rather than a workflow. Claude Code applies them automatically and hides them from the `/` menu; Codex selects them implicitly.
+
+The `vitaminc` skill is a copy of `.claude/skills/vitaminc` in [cipherstash/vitaminc](https://github.com/cipherstash/vitaminc), where every Rust block is doctested against the crates. Change it there, then copy it here unchanged. `rust-security` holds the company rules and defers vitaminc's API to this skill.
 
 The PR feedback skills require Python 3, Git, and `gh` authenticated for the target repository. These are local CLI dependencies; the plugin does not bundle an MCP server.
 

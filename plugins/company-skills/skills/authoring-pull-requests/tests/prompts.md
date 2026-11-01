@@ -9,8 +9,8 @@
 
 ## Should not activate
 
-- "Fix the review comments on PR 42" — address-code-review.
-- "What review feedback is still outstanding on PR 42?" — audit-pr-feedback.
+- "Fix the review comments on PR 42" — review-fix.
+- "What review feedback is still outstanding on PR 42?" — review-audit.
 - "File an issue about the slow EQL upgrade" — filing-github-issues.
 - "Review PR 42 for bugs" — a new code review, not authoring.
 

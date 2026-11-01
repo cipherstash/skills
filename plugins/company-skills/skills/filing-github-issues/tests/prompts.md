@@ -11,7 +11,7 @@
 
 - "Open a PR for this fix" — authoring-pull-requests.
 - "Create a Linear ticket for this bug" — Linear, not GitHub.
-- "What review feedback is still outstanding on PR 42?" — audit-pr-feedback.
+- "What review feedback is still outstanding on PR 42?" — review-audit.
 - "Patch the Vanta findings in CIP-1234" — vanta-remediate.
 
 ## Expected behavior

@@ -10,6 +10,8 @@
 - "Fix the review findings" with no review in the session, no PR named, and nothing pasted — the skill stops and asks for findings.
 - `/review-fix` in a repo with no `AGENTS.md`/`CLAUDE.md` checks, no CI config, and no manifest test command — the skill asks for the done bar instead of reporting success over no checks.
 
+- "Fix the review comments on PR 12" while the working tree is on `main` — the skill checks out PR 12's head branch, after asking, before any baseline or fix.
+
 ## Should not activate
 
 - "Review this branch for bugs" — producing findings is a review's job, not this skill's.
@@ -19,6 +21,7 @@
 
 ## Expected behavior
 
+- Findings about a PR are fixed only on that PR's head branch with `headRefOid` in `HEAD`: from another branch on a clean tree the skill asks to run `gh pr checkout`; with uncommitted changes it stops and asks, never stashing, resetting, or switching over them; a push goes only to the PR's head branch and remote.
 - A review-audit report in the session is used: its Unresolved entries become ledger entries sourced by their comment URLs, its Needs decision entries end `needs-decision` with the audit's question, and its Addressed and Refuted entries are not worked. Findings from a session review or pasted input merge into the same ledger, a defect raised in both being one entry.
 - Asked to fix a PR's feedback with no audit report in the session, the skill runs review-audit first instead of reading PR comments itself.
 - Fixed entries from an audit report list their comment URLs in the report; no thread is resolved or replied to.

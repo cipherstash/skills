@@ -18,6 +18,12 @@ Every source of findings present, merged:
 
 Asked to fix a pull request's review feedback with no review-audit report for it in this conversation, run review-audit on that PR first — it changes nothing until approved — and take its report as above. With no source at all, stop and ask for findings: this skill works a list of findings, and producing that list is a review's job.
 
+Findings about a pull request — a review-audit report, or a review of a PR — are fixed only in a checkout of that PR. review-audit verifies in a temporary worktree it removes, so the user's tree may be on any branch; establish the checkout before step 1:
+
+- Run `gh pr view <PR> --json headRefName,headRefOid,headRepository,headRepositoryOwner,url`. The checkout is right when the current branch is the PR's head branch and `headRefOid` is `HEAD` or an ancestor of it — local commits on top are kept.
+- Otherwise, with `git status --porcelain` empty, ask before running `gh pr checkout <PR>`, which also sets up a fork's remote; a local head branch behind `headRefOid` is updated the same way, on approval. With uncommitted changes, stop and ask — never stash, reset, or switch branches over the user's work.
+- Record the PR, its head branch, and the remote it pushes to; step 5 pushes only there. Completion: `HEAD` is the PR's head branch and contains `headRefOid`.
+
 ## Steps
 
 1. **Ledger.** Merge every finding into one ledger: a short id minted here and used in every prompt and in the report, file:line, claim, failure scenario (`n/a` for a finding with no behaviour, such as naming or a convention), severity, sources. Normalise each source's severity to critical/major/minor — P0, blocker, or critical → critical; P1, major, or high → major; P2 and below, minor, nit, or nitpick → minor — and keep the original wording beside it. The same defect reported twice is one entry listing both sources, at the higher normalised severity. Order most-severe first. Completion: every input finding appears in the ledger exactly once.

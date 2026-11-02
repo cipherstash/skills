@@ -26,7 +26,13 @@ Write files under a scratch directory outside the user's repository, never in it
 
 ## 3. Post one review
 
-Record the posting account first: `gh api user --jq .login`. Then post:
+Record the posting account first: `gh api user --jq .login`. Then snapshot the ids of that account's existing reviews, so a retry can tell this attempt's review from an earlier one with the same commit and counts:
+
+```sh
+gh api --paginate repos/<owner>/<repo>/pulls/<number>/reviews --jq '.[] | select(.user.login == "<login>") | .id' > <scratch>/reviews-before.txt
+```
+
+Then post:
 
 ```sh
 gh api --method POST repos/<owner>/<repo>/pulls/<number>/reviews --input <scratch>/review.json
@@ -36,13 +42,13 @@ The response's `html_url` is the review URL.
 
 ## 4. Handle a rejection
 
-Before any retry — after a rejection, a timeout, or a 5xx — list the reviews and check whether this one already posted, since a timed-out request may have succeeded:
+Before any retry — after a rejection, a timeout, or a 5xx — list the account's reviews and check whether this attempt already posted, since a timed-out request may have succeeded:
 
 ```sh
-gh api --paginate repos/<owner>/<repo>/pulls/<number>/reviews --jq '.[] | select(.user.login == "<login>" and .commit_id == "<head commit>") | {html_url, body}'
+gh api --paginate repos/<owner>/<repo>/pulls/<number>/reviews --jq '.[] | select(.user.login == "<login>") | {id, html_url, commit_id, body}'
 ```
 
-A review there whose provenance and **Findings** lines match the summary's is the posted review — GitHub may normalise whitespace, so do not compare the body byte for byte: do not post again. Otherwise read the 422's message:
+Only a review whose `id` is not in `reviews-before.txt` can be this attempt; an older review with the same commit, provenance, and counts is never taken as it. A new review at the head commit whose provenance and **Findings** lines match the summary's is the posted review — GitHub may normalise whitespace, so do not compare the body byte for byte: do not post again. A new review that does not match was posted by something else at the same time: report it and ask before posting. Otherwise read the 422's message:
 
 - **A line or path not in the diff** — move the comments it names into the summary as bullets; when it names none, move every inline comment whose placement is in doubt (a range, a renamed file, a context line far from a change), and if none is, move them all. Add the moved comments as summary bullets and update the **Findings** counts. These moves are pre-approved; report each one.
 - **A pending review of the user's own** — GitHub allows one per PR. Ask the user to submit or discard it in GitHub; never discard it for them.

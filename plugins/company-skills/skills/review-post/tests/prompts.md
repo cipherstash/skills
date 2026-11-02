@@ -34,7 +34,7 @@
 - The full draft is always shown; posting waits for approval unless the request already said to post.
 - A head that moved since the draft stops the post with the same two offers; `commit_id` is never switched silently.
 - The payload is built with a JSON serializer in a scratch directory outside the user's repository.
-- A 422 for an out-of-diff line moves that comment to the summary and retries once, reporting the move; before any retry the skill checks the review did not already post. The user's own pending review is never discarded — the user is asked to submit or discard it.
+- A 422 for an out-of-diff line moves that comment to the summary and retries once, reporting the move; before any retry the skill checks the review did not already post, counting only a review whose id was not in its pre-post snapshot, so an earlier review with the same commit and counts is never mistaken for this one. The user's own pending review is never discarded — the user is asked to submit or discard it.
 - The review event is `COMMENT` unless the user asks to approve or request changes; approving over blocking entries is confirmed first, and an approve or request-changes rejected on the user's own PR is offered as `COMMENT`, posted only on agreement.
 - After a 422 moves comments to the summary, the summary's Findings counts are updated before the retry.
 - The URLs of the posted review and every reply are reported, along with any comment moved to the summary or reply that failed.

@@ -12,5 +12,6 @@ The alias sets `disable-model-invocation: true` (Claude Code) and `allow_implici
 
 ## Expected behavior
 
-- The agent loads `review-cross-check`'s `SKILL.md` and follows it with the same arguments and pasted input; the outcome matches invoking `review-cross-check` directly.
+- The agent loads `review-cross-check`'s `SKILL.md` and follows it with the same arguments and pasted input; `<skill dir>`, `scripts/`, and `references/` paths in it resolve from `../review-cross-check/`, never from this alias's directory, which holds none of them; the outcome matches invoking `review-cross-check` directly.
+- The user is told once that the skill no longer drafts a review response, and that review-post publishes the findings.
 - The user is told once that `cross-check-review-findings` is deprecated in favour of `review-cross-check`.

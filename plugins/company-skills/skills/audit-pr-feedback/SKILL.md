@@ -7,4 +7,4 @@ disable-model-invocation: true
 
 # audit-pr-feedback
 
-This skill was renamed to `review-audit`. Read `../review-audit/SKILL.md`, resolved from this skill's installed directory, and follow it exactly, passing along every argument and pasted input given here. Tell the user once that `audit-pr-feedback` is deprecated and to invoke `review-audit` from now on.
+This skill was renamed to `review-audit`. Read `../review-audit/SKILL.md`, resolved from this skill's installed directory, and follow it exactly as if `review-audit` had been invoked: its skill directory is `../review-audit/`, not this one, so its `<skill dir>`, `scripts/`, and `references/` paths resolve there — passing along every argument and pasted input given here. Tell the user once that `audit-pr-feedback` is deprecated and to invoke `review-audit` from now on.

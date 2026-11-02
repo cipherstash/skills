@@ -12,5 +12,5 @@ The alias sets `disable-model-invocation: true` (Claude Code) and `allow_implici
 
 ## Expected behavior
 
-- The agent loads `review-fix`'s `SKILL.md` and follows it with the same arguments and pasted input; the outcome matches invoking `review-fix` directly.
+- The agent loads `review-fix`'s `SKILL.md` and follows it with the same arguments and pasted input; `<skill dir>`, `scripts/`, and `references/` paths in it resolve from `../review-fix/`, never from this alias's directory, which holds none of them; the outcome matches invoking `review-fix` directly.
 - The user is told once that `address-code-review` is deprecated in favour of `review-fix`.

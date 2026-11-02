@@ -110,6 +110,8 @@ The code review skills were renamed in 0.8.0 to group them under `review-`. The 
 | `audit-pr-feedback` | `review-audit` |
 | `cross-check-review-findings` | `review-cross-check` |
 
+One behaviour changed with the rename: `cross-check-review-findings` drafted and posted a review response, but `review-cross-check` ends at a report and hands the findings to `review-post`, which posts them with an attestation.
+
 ## Contribute
 
 Follow [CONTRIBUTING.md](CONTRIBUTING.md) to add or change a skill: naming, progressive disclosure, required behavior cases, releases, and the validation commands to run. Pull requests run `python3 scripts/validate.py`, `python3 -m unittest discover -s scripts/tests`, and each skill's `tests/` suite in GitHub Actions; the `claude plugin validate --strict` checks run locally only.

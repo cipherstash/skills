@@ -81,8 +81,8 @@ Keep all three manifests aligned on identity as well. The Codex compatibility ma
 A released skill name is part of the public interface: users invoke it by name, and other skills name it as a boundary. To rename one:
 
 1. Move the directory with `git mv` and update the frontmatter `name`, the heading, and every reference to it in other skills, behavior cases, the README, and this file.
-2. Leave a deprecated alias at the old name: a `SKILL.md` with `disable-model-invocation: true`, a description starting `Deprecated alias for <new-name>`, and a body that reads `../<new-name>/SKILL.md` and follows it with the same inputs; an `agents/openai.yaml` with `policy.allow_implicit_invocation: false`; and a `tests/prompts.md`. Do not symlink the old directory — the validator rejects a name that differs from its directory, and both copies would trigger.
-3. Bump the version in all three manifests and add the rename to the README's **Renamed skills** table with the release that will remove the alias.
+2. Leave a deprecated alias at the old name: a `SKILL.md` with `disable-model-invocation: true`, a description starting `Deprecated alias for <new-name>`, and a body that reads `../<new-name>/SKILL.md` and follows it with the same inputs, stating that the target's `<skill dir>`, `scripts/`, and `references/` paths resolve from `../<new-name>/` (the alias directory holds none of them); an `agents/openai.yaml` with `policy.allow_implicit_invocation: false`; and a `tests/prompts.md`. Do not symlink the old directory — the validator rejects a name that differs from its directory, and both copies would trigger.
+3. Bump the version in all three manifests and add the rename to the README's **Renamed skills** table, noting any behaviour that changed with it, with the release that will remove the alias.
 4. In that later release, delete the alias directories and the table rows.
 
 A name that never shipped in a release needs no alias.

@@ -7,4 +7,4 @@ disable-model-invocation: true
 
 # address-code-review
 
-This skill was renamed to `review-fix`. Read `../review-fix/SKILL.md`, resolved from this skill's installed directory, and follow it exactly, passing along every argument and pasted input given here. Tell the user once that `address-code-review` is deprecated and to invoke `review-fix` from now on.
+This skill was renamed to `review-fix`. Read `../review-fix/SKILL.md`, resolved from this skill's installed directory, and follow it exactly as if `review-fix` had been invoked: its skill directory is `../review-fix/`, not this one, so its `<skill dir>`, `scripts/`, and `references/` paths resolve there — passing along every argument and pasted input given here. Tell the user once that `address-code-review` is deprecated and to invoke `review-fix` from now on.

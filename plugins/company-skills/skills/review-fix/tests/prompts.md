@@ -14,6 +14,7 @@
 
 - "Review this branch for bugs" — producing findings is a review's job, not this skill's.
 - "What feedback is still open on PR 12?" — review-audit.
+- "Post these findings to PR 12" — review-post.
 - "Resolve the CodeRabbit threads that are fixed on PR 12" — resolving threads is review-audit's job.
 
 ## Expected behavior

@@ -1,19 +1,19 @@
 ---
 name: review-cross-check
-description: Verify new code review findings — this session's review or ones pasted from parallel agents — against a pull request's head, cross-check the confirmed ones against the PR's existing review feedback, keep only findings that are new or materially add to existing ones, and draft a concise PR review response. Use after reviewing a PR, or when asked to check findings against existing PR comments, drop findings reviewers already raised, or draft a PR review from findings. Takes a PR number or URL. Does not perform the review, fix code, or post anything without approval.
+description: Verify new code review findings — this session's review or ones pasted from parallel agents — against a pull request's head, cross-check the confirmed ones against the PR's existing review feedback, and report which findings are new, which materially add to existing ones, and which are already covered or refuted. Use after reviewing a PR, or when asked to check findings against existing PR comments or drop findings reviewers already raised. Takes a PR number or URL. Does not perform the review, fix code, or post to the PR (review-post).
 argument-hint: "<PR number or URL> [pasted findings]"
 ---
 
 # review-cross-check
 
-Turn a fresh set of review findings into a PR response that says only what the existing review has not. Every finding earns a **verdict** against the PR's head before it is cross-checked, and every confirmed finding is matched against what reviewers already posted, so the response carries no false finding and no repeat.
+Reduce a fresh set of review findings to what the existing review has not said. Every finding earns a **verdict** against the PR's head before it is cross-checked, and every confirmed finding is matched against what reviewers already posted, so the results carry no false finding and no repeat.
 
 ## Inputs
 
 - A PR number or URL. Without one, stop and ask.
 - The new findings: those already in this session's context (a review run earlier in the conversation), merged with any pasted into the invocation. With neither, stop and ask for findings — producing them is a review's job.
 
-Nothing is posted without the user's go-ahead.
+This skill writes nothing to the PR; posting is review-post's job.
 
 ## Steps
 
@@ -31,20 +31,18 @@ Nothing is posted without the user's go-ahead.
 
 6. **Cross-check.** Match each `confirmed` entry against the existing ledger. A match is the same defect — the same root cause and failure — not merely the same file or line; one existing entry can cover several new ones, and one new entry can span several existing ones. Each confirmed entry gets one outcome:
    - `new` — no existing entry reports the defect.
-   - `covered` — an existing entry reports it and the new entry adds nothing material. Dropped from the response.
+   - `covered` — an existing entry reports it and the new entry adds nothing material. Dropped from the postable set.
    - `covered+` — an existing entry reports it, and the new entry adds material content. Record the addition alone, against the existing entry.
 
    An existing entry covers a new one only if it reports the same failure; existing entries are unverified, so a wrong or vaguer one does not swallow a correct finding — that is `covered+`. An existing entry its thread dismissed — "intentional", "won't fix", withdrawn — still covers the defect: `covered+` only with evidence the dismissal did not weigh, otherwise `covered`. A `covered+` addition attaches to one existing entry: an unresolved thread first, then a resolved thread, then a review body or conversation comment.
 
    Material content changes what the author would fix, where, or how urgently: a concrete trigger where the existing entry has none, further affected sites, a different root cause, a fix where the existing suggestion is wrong or incomplete, higher severity with evidence, or a resolved thread whose defect is still present at head. Rewording, extra explanation, and agreement are not material. Completion: every confirmed entry has one outcome, and every `covered` or `covered+` entry names the existing entries it matched.
 
-7. **Report and draft.** Report the ledger to the user, every new entry once:
+7. **Report.** Report the ledger to the user, every new entry once:
    - **New** — id, severity, head file:line, the defect in one line, evidence.
    - **Adds to existing** — id, the existing comment's URL, the addition.
    - **Already covered** — id and the existing comment's URL.
    - **Refuted** — id and evidence.
    - **Needs decision** — id and the question.
 
-   Then draft the PR response from the **New** and **Adds to existing** entries only, following [references/draft-response.md](references/draft-response.md), and show it in a code block. With neither, there is no draft: say the existing review already covers every confirmed finding, or, with nothing confirmed, that no finding survived verification. Completion: every input finding is traceable to one report section through its entry, and the draft holds nothing from Already covered, Refuted, or Needs decision.
-
-8. **Post on approval.** Post only the draft the user approved, only on their go-ahead, as [references/draft-response.md](references/draft-response.md) describes; a head that moved since step 2, or an unsubmitted review of the user's own on the PR, stops the post. Completion: nothing posted without approval, and each posted review and reply reported by URL.
+   The **New** and **Adds to existing** entries are the **postable set**: each keeps its sources, severity, head file:line, and claim; an addition carries only what it adds and the existing comment's URL as its reply target. State the head commit verified, and offer review-post to publish the postable set. With an empty postable set, say the existing review already covers every confirmed finding, or, with nothing confirmed, that no finding survived verification. Completion: every input finding is traceable to one report section through its entry, and the postable set holds nothing from Already covered, Refuted, or Needs decision.

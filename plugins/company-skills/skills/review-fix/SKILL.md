@@ -1,6 +1,6 @@
 ---
 name: review-fix
-description: Verify and fix code review findings — this session's review plus any pasted from parallel agents — each confirmed behavioural defect fixed red first with a regression test wherever one can be written. Use when asked to fix, or work through, the findings of a code review run in this session or pasted from review agents. Does not perform the review, reply to or resolve PR review threads, or audit a PR's existing feedback (review-audit).
+description: Verify and fix code review findings — this session's review plus any pasted from parallel agents — each confirmed behavioural defect fixed red first with a regression test wherever one can be written. Use when asked to fix, or work through, the findings of a code review run in this session, a PR's unresolved review feedback as audited by review-audit, or findings pasted from review agents. Does not perform the review, reply to or resolve PR review threads, or audit a PR's existing feedback (review-audit).
 argument-hint: "[pasted findings]"
 ---
 
@@ -10,7 +10,13 @@ Turn code review findings into verified fixes. A finding is a claim, not a fact:
 
 ## Inputs
 
-The findings already in this session's context (a code review run earlier in the conversation), merged with any pasted into the invocation — that is how parallel agents' findings arrive. With neither, stop and ask for findings: this skill works a list of findings, and producing that list is a review's job.
+Every source of findings present, merged:
+
+- **A code review** run earlier in this conversation.
+- **A review-audit report** in this conversation: take its **Unresolved** entries as findings, each sourced by its comment URLs and carrying the audit's evidence into the verify batch. Carry its **Needs decision** entries straight to `needs-decision` with the audit's question, unless the user has since answered it. Skip **Addressed** and **Refuted** entries — the audit has already settled them.
+- **Findings pasted** into the invocation — that is how parallel agents' findings arrive.
+
+Asked to fix a pull request's review feedback with no review-audit report for it in this conversation, run review-audit on that PR first — it changes nothing until approved — and take its report as above. With no source at all, stop and ask for findings: this skill works a list of findings, and producing that list is a review's job.
 
 ## Steps
 
@@ -30,5 +36,7 @@ The findings already in this session's context (a code review run earlier in the
    - `fixed` — the change, plus the regression test's file:line, or `no test — <reason>` (no behaviour to regress, or untestable and why).
    - `refuted` — the evidence.
    - `needs-decision` — the decision the user must make.
+
+   For entries sourced from a review-audit report, give each `fixed` entry's comment URLs, so the user can have review-audit re-verify and resolve those threads once the fix is pushed; this skill never resolves or replies to threads itself.
 
    Then list each done-bar check with its result, marking pre-existing and flaky failures, and state what was committed or pushed. Completion: every ledger entry carries an outcome, and every input finding is traceable to an entry through its sources.

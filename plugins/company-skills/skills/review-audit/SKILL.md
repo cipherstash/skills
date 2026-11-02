@@ -46,4 +46,4 @@ A PR number or URL. Without one, stop and ask. Nothing is posted, replied to, or
    gh api graphql -f query='mutation($id: ID!) { resolveReviewThread(input: {threadId: $id}) { thread { isResolved } } }' -f id=<thread id>
    ```
 
-   Reply to a refuted thread only with text the user approved: `gh api repos/<owner>/<name>/pulls/<number>/comments/<first comment id>/replies -f body=<reply>`. Completion: nothing resolved or posted without approval, and each call's result reported.
+   Reply to a refuted thread only with text the user approved: `gh api repos/<owner>/<name>/pulls/<number>/comments/<first comment id>/replies -f body=<reply>`. When Unresolved entries remain, offer review-fix, which takes this report as its input. Completion: nothing resolved or posted without approval, and each call's result reported.

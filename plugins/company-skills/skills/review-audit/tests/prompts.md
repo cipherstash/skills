@@ -28,6 +28,7 @@
 - Every entry lands in exactly one of Unresolved, Needs decision, Addressed (can resolve), Refuted, each with head file:line evidence and source URLs; an addressed finding from a review body or conversation comment is marked as having no thread.
 - Refuted threads are flagged as needing a reply before resolving.
 - No thread is resolved and no reply posted without the user's go-ahead; only Addressed threads are offered for resolution.
+- With Unresolved entries left, the skill offers review-fix to fix them, and fixes nothing itself.
 - With `origin` a fork, the head is fetched from the PR's own repository URL, and a `FETCH_HEAD` that is not `headRefOid` stops the run.
 - An outdated thread whose `originalCommit` was force-pushed away is judged from its `diffHunk`; a `side: LEFT` thread is read as a claim about a deleted line; a `FILE` thread has no line.
 - A `truncated` thread's remaining replies are paged before its entry is summarised.

@@ -15,7 +15,7 @@ claude plugin marketplace add cipherstash/skills
 claude plugin install company-skills@company
 ```
 
-Inside a session, `/plugin marketplace add cipherstash/skills` and `/plugin install company-skills@company` do the same. Start a new session, then invoke a skill by its namespaced name, for example `/company-skills:address-code-review`.
+Inside a session, `/plugin marketplace add cipherstash/skills` and `/plugin install company-skills@company` do the same. Start a new session, then invoke a skill by its namespaced name, for example `/company-skills:review-fix`.
 
 To update to the latest published skills, refresh the marketplace, update the plugin, then start a new session:
 
@@ -32,7 +32,7 @@ codex plugin add company-skills@company
 codex plugin list --marketplace company
 ```
 
-The command syntax was checked against `codex-cli 0.160.0`. Start a fresh session and use `/skills` or type `$` to select an installed skill, then supply its inputs. `address-code-review` requires explicit selection; the PR feedback skills can also match requests automatically.
+The command syntax was checked against `codex-cli 0.160.0`. Start a fresh session and use `/skills` or type `$` to select an installed skill, then supply its inputs. Skills can also match requests automatically.
 
 If your CLI does not provide `plugin add`, restart the desktop app, choose **Company** in the Plugins Directory, and install **Company Skills** there. See [OpenAI’s plugin packaging guide](https://developers.openai.com/plugins/build/plugins) for marketplace configuration.
 
@@ -80,9 +80,10 @@ Each skill is authored once under `plugins/company-skills/skills/`. The portable
 
 | Skill | Purpose | Invocation |
 | --- | --- | --- |
-| `address-code-review` | Verify findings and fix confirmed defects | Explicit only |
-| `audit-pr-feedback` | Audit existing PR feedback against the PR head | Explicit or automatic |
-| `cross-check-review-findings` | Compare new findings with existing PR feedback and draft a response | Explicit or automatic |
+| `review-audit` | Audit existing PR feedback against the PR head | Explicit or automatic |
+| `review-cross-check` | Verify new findings and report which are new against existing PR feedback | Explicit or automatic |
+| `review-post` | Post review findings to a PR with source-tagged inline comments and a review attestation | Explicit or automatic |
+| `review-fix` | Verify findings and fix confirmed defects | Explicit or automatic |
 | `vanta-triage` | Reconcile open Vanta vulnerability findings with Linear issues: file, retarget, and close | Explicit or automatic |
 | `vanta-remediate` | Patch dependencies for Vanta Linear issues, verify every lockfile, and open PRs | Explicit or automatic |
 | `rust-sdk-dx` | Conventions for public Rust APIs in libraries and SDKs | Automatic while writing Rust library code |
@@ -91,11 +92,25 @@ Each skill is authored once under `plugins/company-skills/skills/`. The portable
 | `filing-github-issues` | Draft and file well-structured GitHub issues on CipherStash repos | Explicit or automatic |
 | `authoring-pull-requests` | Branch, commit, and open draft pull requests with a consistent structure | Explicit or automatic |
 
+Code review skills (`review-*`) work with the findings of a code review: auditing a PR's existing feedback, cross-checking new findings against it, posting them, and fixing them. None of them performs the review itself.
+
 Rust convention skills (`rust-*`) carry coding rules rather than a workflow. Claude Code applies them automatically and hides them from the `/` menu; Codex selects them implicitly.
 
-The PR feedback skills require Python 3, Git, and `gh` authenticated for the target repository. These are local CLI dependencies; the plugin does not bundle an MCP server.
+`review-audit` and `review-cross-check` require Python 3, Git, and `gh` authenticated for the target repository; `review-post` requires `gh` and `python3` or `jq`. These are local CLI dependencies; the plugin does not bundle an MCP server.
 
 The Vanta skills also need the Linear connector, read-only Vanta API credentials (`vanta-api.all:read`) with network access to `api.vanta.com` for `vanta-triage`, either as an environment network secret of type OAuth 2.0 client credentials for `api.vanta.com` or as `VANTA_CLIENT_ID` and `VANTA_CLIENT_SECRET`, and each target ecosystem's toolchain (`cargo`, `pnpm`/`npm`/`yarn`/`bun`, `go`, `poetry`/`uv`) for `vanta-remediate`. `vanta-remediate` also needs the GitHub MCP server for pull requests and `git` push access to the target repos; it does not use the `gh` CLI. Both run unattended, so they suit Claude Code routines.
+
+### Renamed skills
+
+The code review skills were renamed in 0.8.0 to group them under `review-`. The old names still work as explicit-only aliases that run the new skill, and are planned for removal in 0.9.0:
+
+| Old name | New name |
+| --- | --- |
+| `address-code-review` | `review-fix` |
+| `audit-pr-feedback` | `review-audit` |
+| `cross-check-review-findings` | `review-cross-check` |
+
+One behaviour changed with the rename: `cross-check-review-findings` drafted and posted a review response, but `review-cross-check` ends at a report and hands the findings to `review-post`, which posts them with an attestation.
 
 ## Contribute
 

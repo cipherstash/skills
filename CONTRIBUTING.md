@@ -19,6 +19,7 @@ Write the instructions the agent should follow.
 
 - Give each skill one recognizable user goal. Split workflows with different triggers, inputs, or success criteria.
 - Name the directory and frontmatter `name` identically. Use 1–64 lowercase ASCII letters, digits, and single hyphens, with no leading or trailing hyphen. Do not use the reserved words `anthropic` or `claude`. Prefer a specific gerund or noun phrase (`processing-pdfs`, `pdf-processing`) over vague names such as `helper` or `utils`.
+- Group related skills under a shared domain prefix followed by a verb or topic: `rust-testing`, `vanta-triage`, `review-fix`. Group by what the skills are about, not where they run — the `review-` skills are about a code review's findings, and one of them works without a pull request, so they are not `pr-`. Choose verbs for what the skill actually does: `review-fix` fixes findings, and does not reply to or resolve threads, so it is not "address".
 - Write a non-empty `description` of at most 1,024 characters, in the third person and without XML tags, that says what the skill does and when it should activate. Include a boundary when a nearby request should not activate it.
 - Write imperative steps with explicit inputs, outputs, decision points, and stopping conditions. Preserve explicit user instructions and authorization boundaries.
 - Keep `SKILL.md` concise—preferably below 500 lines—and move branch-specific detail into focused files under `references/`. Link each reference directly from `SKILL.md`, keep references one level deep, and state when to read each one. Start any reference longer than 100 lines with a table of contents. Use forward-slash relative paths.
@@ -65,7 +66,7 @@ Use the cases for forward testing; they are evaluation inputs, not exact-output 
 
 Keep the shared workflow usable with the host's available tools. If a workflow delegates, describe a sequential fallback for hosts without subagents. Resolve bundled scripts and references from the installed skill directory, since the working directory is usually the user's project.
 
-For explicit-only skills, set `policy.allow_implicit_invocation: false` in the skill's `agents/openai.yaml`, as `address-code-review` does. Keep Claude Code's `disable-model-invocation: true` in `SKILL.md` as well; it is not the Codex policy setting. Other skills may omit `agents/openai.yaml`. See [Codex optional metadata](https://learn.chatgpt.com/docs/build-skills#optional-metadata).
+Skills activate automatically by default: write a description precise enough to trigger implicitly rather than making a skill explicit-only. Explicit-only is reserved for deprecated aliases (see [Renaming a skill](#renaming-a-skill)), which would otherwise compete with the skill they point to. For those, set `policy.allow_implicit_invocation: false` in the skill's `agents/openai.yaml`, and keep Claude Code's `disable-model-invocation: true` in `SKILL.md` as well; it is not the Codex policy setting. Other skills may omit `agents/openai.yaml`. See [Codex optional metadata](https://learn.chatgpt.com/docs/build-skills#optional-metadata).
 
 Install and refresh the plugin using the [README's Codex instructions](README.md#codex). In a fresh session, confirm each added skill appears in `/skills` or the `$` picker, then exercise its behavior cases. For explicit-only skills, check both selection and non-activation on an unselected matching request. Record the host/version and observed results; structural validation does not establish runtime behavior.
 
@@ -74,6 +75,17 @@ Install and refresh the plugin using the [README's Codex instructions](README.md
 Installed copies are cached by plugin version, so users receive a change only when the version changes. For every change meant to reach installed users, bump `version` in all three manifests together: `plugins/company-skills/plugin.json`, `plugins/company-skills/.codex-plugin/plugin.json`, and `plugins/company-skills/.claude-plugin/plugin.json`. The validator fails when they differ.
 
 Keep all three manifests aligned on identity as well. The Codex compatibility manifest must publish `./skills/`. Both marketplace catalogs must point to `./plugins/company-skills` relative to the repository root. Keep Codex marketplace policies and its display name populated. Update the README's skill list when adding or removing a workflow.
+
+## Renaming a skill
+
+A released skill name is part of the public interface: users invoke it by name, and other skills name it as a boundary. To rename one:
+
+1. Move the directory with `git mv` and update the frontmatter `name`, the heading, and every reference to it in other skills, behavior cases, the README, and this file.
+2. Leave a deprecated alias at the old name: a `SKILL.md` with `disable-model-invocation: true`, a description starting `Deprecated alias for <new-name>`, and a body that reads `../<new-name>/SKILL.md` and follows it with the same inputs, stating that the target's `<skill dir>`, `scripts/`, and `references/` paths resolve from `../<new-name>/` (the alias directory holds none of them); an `agents/openai.yaml` with `policy.allow_implicit_invocation: false`; and a `tests/prompts.md`. Do not symlink the old directory — the validator rejects a name that differs from its directory, and both copies would trigger.
+3. Bump the version in all three manifests and add the rename to the README's **Renamed skills** table, noting any behaviour that changed with it, with the release that will remove the alias.
+4. In that later release, delete the alias directories and the table rows.
+
+A name that never shipped in a release needs no alias.
 
 ## Validation
 

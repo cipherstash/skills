@@ -13,15 +13,15 @@ Every run publishes one report. A missing report means the run died before the e
 ## Inputs
 
 - The run's prompt and the skills it loaded: the instructions deviations are measured against.
-- A run name, if given; otherwise derive one from the prompt and its target, such as `Code review PR 1496`.
+- A run name, if given; otherwise derive one from the prompt and its target, such as `Code review PR 1496`; with neither, `Unnamed run <date>`. Never ask: an unattended run has no one to answer.
 
 ## Steps
 
-1. **Open the log.** When loaded at the start of a run, create a log file in a scratch directory outside any repository and record the run name, start time, host, model ID, and the prompt's skills, each marked loaded or missing. A missing skill is the first deviation. Completion: the log file exists and its path is recorded.
+1. **Open the log.** When loaded at the start of a run, create the log at a fixed path: `run-report-<run name as a lowercase hyphenated slug>.md` in the session's scratch directory, outside any repository. Record the run name, start time, host, model ID, and the prompt's skills, each marked loaded or missing. A missing skill is the first deviation. After context compaction, re-derive the path from the run name and keep appending to that file; when it is missing, start it again and log the loss as a deviation. Completion: the log file exists at that path.
 
 2. **Log as you go.** Continue the run's own work. The moment a deviation happens, append an entry to the log before doing anything else — the log is on disk so it survives context compaction:
    - **Where**: the skill and step, or the prompt line, whose instruction was not followed as written.
-   - **What happened**: the command or tool call and its exact error, exit code, or output, quoted. Redact tokens, secrets, and credentials.
+   - **What happened**: the command or tool call and its exact error, exit code, or output, quoted. Quote only the lines that show the problem. Redact tokens, secrets, and credentials, and summarise rather than quote file contents, customer data, and internal hostnames.
    - **What the run did instead**: the retry, alternate command or API, manual step, assumption, or skip. When an instruction said to stop and the run continued, say so.
 
    Completion, checked when the run's work ends: every non-zero exit, tool error, retry, and alternate route in the session has an entry.
@@ -47,7 +47,7 @@ Every run publishes one report. A missing report means the run died before the e
 
    Set the run status: `FAILED` when the run stopped before completing its work, `DEGRADED` when it completed with any deviation, `SUCCEEDED` only with no deviation. Completion: every deviation has impact, cause, fix, and severity, and the status follows these rules.
 
-5. **Publish.** Write the report as a page and publish it with the host's Artifact tool, following that tool's instructions for authoring the page. Title it with the run name and date. Sections, in order:
+5. **Publish.** Write the report as a page and publish it with the host's Artifact tool, following that tool's instructions for authoring the page. The artifact stays private; sharing it is the user's choice. Title it with the run name and date. Sections, in order:
    - **Status** — the status, run name, start and end time, host, model ID, skills loaded and missing, and a one-line verdict on whether the outputs can be trusted.
    - **Outputs** — each output the run produced, with its URL, and the deviations it rests on.
    - **Problems** — blocking first, then degraded, then minor; each with where, what happened, what the run did instead, impact, cause, and fix.

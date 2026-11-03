@@ -4,7 +4,7 @@
 
 - A scheduled task prompt that lists `/company-skills:run-report` alongside `/code-review medium`, `/company-skills:review-cross-check`, and `/company-skills:review-post`.
 - "Write up everything that went wrong in this run and publish it" at the end of an unattended session.
-- "Report the problems" with no run named — the skill derives the run name from the session's prompt and target, and asks only if the session has no prompt or target to name.
+- "Report the problems" with no run named — the skill derives the run name from the session's prompt and target, or uses `Unnamed run <date>` when there is neither, without asking.
 
 ## Should not activate
 
@@ -22,5 +22,6 @@
 - Each problem separates evidence from inference, and inferences are labelled.
 - Status is `SUCCEEDED` only with no deviation; any deviation makes a completed run `DEGRADED`; a run that stopped early is `FAILED`.
 - A clean run still publishes a report reading `No problems: every step ran as written.`
-- Quoted errors have tokens and credentials redacted.
+- Quoted errors have tokens and credentials redacted; file contents, customer data, and internal hostnames are summarised, not quoted, and the artifact is left private.
+- The log lives at `run-report-<run-name-slug>.md` in the scratch directory; after context compaction the run re-derives that path and appends to the same file.
 - The final message carries the status, the artifact URL, and problem counts by severity; when the Artifact tool is unavailable or fails, it says so and carries the full report instead.

@@ -84,6 +84,7 @@ Each skill is authored once under `plugins/company-skills/skills/`. The portable
 | `review-cross-check` | Verify new findings and report which are new against existing PR feedback | Explicit or automatic |
 | `review-post` | Post review findings to a PR with source-tagged inline comments and a review attestation | Explicit or automatic |
 | `review-fix` | Verify findings and fix confirmed defects | Explicit or automatic |
+| `run-report` | Log every problem an unattended run hits and publish a run report as a Claude artifact | Explicit or automatic |
 | `vanta-triage` | Reconcile open Vanta vulnerability findings with Linear issues: file, retarget, and close | Explicit or automatic |
 | `vanta-remediate` | Patch dependencies for Vanta Linear issues, verify every lockfile, and open PRs | Explicit or automatic |
 | `rust-sdk-dx` | Conventions for public Rust APIs in libraries and SDKs | Automatic while writing Rust library code |
@@ -100,9 +101,18 @@ Rust convention skills (`rust-*`) carry coding rules rather than a workflow. Cla
 
 The Vanta skills also need the Linear connector, read-only Vanta API credentials (`vanta-api.all:read`) with network access to `api.vanta.com` for `vanta-triage`, either as an environment network secret of type OAuth 2.0 client credentials for `api.vanta.com` or as `VANTA_CLIENT_ID` and `VANTA_CLIENT_SECRET`, and each target ecosystem's toolchain (`cargo`, `pnpm`/`npm`/`yarn`/`bun`, `go`, `poetry`/`uv`) for `vanta-remediate`. `vanta-remediate` also needs the GitHub MCP server for pull requests and `git` push access to the target repos; it does not use the `gh` CLI. Both run unattended, so they suit Claude Code routines.
 
+`run-report` publishes through Claude's Artifact tool; on a host without it, the report goes in the run's final message. List it first in a routine's prompt so it logs problems from the start of the run, for example:
+
+```text
+/company-skills:run-report Code review
+/code-review medium
+/company-skills:review-cross-check
+/company-skills:review-post
+```
+
 ### Renamed skills
 
-The code review skills were renamed in 0.8.0 to group them under `review-`. The old names still work as explicit-only aliases that run the new skill, and are planned for removal in 0.9.0:
+The code review skills were renamed in 0.8.0 to group them under `review-`. The old names still work as explicit-only aliases that run the new skill, and are planned for removal in 0.10.0:
 
 | Old name | New name |
 | --- | --- |

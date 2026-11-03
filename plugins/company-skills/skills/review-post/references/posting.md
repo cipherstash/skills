@@ -4,7 +4,7 @@ Read this at the Post step, after the draft is approved. `<host>`, `<owner>`, `<
 
 ## 1. Re-check the head
 
-Run `gh pr view <url> --json headRefOid`. A head that moved since the Resolve step stops the post — the draft covers an older commit. Report the new head and offer to re-verify the findings there (review-cross-check) and redraft, or to redraft as a summary-only attestation naming the reviewed commit and the new head — SKILL.md's Place step onward, shown again before posting. The same holds for an approved summary-only attestation: refresh its `Head is now` line and show it again. Never switch `commit_id` silently.
+Run `gh pr view <url> --json headRefOid` — under SKILL.md's REST fallback, `gh api repos/<owner>/<repo>/pulls/<number> --jq .head.sha`. A head that moved since the Resolve step stops the post — the draft covers an older commit. Report the new head and offer to re-verify the findings there (review-cross-check) and redraft, or to redraft as a summary-only attestation naming the reviewed commit and the new head — SKILL.md's Place step onward, shown again before posting. The same holds for an approved summary-only attestation: refresh its `Head is now` line and show it again. Never switch `commit_id` silently.
 
 ## 2. Build the payload
 

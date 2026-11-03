@@ -34,3 +34,4 @@
 - An existing comment dismissed as "won't fix" or "intentional" still covers its defect; the finding is `covered+` only with evidence the dismissal did not weigh.
 - A `covered+` addition matching several existing entries targets one existing entry: an unresolved thread in preference to a resolved one, and a thread in preference to a review body or conversation comment.
 - With every finding refuted or needs-decision, the postable set is empty and the skill says no finding survived verification — not that the existing review covers them.
+- In a Claude Code cloud session or scheduled task, where GitHub refuses GraphQL, the fetch falls back to REST instead of stopping at a 403.

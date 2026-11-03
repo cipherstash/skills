@@ -6,10 +6,20 @@ Usage: pr_feedback.py <PR number | PR URL>
 Requires the GitHub CLI (`gh`), authenticated for the PR's host. A bare
 number resolves against the repository of the current directory.
 
+Fetches over GraphQL. Where GraphQL is refused — Claude Code cloud
+sessions and scheduled tasks proxy GitHub and allow REST only — it falls
+back to REST, plus the proxy's CCR route
+pulls/<n>/ccr/review_threads for thread resolution.
+
 Writes to stdout:
+  api       "graphql", or "rest" after the fallback; it decides how a
+            thread is resolved (see id)
   pr        number, url, title, author, state, isDraft, headRefName,
             headRefOid, baseRefName
-  threads   inline review threads: id (GraphQL node id, for resolving),
+  threads   inline review threads: id (for resolving — under graphql the
+            thread's node id, for the resolveReviewThread mutation; under
+            rest the first comment's REST id, for POST
+            pulls/<n>/ccr/comments/<id>/resolve),
             path, line (null once outdated), originalLine and
             originalCommit (where the first comment was written), startLine,
             side (RIGHT: the PR's version; LEFT: a line the PR deleted, in
@@ -26,7 +36,9 @@ Writes to stdout:
             body and comments are excluded everywhere above
 
 Each thread comment carries id (REST id, for replies), author, body, url,
-createdAt, minimized. A deleted account appears as author "ghost".
+createdAt, minimized. A deleted account appears as author "ghost". REST
+does not report minimized, so under rest it is null; truncated is always
+false, since REST pages every comment.
 
 Exits 1 when a gh call fails, with gh's error on stderr, and 2 on bad usage.
 """
@@ -72,7 +84,15 @@ QUERIES = {
 }
 
 
+GRAPHQL_REFUSED = "GraphQL is not available"
+PER_PAGE = 100
+
+
 class GhError(Exception):
+    pass
+
+
+class GraphQLRefused(GhError):
     pass
 
 
@@ -82,7 +102,10 @@ def gh(*args: str) -> dict:
     except FileNotFoundError as exc:
         raise GhError("gh (GitHub CLI) is not installed") from exc
     if result.returncode != 0:
-        raise GhError(result.stderr.strip() or f"gh {' '.join(args[:2])} failed")
+        message = result.stderr.strip() or f"gh {' '.join(args[:2])} failed"
+        if GRAPHQL_REFUSED in message:
+            raise GraphQLRefused(message)
+        raise GhError(message)
     try:
         return json.loads(result.stdout)
     except json.JSONDecodeError as exc:
@@ -162,16 +185,181 @@ def review(node: dict) -> dict:
     }
 
 
+def rest_paged(host: str, path: str) -> list[dict]:
+    hostname = [] if host == "github.com" else ["--hostname", host]
+    items: list[dict] = []
+    page = 1
+    while True:
+        batch = gh("api", *hostname, f"{path}?per_page={PER_PAGE}&page={page}")
+        if not isinstance(batch, list):
+            raise GhError(f"unexpected REST response for {path}")
+        items += batch
+        if len(batch) < PER_PAGE:
+            return items
+        page += 1
+
+
+def first_key(obj: dict, *keys: str):
+    return next((obj[k] for k in keys if k in obj), None)
+
+
+def ccr_resolution(data) -> dict[int, tuple[bool, str | None]]:
+    """Map every comment id the CCR review_threads response names to its
+    thread's (resolved, resolvedBy)."""
+    if isinstance(data, dict):
+        data = first_key(data, "review_threads", "reviewThreads", "threads", "nodes") or []
+    if not isinstance(data, list):
+        raise GhError("unexpected CCR review_threads response")
+    status: dict[int, tuple[bool, str | None]] = {}
+    for t in data:
+        resolved = first_key(t, "is_resolved", "isResolved", "resolved")
+        if resolved is None:
+            continue
+        by = first_key(t, "resolved_by", "resolvedBy")
+        by = by.get("login") if isinstance(by, dict) else by
+        comments = first_key(t, "comments") or []
+        if isinstance(comments, dict):
+            comments = first_key(comments, "nodes") or []
+        ids = [first_key(c, "id", "database_id", "databaseId") for c in comments if isinstance(c, dict)]
+        ids += first_key(t, "comment_ids", "commentIds") or []
+        ids.append(first_key(t, "comment_id", "first_comment_id", "root_comment_id", "databaseId"))
+        for i in ids:
+            if isinstance(i, int):
+                status[i] = (bool(resolved), by)
+    return status
+
+
+def rest_user(user: dict | None) -> str:
+    return user["login"] if user else "ghost"
+
+
+def rest_comment(node: dict) -> dict:
+    return {
+        "id": node["id"],
+        "author": rest_user(node.get("user")),
+        "body": node.get("body") or "",
+        "url": node.get("html_url"),
+        "createdAt": node.get("created_at"),
+        "minimized": None,
+    }
+
+
+def rest_threads(host: str, base: str, pending_ids: set[int]) -> list[dict]:
+    raw = [c for c in rest_paged(host, f"{base}/comments")
+           if c.get("pull_request_review_id") not in pending_ids]
+    status = ccr_resolution(gh("api", *([] if host == "github.com" else ["--hostname", host]),
+                               f"{base}/ccr/review_threads"))
+    by_id = {c["id"]: c for c in raw}
+
+    def root(c: dict) -> int:
+        seen = set()
+        while c.get("in_reply_to_id") in by_id and c["id"] not in seen:
+            seen.add(c["id"])
+            c = by_id[c["in_reply_to_id"]]
+        return c.get("in_reply_to_id") or c["id"]
+
+    groups: dict[int, list[dict]] = {}
+    for c in raw:
+        groups.setdefault(root(c), []).append(c)
+    threads = []
+    for root_id, comments in groups.items():
+        comments.sort(key=lambda c: (c.get("created_at") or "", c["id"]))
+        first = by_id.get(root_id, comments[0])
+        subject = (first.get("subject_type") or "line").upper()
+        resolved, by = next((status[c["id"]] for c in [first, *comments] if c["id"] in status),
+                            (None, None))
+        threads.append({
+            "id": root_id,
+            "path": first.get("path"),
+            "line": first.get("line"),
+            "originalLine": first.get("original_line"),
+            "startLine": first.get("start_line"),
+            "side": first.get("side"),
+            "subject": subject,
+            "diffHunk": first.get("diff_hunk"),
+            "resolved": resolved,
+            "resolvedBy": by if resolved else None,
+            "outdated": first.get("line") is None and subject != "FILE",
+            "originalCommit": first.get("original_commit_id"),
+            "truncated": False,
+            "comments": [rest_comment(c) for c in comments],
+        })
+    return threads
+
+
+def rest_review(node: dict) -> dict:
+    return {
+        "id": node["id"],
+        "author": rest_user(node.get("user")),
+        "state": node["state"],
+        "body": node.get("body") or "",
+        "url": node.get("html_url"),
+        "submittedAt": node.get("submitted_at"),
+        "commit": node.get("commit_id"),
+        "minimized": None,
+    }
+
+
+def fetch_rest(pr: dict, host: str, owner: str, name: str, number: int) -> dict:
+    base = f"repos/{owner}/{name}/pulls/{number}"
+    reviews_raw = rest_paged(host, f"{base}/reviews")
+    pending_ids = {r["id"] for r in reviews_raw if r["state"] == "PENDING"}
+    return {
+        "api": "rest",
+        "pr": pr,
+        "threads": rest_threads(host, base, pending_ids),
+        "reviews": [rest_review(n) for n in reviews_raw
+                    if (n.get("body") or "").strip() and n["state"] != "PENDING"],
+        "pendingReview": bool(pending_ids),
+        "comments": [rest_comment(n) for n in rest_paged(host, f"repos/{owner}/{name}/issues/{number}/comments")],
+    }
+
+
+def rest_pr(target: str) -> dict:
+    """`gh pr view` over REST, for a PR number or URL."""
+    match = URL_RE.match(target)
+    if match:
+        hostname = [] if match["host"] == "github.com" else ["--hostname", match["host"]]
+        path = f"repos/{match['owner']}/{match['name']}/pulls/{match['number']}"
+    elif target.isdigit():
+        hostname, path = [], f"repos/{{owner}}/{{repo}}/pulls/{target}"
+    else:
+        raise GhError(f"GitHub GraphQL is unavailable here; pass a PR number or URL, not {target!r}")
+    node = gh("api", *hostname, path)
+    state = "MERGED" if node.get("merged_at") else str(node.get("state", "")).upper()
+    return {
+        "number": node["number"],
+        "url": node["html_url"],
+        "title": node.get("title"),
+        "author": node.get("user"),
+        "state": state,
+        "isDraft": bool(node.get("draft")),
+        "headRefName": node["head"]["ref"],
+        "headRefOid": node["head"]["sha"],
+        "baseRefName": node["base"]["ref"],
+    }
+
+
 def fetch(target: str) -> dict:
-    pr = gh("pr", "view", target, "--json", PR_FIELDS)
+    try:
+        pr = gh("pr", "view", target, "--json", PR_FIELDS)
+        api = "graphql"
+    except GraphQLRefused:
+        pr, api = rest_pr(target), "rest"
     match = URL_RE.match(pr.get("url", ""))
     if not match:
         raise GhError(f"cannot parse pull request URL: {pr.get('url')!r}")
     host, owner, name = match["host"], match["owner"], match["name"]
     number = int(match["number"])
     pr["author"] = login(pr.get("author"))
-    reviews_raw = paged(host, owner, name, number, "reviews")
+    if api == "rest":
+        return fetch_rest(pr, host, owner, name, number)
+    try:
+        reviews_raw = paged(host, owner, name, number, "reviews")
+    except GraphQLRefused:
+        return fetch_rest(pr, host, owner, name, number)
     return {
+        "api": "graphql",
         "pr": pr,
         "threads": [t for t in (thread(n) for n in paged(host, owner, name, number, "reviewThreads")) if t["comments"]],
         "reviews": [review(n) for n in reviews_raw

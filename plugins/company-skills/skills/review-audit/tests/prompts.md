@@ -36,3 +36,4 @@
 - A head that moved since the audit stops thread resolution until the findings are re-verified.
 - The viewer's own unsubmitted review is never counted as feedback.
 - The worktree is removed on every exit, including an early stop.
+- In a Claude Code cloud session or scheduled task, where GitHub refuses GraphQL, the fetch falls back to REST (`api: rest`), threads are resolved through the CCR `ccr/comments/<id>/resolve` route, and a thread with null `resolved` is audited as unresolved.

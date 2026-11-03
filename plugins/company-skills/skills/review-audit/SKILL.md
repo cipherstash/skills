@@ -40,10 +40,12 @@ A PR number or URL. Without one, stop and ask. Nothing is posted, replied to, or
 
    Then the tallies from step 3 and the head commit audited. Completion: every ledger entry appears in exactly one section, and every in-scope item is traceable to an entry or a tally.
 
-6. **Act on approval.** Offer to resolve the **Addressed, can resolve** threads. Act only on the user's go-ahead, and first re-run `gh pr view <PR> --json headRefOid`: a head that moved since step 1 stops here — report it and re-verify before resolving. Resolve only those threads, one call per thread id; every `gh api` call adds `--hostname <host>` when the host is not github.com:
+6. **Act on approval.** Offer to resolve the **Addressed, can resolve** threads. Act only on the user's go-ahead, and first re-run `gh pr view <PR> --json headRefOid` — when `api` is `rest`, `gh api repos/<owner>/<name>/pulls/<number> --jq .head.sha`: a head that moved since step 1 stops here — report it and re-verify before resolving. Resolve only those threads, one call per thread id; every `gh api` call adds `--hostname <host>` when the host is not github.com:
 
    ```sh
    gh api graphql -f query='mutation($id: ID!) { resolveReviewThread(input: {threadId: $id}) { thread { isResolved } } }' -f id=<thread id>
    ```
+
+   When the JSON's `api` is `rest` — GraphQL was refused, as in Claude Code cloud sessions and scheduled tasks — resolve through the proxy's CCR route instead, where the thread id is its first comment's REST id: `gh api -X POST repos/<owner>/<name>/pulls/<number>/ccr/comments/<thread id>/resolve`. A thread whose `resolved` is null had no resolution reported; audit it as unresolved.
 
    Reply to a refuted thread only with text the user approved: `gh api repos/<owner>/<name>/pulls/<number>/comments/<first comment id>/replies -f body=<reply>`. When Unresolved entries remain, offer review-fix, which takes this report as its input. Completion: nothing resolved or posted without approval, and each call's result reported.

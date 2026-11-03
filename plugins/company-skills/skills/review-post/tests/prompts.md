@@ -38,3 +38,4 @@
 - The review event is `COMMENT` unless the user asks to approve or request changes; approving over blocking entries is confirmed first, and an approve or request-changes rejected on the user's own PR is offered as `COMMENT`, posted only on agreement.
 - After a 422 moves comments to the summary, the summary's Findings counts are updated before the retry.
 - The URLs of the posted review and every reply are reported, along with any comment moved to the summary or reply that failed.
+- In a Claude Code cloud session or scheduled task, where `gh pr` subcommands get GitHub's GraphQL 403, the PR, head, and diff are read over REST and the review still posts.

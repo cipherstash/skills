@@ -112,7 +112,7 @@ The Vanta skills also need the Linear connector, read-only Vanta API credentials
 
 ### Renamed skills
 
-The code review skills were renamed in 0.8.0 to group them under `review-`. The old names still work as explicit-only aliases that run the new skill, and are planned for removal in 0.9.0:
+The code review skills were renamed in 0.8.0 to group them under `review-`. The old names still work as explicit-only aliases that run the new skill, and are planned for removal in 0.10.0:
 
 | Old name | New name |
 | --- | --- |

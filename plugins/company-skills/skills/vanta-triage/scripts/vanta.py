@@ -2,8 +2,9 @@
 """Fetch open Vanta vulnerabilities, group them into issues, and reconcile with Linear.
 
 Usage:
-  vanta.py fetch [--out FILE]
+  vanta.py fetch [--out FILE] [--config FILE]
   vanta.py plan --findings FILE --issues FILE [FILE ...] [--config FILE] [--today YYYY-MM-DD]
+                [--rescan-days N] [--reopen-days N]
 
 Standard library only. Python 3.9+.
 
@@ -50,7 +51,7 @@ plan
              images for a container group), match (the open Linear issue it
              maps to, or null).
     actions  create | retarget | refresh | reopen | resolve | guard | keep |
-             await-rescan | canceled, one per group or unmatched open issue, each with
+             await-rescan | canceled | realign, one per group or unmatched open issue, each with
              the reason. Each open issue serves at most one group; an open
              issue that fits a group another issue already serves is listed
              in the first such group's duplicates, never resolved. An issue

@@ -9,7 +9,7 @@ Assess every advisory the issue carries, for every listed image. Change the Dock
 
 ## Gather
 
-1. Take the issue's facts from checks.py's output (SKILL.md step 1), which reads triage's advisory block, never the Markdown table: every image in `images`, the source repo from `repo`, and every advisory in `advisories` (its `affected` is the installed package version). An issue whose block fails the integrity check is **skipped** until triage refreshes it. Triage keeps that block current, so don't gather advisories or images from comments. Use vanta-triage's `references/config.json` `images` map only when `repo` is null; with no entry there either, the issue is **skipped**.
+1. Take the issue's facts from checks.py's output (SKILL.md step 1), which reads triage's advisory block, never the Markdown table: every image in `images`, the source repo from `repo`, and every advisory in `advisories` (its `affected` is the installed package version). An issue whose block fails the integrity check is **skipped** until triage refreshes it. Triage keeps that block current, so don't gather advisories or images from comments. Use the `images` map in vanta-triage's config (`<skill dir>/../vanta-triage/references/config.json`) only when `repo` is null; with no entry there either, the issue is **skipped**.
 2. Read each listed image's Dockerfile in the worktree from SKILL.md step 4. Record, per image:
    - the runtime stage's base image and tag
    - every `apt-get install`, `apk add`, or `dnf install` line
@@ -71,3 +71,11 @@ Run `gate.py --claim container --ref-kind fix-branch --determinations <scratch>/
 - `draft-todo`: a fix is not verified in every image, for example because no container runtime is available. Open the PR as a draft marked unverified; the issue stays in Todo.
 - `comment-only`: nothing is fixed by a change. Make no PR, and comment per the outcomes above.
 - `blocked`: a determination lacks a source or status, an image or advisory differs from the issue's, or the diff touches other files. Report the reasons and open no PR.
+
+These map to SKILL.md's outcomes, which decide whether the issue uses one of the queue's five slots:
+
+| Gate outcome | SKILL.md outcome |
+| --- | --- |
+| `pr-in-review`, `pr-todo`, `draft-todo` | **PR opened** |
+| `comment-only` | **blocked** (a human decision or a Vanta determination is pending) |
+| `blocked` | **blocked** |

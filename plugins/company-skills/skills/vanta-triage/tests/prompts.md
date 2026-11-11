@@ -10,6 +10,7 @@
 - "Sync Vanta with Linear for stack only."
 - "Run the Vanta triage" when only one of `VANTA_CLIENT_ID` and `VANTA_CLIENT_SECRET` is set: the run stops at step 1 and reports which credential is missing, without asking.
 - "Run the Vanta triage" when neither is set and no network secret covers `api.vanta.com`: step 1 stops on the HTTP 401 and the error asks whether a network secret is configured.
+- "Sync Vanta with Linear, just the suite" when no repo or image is called that: asks which repo or image is meant before step 1. In an unattended run it runs unfiltered as a dry run and reports the unresolved filter.
 
 ## Should not activate
 
@@ -53,4 +54,5 @@
 - An issue retaining its key and digest but missing its advisory JSON block, carrying multiple blocks, or carrying a block whose identifying fields disagree with the key is refreshed rather than kept. A closed issue with an edited advisory range is repaired when reopened even if the stored digest still matches Vanta. Covered by `test_vanta.py`.
 - Unparsed `[Vanta]` issues (AWS configuration findings, legacy umbrellas) are listed and never edited or closed.
 - Dry-run mode performs no Linear writes and says so.
-- The run never stops to ask a question.
+- Once step 1 starts, the run never stops to ask a question.
+- A track-upstream group whose package has a registry release outside every affected range is retitled `[Vanta] Remediate <pkg> to <lowest such version> (<repo>)`: title only on a `keep`, title plus the action's `patch` on a `refresh`, never a hand-edited section. An issue already titled Remediate at that version or higher gets no override write. When the registry cannot be queried, the group stays track-upstream and the report lists it as unchecked.

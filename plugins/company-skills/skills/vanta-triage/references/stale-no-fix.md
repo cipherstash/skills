@@ -13,13 +13,18 @@ List the package's published versions:
 - Go: `go list -m -versions <module>`
 - PyPI: `pip index versions <pkg>`
 
-Look for a release outside every advisory's affected range. A release that is only newer, with no advisory range or changelog showing the fix, is not enough: leave the group as track-upstream.
+Look for a **fixing release**: one that meets both conditions for every advisory in the group.
+
+- It is above the upper bound of the advisory's affected range that contains the installed version. An advisory can list one range per release line; use the one the repo is on.
+- It is outside every other range of every advisory in the group.
+
+Being outside a range is not enough. A version below a range's lower bound predates the vulnerability rather than fixing it: with an affected range of `>=1.0.0 <1.2.2`, the fixing release is 1.2.2 or later, never an existing 0.1.0. A range with no upper bound has no fixing release. A release that is only newer, with no advisory range or changelog showing the fix, is not enough either. In each of these cases, leave the group as track-upstream.
 
 If the registry cannot be queried (no network, the tool is missing) or the ecosystem is not listed above, leave the group as track-upstream and list it in the report as unchecked.
 
 ## When a fixing release exists
 
-Treat the group as remediate at the lowest such version, titled `[Vanta] Remediate <pkg> to <version> (<repo>)`. Never edit the generated section by hand: the advisory block keeps the advisory's missing fix until Vanta catches up, and vanta-remediate adds a fix check for the title's target when the title and block differ.
+Treat the group as remediate at the lowest fixing release, titled `[Vanta] Remediate <pkg> to <version> (<repo>)`. Never edit the generated section by hand: the advisory block keeps the advisory's missing fix until Vanta catches up, and vanta-remediate adds a fix check for the title's target when the title and block differ.
 
 When the matched issue's title already names `Remediate` at this version or higher, make no override write: an earlier run made it, and repeating it would only add a comment. A `refresh` action's own write still applies.
 

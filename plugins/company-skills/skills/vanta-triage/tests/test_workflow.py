@@ -283,6 +283,13 @@ class Workflow(unittest.TestCase):
         store = FakeLinear([self.generated(old, "CIP-1")])
         self.converge(store, old + [os_pkg("2", "CVE-A", image="a-zk")])
 
+    def test_image_dropping_out_and_back_never_rewrites(self):
+        """#24: Vanta alternates between reporting the cts and zerokms images; CIP-1 is written once at most."""
+        both = [os_pkg("1", "CVE-A"), os_pkg("2", "CVE-A", image="a-zk")]
+        store = FakeLinear([self.generated(both, "CIP-1")])
+        for findings in (both[:1], both, both[1:], both):
+            self.assertEqual(triage(store, findings), [], "a dropped or returning image rewrote the issue")
+
     def test_track_upstream_legacy_with_notes(self):
         findings = [dep("1", "CVE-1", "npm-left-pad < 3.0.0", None)]
         store = FakeLinear([{"id": "CIP-1", "title": "[Vanta] Track upstream fix for left-pad (stack)", "status": "Backlog",

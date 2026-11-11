@@ -57,7 +57,12 @@ plan
              the end of the first "Vanta key:" line after it) is the only
              test of whether it is current, for every group kind: refresh
              keeps the issue's title but its digest differs from the group's
-             (or it has none). retarget and refresh carry patch, a save_issue
+             (or it has none), unless the only change is images dropped from
+             a container group: the digest over the issue's own images
+             matches and Vanta reports no image the issue lacks. That is a
+             keep with images_dropped (a scanning signal), never a refresh,
+             since Vanta alternates between images. An added image, or any
+             change to the advisories, refreshes. retarget and refresh carry patch, a save_issue
              patch to pass verbatim: a replace of that span, or a prepend for
              an issue with no such span. An action whose issue the plan saw
              without a whole generated section (no description, or a list
@@ -482,6 +487,28 @@ def generated_span(description: str) -> str | None:
     return description[start:end if end >= 0 else len(description)]
 
 
+BLOCK_RE = re.compile(r"^```json\n(.*?)\n```$", re.S | re.M)
+
+
+def block_images(description: str) -> list[str] | None:
+    """The images the generated section's advisory block lists, or None when it has no readable block."""
+    m = BLOCK_RE.search(generated_span(description) or "")
+    try:
+        images = json.loads(m.group(1)).get("images") if m else None
+    except (ValueError, AttributeError):
+        return None
+    return images if isinstance(images, list) and all(isinstance(i, str) for i in images) else None
+
+
+def only_images_dropped(issue: dict, g: dict) -> list[str]:
+    """The images an issue's section lists that Vanta no longer reports, when that is all that changed: its digest is
+    the group's digest over the issue's own images, and every image Vanta reports is already listed. Else []."""
+    images = block_images(issue["description"])
+    if not images or not set(g["images"]) < set(images):
+        return []
+    return sorted(set(images) - set(g["images"])) if advisory_digest({**g, "images": images}) == issue["digest"] else []
+
+
 def description_patch(description: str, section: str) -> list[dict]:
     """save_issue patch that swaps the generated section in, or prepends it to an issue filed before this format."""
     span = generated_span(description)
@@ -878,9 +905,14 @@ def cmd_plan(args) -> int:
             elif chosen["described"] and chosen["key"] and not same_key(chosen["key"], g["key"]):
                 action = {"action": "refresh", "title": chosen["title"],
                           "reason": f"the image's source repo is now known; Vanta key is now {g['key']}"}
+            elif chosen["described"] and chosen["digest"] != g["advisory_digest"] and only_images_dropped(chosen, g):
+                dropped = only_images_dropped(chosen, g)
+                action = {"action": "keep", "images_dropped": dropped,
+                          "reason": f"tracked ({chosen['state']}); Vanta did not report {', '.join(dropped)} this run, "
+                                    "a scanning signal, not a change: the issue is not rewritten"}
             elif chosen["described"] and chosen["digest"] != g["advisory_digest"]:
                 action = {"action": "refresh", "title": chosen["title"],
-                          "reason": "Vanta's advisories" + (" or affected images" if g["images"] else "")
+                          "reason": "Vanta's advisories" + (" or added images" if g["images"] else "")
                                     + f" changed; the target {' / '.join(g['targets']) or '(none)'} did not"}
             else:
                 action = {"action": "keep", "reason": f"tracked ({chosen['state']})"}

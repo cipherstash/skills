@@ -771,6 +771,44 @@ class CanceledMatch(unittest.TestCase):
         self.assertEqual({(a["action"], a.get("issue")) for a in plan["actions"]}, {("create", None)})
 
 
+class RefreshRule(unittest.TestCase):
+    """#24: refresh on a changed advisory set or an added image; a dropped image is a scanning signal, not a refresh."""
+    ASSETS = {**ASSETS, "a-zk": {"id": "a-zk", "name": "zerokms", "assetType": "CONTAINER_REPOSITORY"}}
+    CONFIG = {"images": {"cts": {"repo": "acme/suite"}, "zerokms": {"repo": "acme/suite"}}}
+
+    def f(self, id, image, name="CVE-A"):
+        return vanta.normalise(vuln(id=id, name=name, targetId=image, packageIdentifier="openssl:3.0.15",
+                                    fixedVersion="NotAvailable", externalURL=f"https://aws/{id}"), self.ASSETS, self.CONFIG)
+
+    def tracked(self, findings):
+        [g] = vanta.group_findings(findings)
+        return {"id": "CIP-1", "title": g["title"], "status": "Todo", "description": g["description"]}
+
+    def plan(self, findings, issue):
+        return run_plan_files(findings, {"CIP-1.json": issue}, self.CONFIG)
+
+    def test_dropped_image_is_a_scanning_signal(self):
+        issue = self.tracked([self.f("1", "a-img"), self.f("2", "a-zk")])
+        [a] = self.plan([self.f("1", "a-img")], issue)["actions"]
+        self.assertEqual((a["action"], a["issue"], a.get("images_dropped")), ("keep", "CIP-1", ["zerokms"]))
+        self.assertNotIn("patch", a)
+
+    def test_dropped_image_returning_is_kept_unchanged(self):
+        both = [self.f("1", "a-img"), self.f("2", "a-zk")]
+        [a] = self.plan(both, self.tracked(both))["actions"]
+        self.assertEqual((a["action"], a.get("images_dropped")), ("keep", None))
+
+    def test_added_image_refreshes(self):
+        issue = self.tracked([self.f("1", "a-img")])
+        [a] = self.plan([self.f("1", "a-img"), self.f("2", "a-zk")], issue)["actions"]
+        self.assertEqual((a["action"], a["issue"]), ("refresh", "CIP-1"))
+
+    def test_changed_advisory_set_with_a_dropped_image_refreshes(self):
+        issue = self.tracked([self.f("1", "a-img"), self.f("2", "a-zk")])
+        [a] = self.plan([self.f("1", "a-img"), self.f("3", "a-img", name="CVE-B")], issue)["actions"]
+        self.assertEqual((a["action"], a["issue"]), ("refresh", "CIP-1"))
+
+
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
 

@@ -182,7 +182,11 @@ class Plan(unittest.TestCase):
     def test_old_or_insufficient_done_issue_creates(self):
         old = {"id": "CIP-1", "title": "[Vanta] Remediate left-pad to 1.2.2 (stack)", "status": "Done", "completedAt": "2026-09-01T01:00:00Z"}
         low = {"id": "CIP-2", "title": "[Vanta] Remediate left-pad to 1.2.0 (stack)", "status": "Done", "completedAt": "2026-10-10T01:00:00Z"}
-        self.assertEqual(self.actions(run_plan([finding()], [old, low])), {("create", None)})
+        # The old one is outside the reopen window; the version-short one is not awaiting a rescan, and is fetched so
+        # its Vanta key line can settle whether it is reopened (#22).
+        plan = run_plan([finding()], [old, low])
+        self.assertEqual(self.actions(plan), {("reopen", "CIP-2")})
+        self.assertTrue(plan["actions"][0]["fetch_description"])
 
     def test_closed_issues_are_ignored(self):
         plan = run_plan([finding()], [{"id": "CIP-1", "title": "[Vanta] Remediate left-pad to 1.2.2 (stack)", "status": "Done"}])
@@ -489,8 +493,8 @@ class FifthReview(unittest.TestCase):
     def test_r2b_recently_done_issue_does_not_swallow_a_new_advisory(self):
         done = {**self.described([self.FIXED]), "status": "Done", "statusType": "completed",
                 "completedAt": "2026-10-10T01:00:00Z"}
-        plan = run_plan([self.UNFIXED], [done])  # CVE-2026-0002 is new: CIP-1 never tracked it
-        self.assertEqual({(a["action"], a.get("issue")) for a in plan["actions"]}, {("create", None)})
+        plan = run_plan([self.UNFIXED], [done])  # CVE-2026-0002 is new: CIP-1 is reopened to track it (#22)
+        self.assertEqual({(a["action"], a.get("issue")) for a in plan["actions"]}, {("reopen", "CIP-1")})
 
     def test_r2b_recently_done_issue_with_same_advisories_awaits_rescan(self):
         done = {**self.described([self.FIXED]), "status": "Done", "completedAt": "2026-10-10T01:00:00Z"}
@@ -680,6 +684,54 @@ class SeventhReview(unittest.TestCase):
                          not a["issue"].startswith("CIP-L")]
                 self.assertEqual(kinds, ["guard" if tripped else "resolve"] * stale)
                 self.assertEqual(plan["guard"] is not None, tripped)
+
+
+class Reopen(unittest.TestCase):
+    """#22: a finding whose tracking issue was Done in the last 14 days reopens that issue instead of filing anew."""
+    FIXED = finding(id="1")
+    UNFIXED = finding(id="2", name="CVE-2026-0002", packageIdentifier="npm-left-pad < 2.0.0", fixedVersion=None,
+                      externalURL="https://github.com/acme/stack/security/dependabot/8")
+
+    def done(self, findings, completed, **kw):
+        [g] = vanta.group_findings(findings)
+        return {"id": "CIP-1", "title": g["title"], "status": "Done", "statusType": "completed",
+                "description": g["description"], "completedAt": completed, **kw}
+
+    def test_done_ten_days_ago_reopens(self):
+        # Outside the 7-day rescan window, inside the 14-day reopen window (today is 2026-10-13).
+        [a] = run_plan([self.FIXED], [self.done([self.FIXED], "2026-10-03T01:00:00Z")])["actions"]
+        self.assertEqual((a["action"], a["issue"]), ("reopen", "CIP-1"))
+        self.assertIn("2026-10-03", a["reason"])
+        self.assertNotIn("patch", a)  # its generated section is current
+
+    def test_reopen_refreshes_a_stale_section(self):
+        issue = self.done([self.FIXED], "2026-10-10T01:00:00Z")
+        plan = run_plan([self.FIXED, self.UNFIXED], [issue])
+        [a], [g] = plan["actions"], plan["groups"]
+        self.assertEqual((a["action"], a["issue"], a["title"]), ("reopen", "CIP-1", issue["title"]))
+        self.assertEqual(a["patch"], [{"op": "replace", "old_string": issue["description"], "new_string": g["description"]}])
+
+    def test_reopen_retargets_a_title_that_no_longer_covers(self):
+        issue = self.done([self.FIXED], "2026-10-03T01:00:00Z")
+        higher = finding(id="1", fixedVersion="1.2.5", packageIdentifier="npm-left-pad < 1.2.5")
+        [a] = run_plan([higher], [issue])["actions"]
+        self.assertEqual((a["action"], a["title"]), ("reopen", "[Vanta] Remediate left-pad to 1.2.5 (stack)"))
+
+    def test_done_outside_the_window_creates(self):
+        plan = run_plan([self.FIXED], [self.done([self.FIXED], "2026-09-28T01:00:00Z")])
+        self.assertEqual({(a["action"], a.get("issue")) for a in plan["actions"]}, {("create", None)})
+
+    def test_done_issue_without_a_key_line_creates(self):
+        issue = self.done([self.FIXED], "2026-10-03T01:00:00Z", description="Bumped by hand.")
+        plan = run_plan_files([self.FIXED], {"CIP-1.json": issue})
+        self.assertEqual({(a["action"], a.get("issue")) for a in plan["actions"]}, {("create", None)})
+
+    def test_unseen_done_issue_asks_for_its_description(self):
+        issue = self.done([self.FIXED], "2026-10-03T01:00:00Z")
+        del issue["description"]
+        [a] = run_plan([self.FIXED], [issue])["actions"]
+        self.assertEqual((a["action"], a["issue"], a.get("fetch_description")), ("reopen", "CIP-1", True))
+        self.assertNotIn("patch", a)
 
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"

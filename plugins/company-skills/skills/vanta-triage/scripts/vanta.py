@@ -46,7 +46,7 @@ plan
              hash of each advisory's id, affected range and fix, plus the
              images for a container group), match (the open Linear issue it
              maps to, or null).
-    actions  create | retarget | refresh | resolve | guard | keep |
+    actions  create | retarget | refresh | reopen | resolve | guard | keep |
              await-rescan, one per group or unmatched open issue, each with
              the reason. Each open issue serves at most one group; an open
              issue that fits a group another issue already serves is listed
@@ -72,6 +72,15 @@ plan
              covers the targets, and its digest equals the group's: Vanta has
              not rescanned yet. A closed issue seen without a description
              gives await-rescan with fetch_description: true.
+             reopen replaces create when, short of await-rescan, an issue
+             closed as Done within --reopen-days (default 14) of --today
+             carries a "Vanta key:" line for the group: Vanta reports its
+             finding again. It carries title (the group's title when a
+             retarget would change it, else the issue's own) and, when the
+             generated section is not current, patch. A matching closed issue
+             seen without its description gives reopen with
+             fetch_description: true; once fetched, one with no key line
+             gives create.
              guard replaces every resolve when the mass-resolve guard trips
              (see guard below); its reason says why it was withheld.
     guard    null, or why every resolve was withheld: findings is empty while
@@ -723,6 +732,16 @@ def merge_issues(listed: list[dict], fetched: list[dict]) -> list[dict]:
     return out
 
 
+def retitle(g: dict, issue: dict) -> tuple[str, str | None]:
+    """The title an issue should carry for its group, and why it changes (None when it keeps its own title)."""
+    if g["kind"] == "remediate" and issue["title"].startswith("[Vanta] Track upstream fix"):
+        return g["title"], f"a fix is now available: {' / '.join(g['targets'])}"
+    if g["kind"] == "remediate" and not covers(issue["versions"], g["targets"]):
+        return g["title"], (f"issue targets {' / '.join(issue['versions']) or 'no version'}; "
+                            f"Vanta now requires {' / '.join(g['targets'])}")
+    return issue["title"], None
+
+
 def cmd_plan(args) -> int:
     try:
         findings = json.loads(Path(args.findings).read_text())
@@ -753,10 +772,12 @@ def cmd_plan(args) -> int:
             continue
         if cls == "done":
             done = (issue.get("completedAt") or "")[:10]
-            if done and (today - dt.date.fromisoformat(done)).days <= args.rescan_days:
+            age = (today - dt.date.fromisoformat(done)).days if done else None
+            if age is not None and age <= max(args.rescan_days, args.reopen_days):
                 parsed = parse_issue(title, desc, issue.get("_fetched", False))
                 if parsed:
-                    recent_done.append({"id": ident, "title": title, "state": state, "completed": done, **parsed})
+                    recent_done.append({"id": ident, "title": title, "state": state, "completed": done, "age": age,
+                                        **parsed})
             continue
         parsed = parse_issue(title, desc, issue.get("_fetched", False))
         if parsed is None:
@@ -796,9 +817,15 @@ def cmd_plan(args) -> int:
         ambiguous = sorted(o["key"] for o in groups if chosen and not chosen["key"] and chosen in fits[o["key"]])
         if chosen is None:
             # A recently closed issue holds the group back only if it tracked exactly these advisories.
-            closed = [i for i in recent_done if matches(g, i) and (g["kind"] != "remediate" or covers(i["versions"], g["targets"]))]
+            closed = [i for i in recent_done if i["age"] <= args.rescan_days and matches(g, i)
+                      and (g["kind"] != "remediate" or covers(i["versions"], g["targets"]))]
             same = next((i for i in closed if i["described"] and i["digest"] == g["advisory_digest"]), None)
             unseen = next((i for i in closed if not i["described"]), None)
+            # Otherwise a Done issue from the reopen window whose Vanta key line names this group is reopened, the most
+            # recently closed first. One seen only by title is fetched first: only its key line can settle the match.
+            window = sorted((i for i in recent_done if i["age"] <= args.reopen_days and matches(g, i)),
+                            key=lambda i: i["age"])
+            keyed = next((i for i in window if i["described"] and i["key"]), None)
             if same or unseen:
                 i = same or unseen
                 actions.append({"action": "await-rescan", "key": g["key"], "issue": i["id"],
@@ -806,17 +833,23 @@ def cmd_plan(args) -> int:
                                           "Vanta has not rescanned yet"})
                 if not same:
                     actions[-1]["fetch_description"] = True
+            elif keyed or any(not i["described"] for i in window):
+                i = keyed or next(i for i in window if not i["described"])
+                title, _ = retitle(g, i)
+                actions.append({"action": "reopen", "key": g["key"], "issue": i["id"], "title": title,
+                                "reason": f"{i['id']} was closed {i['completed']}, but Vanta reports "
+                                          f"{g['finding_count']} open finding(s) for it again"})
+                if not i["described"]:
+                    actions[-1]["fetch_description"] = True
+                elif i["digest"] != g["advisory_digest"] or not same_key(i["key"], g["key"]):
+                    actions[-1]["patch"] = description_patch(i["description"], g["description"])
             else:
                 actions.append({"action": "create", "key": g["key"], "title": g["title"],
                                 "reason": f"{g['finding_count']} open finding(s), no open Linear issue"})
         else:
-            if g["kind"] == "remediate" and chosen["title"].startswith("[Vanta] Track upstream fix"):
-                action = {"action": "retarget", "title": g["title"],
-                          "reason": f"a fix is now available: {' / '.join(g['targets'])}"}
-            elif g["kind"] == "remediate" and not covers(chosen["versions"], g["targets"]):
-                action = {"action": "retarget", "title": g["title"],
-                          "reason": f"issue targets {' / '.join(chosen['versions']) or 'no version'}; "
-                                    f"Vanta now requires {' / '.join(g['targets'])}"}
+            title, why = retitle(g, chosen)
+            if why:
+                action = {"action": "retarget", "title": title, "reason": why}
             elif chosen["described"] and chosen["key"] and not same_key(chosen["key"], g["key"]):
                 action = {"action": "refresh", "title": chosen["title"],
                           "reason": f"the image's source repo is now known; Vanta key is now {g['key']}"}
@@ -862,6 +895,7 @@ def main(argv=None) -> int:
     p.add_argument("--config")
     p.add_argument("--today", help="YYYY-MM-DD; defaults to the current date")
     p.add_argument("--rescan-days", type=int, default=7)
+    p.add_argument("--reopen-days", type=int, default=14)
     args = parser.parse_args(argv)
     return cmd_fetch(args) if args.cmd == "fetch" else cmd_plan(args)
 

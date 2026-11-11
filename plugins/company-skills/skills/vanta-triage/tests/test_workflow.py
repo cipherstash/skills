@@ -25,7 +25,7 @@ import vanta  # noqa: E402
 TODAY = "2026-10-13"
 STATE_TYPES = {"Triage": "triage", "Backlog": "backlog", "Todo": "unstarted", "In Progress": "started",
                "In Review": "started", "Done": "completed", "Duplicate": "canceled"}
-WRITES = {"create", "retarget", "refresh", "resolve"}
+WRITES = {"create", "retarget", "refresh", "resolve", "reopen"}
 ASSETS = {
     "a-repo": {"id": "a-repo", "name": "stack", "assetType": "CODE_REPOSITORY"},
     "a-cts": {"id": "a-cts", "name": "cts", "assetType": "CONTAINER_REPOSITORY"},
@@ -142,6 +142,12 @@ def triage(store, findings):
                 if a["action"] == "retarget":
                     store.issues[a["issue"]]["title"] = a["title"]
                 store.comments.append((a["issue"], a["reason"]))
+            elif a["action"] == "reopen":  # step 5: Todo, the plan's title, its patch when it carries one, a comment
+                issue = store.issues[a["issue"]]
+                if "patch" in a:
+                    issue["description"] = apply_patch(issue["description"], a["patch"])
+                issue.update(status="Todo", title=a["title"], completedAt=None)
+                store.comments.append((a["issue"], a["reason"]))
             elif a["action"] == "resolve":
                 store.issues[a["issue"]]["status"] = "Done"
                 store.issues[a["issue"]]["completedAt"] = TODAY
@@ -238,6 +244,21 @@ class Workflow(unittest.TestCase):
         store = FakeLinear([{**self.generated([dep("1", "CVE-1", "npm-left-pad < 1.2.2", "1.2.2")], "CIP-1"),
                              "status": "Done", "completedAt": "2026-10-10T01:00:00Z"}])
         self.converge(store, [dep("2", "CVE-2", "npm-left-pad < 2.0.0", None)])
+        self.assertEqual((store.issues["CIP-1"]["status"], len(store.issues)), ("Todo", 1), "CIP-1 was not reopened")
+
+    def test_done_issue_whose_finding_returns_is_reopened(self):
+        """#22: CIP-1 was resolved ten days ago while the repo was still vulnerable; Vanta reports it again."""
+        findings = [dep("1", "CVE-1", "npm-left-pad < 1.2.2", "1.2.2")]
+        store = FakeLinear([{**self.generated(findings, "CIP-1"), "status": "Done", "completedAt": "2026-10-03T01:00:00Z"}])
+        self.converge(store, findings)
+        self.assertEqual((store.issues["CIP-1"]["status"], len(store.issues)), ("Todo", 1))
+        self.assertIn("2026-10-03", store.comments[-1][1])
+
+    def test_done_issue_outside_the_window_is_not_reopened(self):
+        findings = [dep("1", "CVE-1", "npm-left-pad < 1.2.2", "1.2.2")]
+        store = FakeLinear([{**self.generated(findings, "CIP-1"), "status": "Done", "completedAt": "2026-09-20T01:00:00Z"}])
+        self.converge(store, findings)
+        self.assertEqual((store.issues["CIP-1"]["status"], len(store.issues)), ("Done", 2))
 
     # ---- containers
 

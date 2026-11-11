@@ -47,7 +47,7 @@ plan
              images for a container group), match (the open Linear issue it
              maps to, or null).
     actions  create | retarget | refresh | reopen | resolve | guard | keep |
-             await-rescan, one per group or unmatched open issue, each with
+             await-rescan | canceled, one per group or unmatched open issue, each with
              the reason. Each open issue serves at most one group; an open
              issue that fits a group another issue already serves is listed
              in the first such group's duplicates, never resolved. An issue
@@ -81,6 +81,11 @@ plan
              seen without its description gives reopen with
              fetch_description: true; once fetched, one with no key line
              gives create.
+             canceled replaces create, await-rescan and reopen when an issue
+             cancelled within --reopen-days of --today (by canceledAt; a
+             state named Duplicate does not count) carries a "Vanta key:"
+             line for the group: report only, no write. One seen without its
+             description gives canceled with fetch_description: true.
              guard replaces every resolve when the mass-resolve guard trips
              (see guard below); its reason says why it was withheld.
     guard    null, or why every resolve was withheld: findings is empty while
@@ -99,7 +104,8 @@ plan
   or "hasNextPage", a description cut off inside the generated section, or
   any other shape exits 2 naming the file: the fetch is redone, never
   repaired by hand. Issues carry id or identifier, title, status or state (a
-  string or an object with name and type), statusType, and completedAt. An issue whose state type is completed (or named Done) is done,
+  string or an object with name and type), statusType, completedAt, and
+  canceledAt. An issue whose state type is completed (or named Done) is done,
   canceled (or named Canceled or Duplicate) is ignored, and anything else is
   open. A description line "Vanta key: `<key>`" takes precedence over the
   title for matching. Records that share any of id, identifier or uuid are
@@ -630,7 +636,7 @@ def matches(g: dict, parsed: dict) -> bool:
     return place(g).lower() in parsed["where"]
 
 
-LIST_FIELDS = ("id", "title", "status", "statusType", "completedAt")
+LIST_FIELDS = ("id", "title", "status", "statusType", "completedAt", "canceledAt")
 ISSUE_FIELDS = ("id", "title", "description", "status", "statusType")
 GENERATED_PARTS = ("### Advisories", "```json", "Advisory set:")
 
@@ -765,10 +771,18 @@ def cmd_plan(args) -> int:
     issues = merge_issues(listed, fetched)
 
     today = dt.date.fromisoformat(args.today) if args.today else dt.date.today()
-    open_issues, recent_done, unparsed = [], [], []
+    open_issues, recent_done, recent_canceled, unparsed = [], [], [], []
     for issue in issues:
         ident, title, state, cls, desc = issue_fields(issue)
-        if not title.startswith("[Vanta]") or cls == "canceled":
+        if not title.startswith("[Vanta]"):
+            continue
+        if cls == "canceled":
+            # Cancelling is a human decision to accept the risk; marking a duplicate is not.
+            canceled = (issue.get("canceledAt") or "")[:10]
+            if canceled and state.lower() != "duplicate" and (today - dt.date.fromisoformat(canceled)).days <= args.reopen_days:
+                parsed = parse_issue(title, desc, issue.get("_fetched", False))
+                if parsed:
+                    recent_canceled.append({"id": ident, "title": title, "state": state, "canceled": canceled, **parsed})
             continue
         if cls == "done":
             done = (issue.get("completedAt") or "")[:10]
@@ -826,7 +840,18 @@ def cmd_plan(args) -> int:
             window = sorted((i for i in recent_done if i["age"] <= args.reopen_days and matches(g, i)),
                             key=lambda i: i["age"])
             keyed = next((i for i in window if i["described"] and i["key"]), None)
-            if same or unseen:
+            # A cancelled issue is never reopened or refiled: its match is reported, and nothing is written.
+            dropped = [i for i in recent_canceled if matches(g, i)]
+            accepted = next((i for i in dropped if i["described"] and i["key"]), None)
+            if accepted or any(not i["described"] for i in dropped):
+                i = accepted or next(i for i in dropped if not i["described"])
+                actions.append({"action": "canceled", "key": g["key"], "issue": i["id"],
+                                "reason": f"{i['id']} was cancelled {i['canceled']}; Vanta still reports "
+                                          f"{g['finding_count']} open finding(s) for it. Not refiled: cancelling "
+                                          "accepts the risk"})
+                if not accepted:
+                    actions[-1]["fetch_description"] = True
+            elif same or unseen:
                 i = same or unseen
                 actions.append({"action": "await-rescan", "key": g["key"], "issue": i["id"],
                                 "reason": f"{i['id']} closed {i['completed']} with the same advisories; "

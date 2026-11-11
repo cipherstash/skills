@@ -734,6 +734,43 @@ class Reopen(unittest.TestCase):
         self.assertNotIn("patch", a)
 
 
+class CanceledMatch(unittest.TestCase):
+    """#23: a finding matching an issue cancelled in the last 14 days is reported, never refiled or reopened."""
+    FIXED = finding(id="1")
+
+    def canceled(self, canceled_at, **kw):
+        [g] = vanta.group_findings([self.FIXED])
+        return {"id": "CIP-1", "title": g["title"], "status": "Canceled", "statusType": "canceled",
+                "description": g["description"], "canceledAt": canceled_at, **kw}
+
+    def test_recently_canceled_issue_is_reported_only(self):
+        [a] = run_plan([self.FIXED], [self.canceled("2026-10-08T01:00:00Z")])["actions"]
+        self.assertEqual((a["action"], a["issue"]), ("canceled", "CIP-1"))
+        self.assertIn("2026-10-08", a["reason"])
+        self.assertNotIn("patch", a)
+
+    def test_canceled_beats_a_recently_done_issue(self):
+        [g] = vanta.group_findings([self.FIXED])
+        done = {"id": "CIP-2", "title": g["title"], "status": "Done", "statusType": "completed",
+                "description": g["description"], "completedAt": "2026-10-01T01:00:00Z"}
+        plan = run_plan([self.FIXED], [self.canceled("2026-10-08T01:00:00Z"), done])
+        self.assertEqual({(a["action"], a.get("issue")) for a in plan["actions"]}, {("canceled", "CIP-1")})
+
+    def test_canceled_outside_the_window_creates(self):
+        plan = run_plan([self.FIXED], [self.canceled("2026-09-20T01:00:00Z")])
+        self.assertEqual({(a["action"], a.get("issue")) for a in plan["actions"]}, {("create", None)})
+
+    def test_unseen_canceled_issue_asks_for_its_description(self):
+        issue = self.canceled("2026-10-08T01:00:00Z")
+        del issue["description"]
+        [a] = run_plan([self.FIXED], [issue])["actions"]
+        self.assertEqual((a["action"], a.get("fetch_description")), ("canceled", True))
+
+    def test_issue_marked_duplicate_is_not_a_risk_acceptance(self):
+        plan = run_plan([self.FIXED], [self.canceled("2026-10-08T01:00:00Z", status="Duplicate")])
+        self.assertEqual({(a["action"], a.get("issue")) for a in plan["actions"]}, {("create", None)})
+
+
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
 

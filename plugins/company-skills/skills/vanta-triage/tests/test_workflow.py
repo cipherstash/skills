@@ -24,7 +24,7 @@ import vanta  # noqa: E402
 
 TODAY = "2026-10-13"
 STATE_TYPES = {"Triage": "triage", "Backlog": "backlog", "Todo": "unstarted", "In Progress": "started",
-               "In Review": "started", "Done": "completed", "Duplicate": "canceled"}
+               "In Review": "started", "Done": "completed", "Canceled": "canceled", "Duplicate": "canceled"}
 WRITES = {"create", "retarget", "refresh", "resolve", "reopen"}
 ASSETS = {
     "a-repo": {"id": "a-repo", "name": "stack", "assetType": "CODE_REPOSITORY"},
@@ -80,10 +80,8 @@ class FakeLinear:
         pages = {}
         for issue in self.issues.values():
             stype = STATE_TYPES[issue["status"]]
-            if stype == "canceled":
-                continue
             row = {"id": issue["id"], "title": issue["title"], "status": issue["status"], "statusType": stype,
-                   "completedAt": issue.get("completedAt")}
+                   "completedAt": issue.get("completedAt"), "canceledAt": issue.get("canceledAt")}
             pages.setdefault(stype, []).append(row)
         return {f"{t}.json": {"issues": rows, "hasNextPage": False} for t, rows in pages.items()}
 
@@ -253,6 +251,14 @@ class Workflow(unittest.TestCase):
         self.converge(store, findings)
         self.assertEqual((store.issues["CIP-1"]["status"], len(store.issues)), ("Todo", 1))
         self.assertIn("2026-10-03", store.comments[-1][1])
+
+    def test_canceled_issue_is_reported_not_refiled(self):
+        """#23: a human cancelled CIP-1 to accept the risk; Vanta still reports the finding."""
+        findings = [dep("1", "CVE-1", "npm-left-pad < 1.2.2", "1.2.2")]
+        store = FakeLinear([{**self.generated(findings, "CIP-1"), "status": "Canceled", "canceledAt": "2026-10-08T01:00:00Z"}])
+        for _ in range(2):
+            self.assertEqual(triage(store, findings), [])
+        self.assertEqual((store.issues["CIP-1"]["status"], len(store.issues), store.comments), ("Canceled", 1, []))
 
     def test_done_issue_outside_the_window_is_not_reopened(self):
         findings = [dep("1", "CVE-1", "npm-left-pad < 1.2.2", "1.2.2")]

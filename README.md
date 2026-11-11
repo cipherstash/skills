@@ -85,8 +85,8 @@ Each skill is authored once under `plugins/company-skills/skills/`. The portable
 | `review-post` | Post review findings to a PR with source-tagged inline comments and a review attestation | Explicit or automatic |
 | `review-fix` | Verify findings and fix confirmed defects | Explicit or automatic |
 | `run-report` | Log every problem an unattended run hits and publish a run report as a Claude artifact | Explicit or automatic |
-| `vanta-triage` | Reconcile open Vanta vulnerability findings with Linear issues: file, retarget, and close | Explicit or automatic |
-| `vanta-remediate` | Patch dependencies for Vanta Linear issues, verify every lockfile, and open PRs | Explicit or automatic |
+| `vanta-triage` | Reconcile open Vanta vulnerability findings with Linear issues: file, retarget, refresh, realign, reopen, and close | Explicit or automatic |
+| `vanta-remediate` | Build the Remediate queue from Todo Vanta Linear issues, patch dependencies, verify every lockfile, and open PRs | Explicit or automatic |
 | `rust-sdk-dx` | Conventions for public Rust APIs in libraries and SDKs | Automatic while writing Rust library code |
 | `rust-security` | Rules for Rust code that handles secrets, cryptography, and authentication | Automatic while writing Rust that touches secrets |
 | `rust-testing` | Conventions for Rust tests: nextest, scenario modules, fake data, mocktail, paused time | Automatic while writing Rust tests |
@@ -112,7 +112,7 @@ The Vanta skills also need the Linear connector, read-only Vanta API credentials
 
 ### Renamed skills
 
-The code review skills were renamed in 0.8.0 to group them under `review-`. The old names still work as explicit-only aliases that run the new skill, and are planned for removal in 0.10.0:
+The code review skills were renamed in 0.8.0 to group them under `review-`. The old names still work as explicit-only aliases that run the new skill, and are planned for removal in a later release:
 
 | Old name | New name |
 | --- | --- |

@@ -110,17 +110,9 @@ The Vanta skills also need the Linear connector, read-only Vanta API credentials
 /company-skills:review-post
 ```
 
-### Renamed skills
+### Removed aliases
 
-The code review skills were renamed in 0.8.0 to group them under `review-`. The old names still work as explicit-only aliases that run the new skill, and are planned for removal in a later release:
-
-| Old name | New name |
-| --- | --- |
-| `address-code-review` | `review-fix` |
-| `audit-pr-feedback` | `review-audit` |
-| `cross-check-review-findings` | `review-cross-check` |
-
-One behaviour changed with the rename: `cross-check-review-findings` drafted and posted a review response, but `review-cross-check` ends at a report and hands the findings to `review-post`, which posts them with an attestation.
+0.10.0 removes the explicit-only aliases left by the 0.8.0 rename of the code review skills. Invoke the new names instead: `review-fix` for `address-code-review`, `review-audit` for `audit-pr-feedback`, and `review-cross-check` for `cross-check-review-findings`. `review-cross-check` ends at a report; `review-post` publishes the findings.
 
 ## Contribute
 

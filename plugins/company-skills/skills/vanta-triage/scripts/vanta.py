@@ -91,6 +91,13 @@ plan
              state named Duplicate does not count) carries a "Vanta key:"
              line for the group: report only, no write. One seen without its
              description gives canceled with fetch_description: true.
+             realign follows the action of a group's open or reopened issue
+             when the issue's priority (1-4; none counts as least urgent) is
+             less urgent than the group's, or its due date is later than the
+             group's sla or missing while sla is set. It carries only the
+             stricter fields (priority, dueDate) and a reason naming the old
+             value, the new one, and Vanta's severity or SLA. It never
+             relaxes a value.
              guard replaces every resolve when the mass-resolve guard trips
              (see guard below); its reason says why it was withheld.
     guard    null, or why every resolve was withheld: findings is empty while
@@ -109,8 +116,8 @@ plan
   or "hasNextPage", a description cut off inside the generated section, or
   any other shape exits 2 naming the file: the fetch is redone, never
   repaired by hand. Issues carry id or identifier, title, status or state (a
-  string or an object with name and type), statusType, completedAt, and
-  canceledAt. An issue whose state type is completed (or named Done) is done,
+  string or an object with name and type), statusType, completedAt,
+  canceledAt, priority (an integer or {"value", "name"}), and dueDate. An issue whose state type is completed (or named Done) is done,
   canceled (or named Canceled or Duplicate) is ignored, and anything else is
   open. A description line "Vanta key: `<key>`" takes precedence over the
   title for matching. Records that share any of id, identifier or uuid are
@@ -663,7 +670,7 @@ def matches(g: dict, parsed: dict) -> bool:
     return place(g).lower() in parsed["where"]
 
 
-LIST_FIELDS = ("id", "title", "status", "statusType", "completedAt", "canceledAt")
+LIST_FIELDS = ("id", "title", "status", "statusType", "completedAt", "canceledAt", "priority", "dueDate")
 ISSUE_FIELDS = ("id", "title", "description", "status", "statusType")
 GENERATED_PARTS = ("### Advisories", "```json", "Advisory set:")
 
@@ -765,6 +772,38 @@ def merge_issues(listed: list[dict], fetched: list[dict]) -> list[dict]:
     return out
 
 
+PRIORITY_NAMES = {0: "No priority", 1: "Urgent", 2: "High", 3: "Medium", 4: "Low"}
+
+
+def tracking(issue: dict) -> dict:
+    """The issue's Linear priority (1-4, 0 for none) and due date, for each the plan was given."""
+    out = {}
+    if "priority" in issue:
+        p = issue["priority"]
+        p = p.get("value") if isinstance(p, dict) else p
+        out["priority"] = p if isinstance(p, int) and 0 <= p <= 4 else 0
+    if "dueDate" in issue:
+        out["dueDate"] = (issue["dueDate"] or "")[:10] or None
+    return out
+
+
+def realign(g: dict, issue: dict) -> dict | None:
+    """A realign action making the issue's priority or due date as strict as Vanta's, or None. Never relaxes either:
+    a more urgent priority or an earlier due date set by a human stays."""
+    have, out, why = issue["tracking"], {}, []
+    if "priority" in have and (have["priority"] == 0 or have["priority"] > g["priority"]):
+        out["priority"] = g["priority"]
+        why.append(f"priority {PRIORITY_NAMES[have['priority']]} -> {PRIORITY_NAMES[g['priority']]} "
+                   f"(Vanta severity {g['severity']})")
+    if "dueDate" in have and g["sla"] and (have["dueDate"] is None or have["dueDate"] > g["sla"]):
+        out["dueDate"] = g["sla"]
+        why.append(f"due date {have['dueDate'] or 'none'} -> {g['sla']} (Vanta SLA {g['sla']})")
+    if not out:
+        return None
+    return {"action": "realign", "key": g["key"], "issue": issue["id"], **out,
+            "reason": "; ".join(why) + ". Realigned to Vanta, never relaxed: a stricter value set by hand stays"}
+
+
 def retitle(g: dict, issue: dict) -> tuple[str, str | None]:
     """The title an issue should carry for its group, and why it changes (None when it keeps its own title)."""
     if g["kind"] == "remediate" and issue["title"].startswith("[Vanta] Track upstream fix"):
@@ -818,13 +857,13 @@ def cmd_plan(args) -> int:
                 parsed = parse_issue(title, desc, issue.get("_fetched", False))
                 if parsed:
                     recent_done.append({"id": ident, "title": title, "state": state, "completed": done, "age": age,
-                                        **parsed})
+                                        "tracking": tracking(issue), **parsed})
             continue
         parsed = parse_issue(title, desc, issue.get("_fetched", False))
         if parsed is None:
             unparsed.append({"id": ident, "title": title, "state": state})
         else:
-            open_issues.append({"id": ident, "title": title, "state": state, **parsed})
+            open_issues.append({"id": ident, "title": title, "state": state, "tracking": tracking(issue), **parsed})
 
     # Each open issue serves one group. Claim in rounds so a weak title match never takes an issue
     # that another group fits better: key line first, then titles whose versions cover the targets, then any match.
@@ -847,7 +886,7 @@ def cmd_plan(args) -> int:
         for i in fits[g["key"]]:
             if i["id"] not in owner:
                 dup_of.setdefault(i["id"], g["key"])
-    actions, used = [], set(owner)
+    actions, used, realigned = [], set(owner), []
     for g in groups:
         chosen = claimed.get(g["key"])
         g["match"] = {"id": chosen["id"], "title": chosen["title"], "state": chosen["state"]} if chosen else None
@@ -895,6 +934,7 @@ def cmd_plan(args) -> int:
                     actions[-1]["fetch_description"] = True
                 elif i["digest"] != g["advisory_digest"] or not same_key(i["key"], g["key"]):
                     actions[-1]["patch"] = description_patch(i["description"], g["description"])
+                realigned.append((g, i))
             else:
                 actions.append({"action": "create", "key": g["key"], "title": g["title"],
                                 "reason": f"{g['finding_count']} open finding(s), no open Linear issue"})
@@ -923,6 +963,13 @@ def cmd_plan(args) -> int:
                 actions[-1]["patch"] = description_patch(chosen["description"], g["description"])
         if chosen and len(ambiguous) > 1:
             actions[-1]["ambiguous"] = ambiguous
+        if chosen:
+            realigned.append((g, chosen))
+        for rg, ri in realigned:
+            r = realign(rg, ri)
+            if r:
+                actions.append(r)
+        realigned.clear()
     stale = [i for i in open_issues if i["id"] not in used]
     # A partial Vanta response looks exactly like everything being fixed, so a mass resolve is withheld.
     guard = None

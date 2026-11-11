@@ -25,7 +25,7 @@ import vanta  # noqa: E402
 TODAY = "2026-10-13"
 STATE_TYPES = {"Triage": "triage", "Backlog": "backlog", "Todo": "unstarted", "In Progress": "started",
                "In Review": "started", "Done": "completed", "Canceled": "canceled", "Duplicate": "canceled"}
-WRITES = {"create", "retarget", "refresh", "resolve", "reopen"}
+WRITES = {"create", "retarget", "refresh", "resolve", "reopen", "realign"}
 ASSETS = {
     "a-repo": {"id": "a-repo", "name": "stack", "assetType": "CODE_REPOSITORY"},
     "a-cts": {"id": "a-cts", "name": "cts", "assetType": "CONTAINER_REPOSITORY"},
@@ -50,6 +50,11 @@ def os_pkg(id, advisory, image="a-cts", pkg="openssl:3.0.15"):
         "packageIdentifier": pkg, "externalURL": f"https://console.aws.amazon.com/inspector/{id}",
         "relatedUrls": [], "description": "A flaw in an OS package.", "deactivateMetadata": None,
     }, ASSETS, CONFIG)
+
+
+# An issue a test writes without priority or due date stands for one a human made stricter than Vanta's values.
+STRICT = {"priority": {"value": 1, "name": "Urgent"}, "dueDate": "2026-01-01"}
+PRIORITY_NAMES = {0: "No priority", 1: "Urgent", 2: "High", 3: "Medium", 4: "Low"}
 
 
 class PatchError(Exception):
@@ -81,7 +86,8 @@ class FakeLinear:
         for issue in self.issues.values():
             stype = STATE_TYPES[issue["status"]]
             row = {"id": issue["id"], "title": issue["title"], "status": issue["status"], "statusType": stype,
-                   "completedAt": issue.get("completedAt"), "canceledAt": issue.get("canceledAt")}
+                   "completedAt": issue.get("completedAt"), "canceledAt": issue.get("canceledAt"),
+                   "priority": issue.get("priority", STRICT["priority"]), "dueDate": issue.get("dueDate", STRICT["dueDate"])}
             pages.setdefault(stype, []).append(row)
         return {f"{t}.json": {"issues": rows, "hasNextPage": False} for t, rows in pages.items()}
 
@@ -89,9 +95,10 @@ class FakeLinear:
         issue = self.issues[ident]
         return {"description": None, **issue, "statusType": STATE_TYPES[issue["status"]]}
 
-    def create(self, title, description):
+    def create(self, title, description, priority, due):
         ident = f"CIP-{100 + len(self.issues)}"
-        self.issues[ident] = {"id": ident, "title": title, "description": description, "status": "Todo"}
+        self.issues[ident] = {"id": ident, "title": title, "description": description, "status": "Todo",
+                              "priority": {"value": priority, "name": PRIORITY_NAMES[priority]}, "dueDate": due}
         return ident
 
 
@@ -131,7 +138,7 @@ def triage(store, findings):
         try:
             if a["action"] == "create":
                 g = groups[a["key"]]
-                store.create(g["title"], g["description"])
+                store.create(g["title"], g["description"], g["priority"], g["sla"])
             elif a["action"] in ("retarget", "refresh"):
                 if "patch" not in a:
                     raise PatchError(f"{a['action']} without a patch")
@@ -145,6 +152,13 @@ def triage(store, findings):
                 if "patch" in a:
                     issue["description"] = apply_patch(issue["description"], a["patch"])
                 issue.update(status="Todo", title=a["title"], completedAt=None)
+                store.comments.append((a["issue"], a["reason"]))
+            elif a["action"] == "realign":  # step 5: the stricter values, then a comment
+                issue = store.issues[a["issue"]]
+                if "priority" in a:
+                    issue["priority"] = {"value": a["priority"], "name": PRIORITY_NAMES[a["priority"]]}
+                if "dueDate" in a:
+                    issue["dueDate"] = a["dueDate"]
                 store.comments.append((a["issue"], a["reason"]))
             elif a["action"] == "resolve":
                 store.issues[a["issue"]]["status"] = "Done"
@@ -259,6 +273,20 @@ class Workflow(unittest.TestCase):
         for _ in range(2):
             self.assertEqual(triage(store, findings), [])
         self.assertEqual((store.issues["CIP-1"]["status"], len(store.issues), store.comments), ("Canceled", 1, []))
+
+    def test_drifted_priority_and_due_date_are_realigned_once(self):
+        """#25: Vanta raised the severity to HIGH and brought the SLA forward after CIP-1 was filed."""
+        findings = [dep("1", "CVE-1", "npm-left-pad < 1.2.2", "1.2.2")]
+        store = FakeLinear([{**self.generated(findings, "CIP-1"), "priority": {"value": 3, "name": "Medium"},
+                             "dueDate": "2026-12-20"}])
+        self.converge(store, findings)
+        self.assertEqual((store.issues["CIP-1"]["priority"]["value"], store.issues["CIP-1"]["dueDate"]), (2, "2026-11-05"))
+
+    def test_human_escalation_is_never_relaxed(self):
+        findings = [dep("1", "CVE-1", "npm-left-pad < 1.2.2", "1.2.2")]
+        store = FakeLinear([{**self.generated(findings, "CIP-1"), "priority": {"value": 1, "name": "Urgent"},
+                             "dueDate": "2026-10-20"}])
+        self.assertEqual(triage(store, findings), [])
 
     def test_done_issue_outside_the_window_is_not_reopened(self):
         findings = [dep("1", "CVE-1", "npm-left-pad < 1.2.2", "1.2.2")]

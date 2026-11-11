@@ -43,6 +43,9 @@ def digest(findings):
     return g["advisory_digest"]
 
 
+STRICT = {"priority": {"value": 1, "name": "Urgent"}, "dueDate": "2026-01-01"}
+
+
 def connector(data):
     """An issue file as the connector returns it: a list of issues becomes one final list_issues page, and every
     field the plan requires and a test leaves out is null, as the connector returns a requested field with no value."""
@@ -50,7 +53,7 @@ def connector(data):
         data = {"issues": data, "hasNextPage": False}
     if isinstance(data, dict) and isinstance(data.get("issues"), list):
         return {"hasNextPage": False, **data,
-                "issues": [{**{f: None for f in vanta.LIST_FIELDS}, **i} for i in data["issues"]]}
+                "issues": [{**{f: None for f in vanta.LIST_FIELDS}, **STRICT, **i} for i in data["issues"]]}
     if isinstance(data, dict) and "title" in data:
         return {**{f: None for f in vanta.ISSUE_FIELDS}, **data}
     return data
@@ -807,6 +810,64 @@ class RefreshRule(unittest.TestCase):
         issue = self.tracked([self.f("1", "a-img"), self.f("2", "a-zk")])
         [a] = self.plan([self.f("1", "a-img"), self.f("3", "a-img", name="CVE-B")], issue)["actions"]
         self.assertEqual((a["action"], a["issue"]), ("refresh", "CIP-1"))
+
+
+class Realign(unittest.TestCase):
+    """#25: priority and due date are made as strict as Vanta's severity and SLA, never relaxed."""
+    TITLE = "[Vanta] Remediate left-pad to 1.2.2 (stack)"  # finding(): HIGH (priority 2), SLA 2026-11-05
+
+    def actions(self, priority, due, findings=None, **kw):
+        issue = {"id": "CIP-1", "title": self.TITLE, "status": "Todo", "priority": priority, "dueDate": due, **kw}
+        return run_plan(findings or [finding()], [issue])["actions"]
+
+    def realign(self, priority, due, **kw):
+        acts = [a for a in self.actions(priority, due, **kw) if a["action"] == "realign"]
+        return acts[0] if acts else None
+
+    def test_less_urgent_priority_is_raised(self):
+        a = self.realign({"value": 3, "name": "Medium"}, "2026-11-05")
+        self.assertEqual((a["issue"], a["priority"]), ("CIP-1", 2))
+        self.assertNotIn("dueDate", a)
+        for part in ("Medium", "High", "HIGH"):
+            self.assertIn(part, a["reason"])
+
+    def test_no_priority_is_raised(self):
+        self.assertEqual(self.realign({"value": 0, "name": "No priority"}, "2026-11-05")["priority"], 2)
+
+    def test_later_due_date_is_brought_forward(self):
+        a = self.realign({"value": 2, "name": "High"}, "2026-12-01")
+        self.assertEqual(a["dueDate"], "2026-11-05")
+        self.assertNotIn("priority", a)
+        for part in ("2026-12-01", "2026-11-05", "SLA"):
+            self.assertIn(part, a["reason"])
+
+    def test_missing_due_date_is_set(self):
+        self.assertEqual(self.realign({"value": 2, "name": "High"}, None)["dueDate"], "2026-11-05")
+
+    def test_stricter_human_values_stay(self):
+        self.assertIsNone(self.realign({"value": 1, "name": "Urgent"}, "2026-10-20"))
+        self.assertIsNone(self.realign({"value": 2, "name": "High"}, "2026-11-05"))
+
+    def test_no_sla_leaves_the_due_date(self):
+        self.assertIsNone(self.realign({"value": 2, "name": "High"}, None, findings=[finding(remediateByDate=None)]))
+
+    def test_realign_sits_beside_the_main_action(self):
+        acts = self.actions({"value": 4, "name": "Low"}, "2026-11-05", findings=[finding(fixedVersion="1.2.5")])
+        self.assertEqual([a["action"] for a in acts], ["retarget", "realign"])
+
+    def test_reopen_realigns_too(self):
+        [g] = vanta.group_findings([finding()])
+        done = {"id": "CIP-1", "title": g["title"], "status": "Done", "statusType": "completed",
+                "description": g["description"], "completedAt": "2026-10-03T01:00:00Z",
+                "priority": {"value": 4, "name": "Low"}, "dueDate": "2026-12-01"}
+        acts = run_plan([finding()], [done])["actions"]
+        self.assertEqual([a["action"] for a in acts], ["reopen", "realign"])
+        self.assertEqual((acts[1]["priority"], acts[1]["dueDate"]), (2, "2026-11-05"))
+
+    def test_resolved_or_awaiting_issues_are_not_realigned(self):
+        acts = run_plan([finding(packageIdentifier="npm-other < 1.2.2")],
+                        [{"id": "CIP-9", "title": self.TITLE, "status": "Todo", "priority": None, "dueDate": None}])["actions"]
+        self.assertNotIn("realign", [a["action"] for a in acts])
 
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"

@@ -727,10 +727,11 @@ def matches(g: dict, parsed: dict) -> bool:
         if same_key(parsed["key"], g["key"]):
             return True
         # An image added to the config's images map moves its group from container:<image>:<pkg> to
-        # container:<repo>:<pkg>; the issue keyed by the image still tracks it.
+        # container:<repo>:<pkg>; the issue keyed by the image still tracks it, even when Vanta reports only
+        # another image built from that repo this run.
         return (g["kind"] == "assess-container" and parsed["key"].lower().startswith("container:")
                 and parsed["package"].lower() == g["package"].lower()
-                and bool(parsed["where"] & {i.lower() for i in g["images"]}))
+                and bool(parsed["where"] & {i.lower() for i in g["images"] + g.get("source_images", [])}))
     if parsed["package"] != g["package"].lower():
         return False
     if g["kind"] == "assess-container":

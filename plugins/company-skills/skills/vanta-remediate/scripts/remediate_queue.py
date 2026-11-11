@@ -10,7 +10,9 @@ Input: each FILE is one list_issues response saved as the Linear connector retur
 state Todo in the AppSec project with fields id, title, status, statusType, priority, and dueDate (SKILL.md,
 Inputs). A page is an object with an "issues" array and a boolean "hasNextPage"; every issue carries every
 field in FIELDS (null when empty); priority is an integer or {"value", "name"}. A host-saved list of
-{"type": "text"} blocks is unwrapped first. Page order does not matter.
+{"type": "text"} blocks is unwrapped first. Name files page-1.json, page-2.json, and so on in fetch order,
+without gaps or duplicate numbers. Argument order does not matter; only the highest numbered page may
+report hasNextPage false. Host-saved responses must be copied unchanged to these numbered filenames.
 
 Selection: Todo issues whose title has the full Remediate shape, "[Vanta] Remediate {package} to {versions}
 ({repo})". With --include-assessments, Todo "[Vanta] Assess ..." issues as well. AWS configuration issues,
@@ -28,7 +30,8 @@ the AWS configuration issues goes to stderr; the run report carries both.
 
 Exit 0 on success, including an empty queue. Exit 2, naming the file and the reason on stderr, when a file
 is unreadable or is not a connector page as returned (a bare array, a missing field or "hasNextPage"), or
-when every page still reports a next page or more than one reports none: the listing is incomplete or mixed,
+when the numbered sequence is incomplete or duplicated, every page still reports a next page, or a page
+other than the final numbered page reports none: the listing is incomplete or mixed,
 so the fetch is redone, never repaired by hand.
 """
 
@@ -123,11 +126,25 @@ def main(argv=None) -> int:
     parser.add_argument("--include-assessments", action="store_true", help="also select Todo Assess issues")
     args = parser.parse_args(argv)
     pages = []
+    numbered_paths = {}
     for path in args.pages:
         try:
+            match = re.fullmatch(r"page-([1-9][0-9]*)\.json", Path(path).name)
+            if not match:
+                raise InputError("name each response page-<n>.json, starting at page-1.json")
+            index = int(match.group(1))
+            if index in numbered_paths:
+                raise InputError(f"duplicate page number {index}: also supplied as {numbered_paths[index]}")
+            numbered_paths[index] = path
             pages.append(load_page(path))
         except InputError as exc:
             print(f"error: {path}: {exc}. Redo the fetch and save each response as returned; never repair it by hand.",
+                  file=sys.stderr)
+            return 2
+    for expected, index in enumerate(sorted(numbered_paths), start=1):
+        if expected != index:
+            print(f"error: {', '.join(args.pages)}: missing page-{expected}.json. Redo the fetch and save every "
+                  "response in fetch order, starting at page-1.json; never renumber an incomplete listing.",
                   file=sys.stderr)
             return 2
     final = [path for path, page in zip(args.pages, pages) if not page["hasNextPage"]]
@@ -136,6 +153,11 @@ def main(argv=None) -> int:
                else f"{len(final)} pages report hasNextPage false: pages from more than one listing")
         print(f"error: {', '.join(args.pages)}: {why}. Follow the cursor until hasNextPage is false, and save only "
               "that listing's pages.", file=sys.stderr)
+        return 2
+    if final[0] != numbered_paths[len(pages)]:
+        print(f"error: {final[0]}: hasNextPage false before the final numbered page "
+              f"{numbered_paths[len(pages)]}. Redo the fetch and save only that listing's pages in fetch order.",
+              file=sys.stderr)
         return 2
     result = build(pages, args.include_assessments)
     print(f"{result['issues_read']} issues read, {result['pages_read']} pages read, {result['selected']} selected; "

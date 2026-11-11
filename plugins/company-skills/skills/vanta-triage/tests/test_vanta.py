@@ -815,6 +815,19 @@ class RefreshRule(unittest.TestCase):
     def plan(self, findings, issue):
         return run_plan_files(findings, {"CIP-1.json": issue}, self.CONFIG)
 
+    def test_r2_old_image_key_matches_when_only_a_mapped_sibling_is_reported(self):
+        old = vanta.normalise(vuln(id="1", name="CVE-A", targetId="a-img", packageIdentifier="openssl:3.0.15",
+                                  fixedVersion="NotAvailable", externalURL="https://aws/1"), self.ASSETS, {})
+        issue = self.tracked([old])
+        self.assertIn("Vanta key: `container:cts:openssl`", issue["description"])
+        plan = self.plan([self.f("2", "a-zk")], issue)
+        self.assertEqual([(a["action"], a.get("issue")) for a in plan["actions"]], [("refresh", "CIP-1")])
+        replacement = plan["actions"][0]["patch"][0]["new_string"]
+        self.assertIn("Vanta key: `container:acme/suite:openssl`", replacement)
+        self.assertIn("**Images:** `cts`, `zerokms`", replacement)
+        [second] = self.plan([self.f("2", "a-zk")], {**issue, "description": replacement})["actions"]
+        self.assertEqual(second["action"], "keep")
+
     def test_dropped_image_is_a_scanning_signal(self):
         issue = self.tracked([self.f("1", "a-img"), self.f("2", "a-zk")])
         [a] = self.plan([self.f("1", "a-img")], issue)["actions"]

@@ -15,7 +15,7 @@ Every run publishes one report. A missing report means the run died before the e
 ## Inputs
 
 - The run's prompt and the skills it loaded: the instructions deviations are measured against.
-- A run name, if given; otherwise derive one from the prompt and its target, such as `Code review PR 1496`; when the prompt names no task or target, `Unnamed run <date>`. Never ask: an unattended run has no one to answer.
+- A run name, if given; otherwise derive one from the prompt and its target, such as `Code review PR 1496`; when the prompt names no task or target, `Unnamed run <run date>`, with the run date as step 5 defines it. Never ask: an unattended run has no one to answer.
 
 ## Steps
 
@@ -53,7 +53,7 @@ Every run publishes one report. A missing report means the run died before the e
 
    Set the run status: `FAILED` when the run stopped before completing its work — on an error, a missing prerequisite, or an approval no one could give. A stop the instructions name as the nothing-to-do outcome, such as "nothing to commit, stop and say so", completes the work and is not a failure; a stop caused by an error, a missing prerequisite, or an unanswered approval never qualifies, even when the instructions name it. Otherwise `DEGRADED` when the run completed with any deviation — even a single `minor` one, and even a `blocking` one, which the verdict line then flags as untrusted — and `SUCCEEDED` only with no deviation. A `FAILED` run's stop is always logged and reported as a `blocking` problem with impact, cause, and fix, even when the run obeyed it, so a failed report never reads `No problems`. Completion: every deviation has impact, cause, fix, and severity, and the status follows these rules.
 
-5. **Publish.** Write the report as a page and publish it with the host's Artifact tool, following that tool's instructions for authoring the page. The artifact stays private; sharing it is the user's choice. Title it with the run name and date. Sections, in order:
+5. **Publish.** Write the report as a page and publish it with the host's Artifact tool, following that tool's instructions for authoring the page. The artifact stays private; sharing it is the user's choice. Title it with the run name and the **run date**: the calendar date the run started, in the timezone the prompt names, followed by that timezone, as in `Vanta triage 2026-11-12 (Australia/Sydney)`. When the prompt names no timezone, use the UTC date labelled `UTC`, as in `Vanta triage 2026-11-11 UTC`. Never title a report with a bare date: a scheduled run's UTC date can be a day behind the date it was scheduled on. Sections, in order:
    - **Status** — the status, run name, start and end time, host product, model ID, skills loaded and missing, and a one-line verdict on whether the outputs can be trusted.
    - **Outputs** — each output the run produced, with its URL, and the deviations it rests on.
    - **Problems** — blocking first, then degraded, then minor; each with where, what happened, what the run did instead, impact, cause, and fix.

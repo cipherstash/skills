@@ -89,7 +89,7 @@ class FakeLinear:
 
     def get_issue(self, ident):
         issue = self.issues[ident]
-        return {**issue, "statusType": STATE_TYPES[issue["status"]]}
+        return {"description": None, **issue, "statusType": STATE_TYPES[issue["status"]]}
 
     def create(self, title, description):
         ident = f"CIP-{100 + len(self.issues)}"

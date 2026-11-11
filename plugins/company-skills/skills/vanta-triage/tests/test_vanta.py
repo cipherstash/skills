@@ -43,11 +43,24 @@ def digest(findings):
     return g["advisory_digest"]
 
 
+def connector(data):
+    """An issue file as the connector returns it: a list of issues becomes one final list_issues page, and every
+    field the plan requires and a test leaves out is null, as the connector returns a requested field with no value."""
+    if isinstance(data, list) and not (data and all(i.get("type") == "text" for i in data)):
+        data = {"issues": data, "hasNextPage": False}
+    if isinstance(data, dict) and isinstance(data.get("issues"), list):
+        return {"hasNextPage": False, **data,
+                "issues": [{**{f: None for f in vanta.LIST_FIELDS}, **i} for i in data["issues"]]}
+    if isinstance(data, dict) and "title" in data:
+        return {**{f: None for f in vanta.ISSUE_FIELDS}, **data}
+    return data
+
+
 def run_plan(findings, issues):
     with tempfile.TemporaryDirectory() as d:
         fp, ip = Path(d, "f.json"), Path(d, "i.json")
         fp.write_text(json.dumps(findings))
-        ip.write_text(json.dumps(issues))
+        ip.write_text(json.dumps(connector(issues)))
         cp = Path(d, "c.json")
         cp.write_text("{}")
         out = io.StringIO()
@@ -214,7 +227,7 @@ class Plan(unittest.TestCase):
             for n, issues in enumerate([[{"id": "CIP-1", "title": "[Vanta] Remediate left-pad to 1.2.2 (stack)", "status": "Todo"}],
                                         {"issues": [{"id": "CIP-9", "title": "[Vanta] Remediate gone to 1.0.0 (stack)", "status": "Todo"}]}]):
                 paths.append(str(Path(d, f"i{n}.json")))
-                Path(paths[-1]).write_text(json.dumps(issues))
+                Path(paths[-1]).write_text(json.dumps(connector(issues)))
             fp, cp = Path(d, "f.json"), Path(d, "c.json")
             fp.write_text(json.dumps([finding()]))
             cp.write_text("{}")
@@ -407,7 +420,7 @@ def run_plan_files(findings, files, config=None):
         paths = []
         for name, data in sorted(files.items()):
             paths.append(str(Path(d, name)))
-            Path(paths[-1]).write_text(json.dumps(data))
+            Path(paths[-1]).write_text(json.dumps(connector(data)))
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
             code = vanta.main(["plan", "--findings", str(fp), "--issues", *paths, "--config", str(cp), "--today", "2026-10-13"])
@@ -548,7 +561,7 @@ class FifthReview(unittest.TestCase):
 
     def test_h1_host_saved_text_blocks_and_issue_wrapper(self):
         fetched = self.described([self.FIXED])
-        blocks = [{"type": "text", "text": json.dumps({"issue": fetched})}]
+        blocks = [{"type": "text", "text": json.dumps({"issue": connector(fetched)})}]
         plan = run_plan_files([self.FIXED, self.UNFIXED], {"a.json": {"issues": [], "hasNextPage": False}, "CIP-1.json": blocks})
         self.assertEqual([(a["action"], a.get("issue")) for a in plan["actions"]], [("refresh", "CIP-1")])
 
@@ -667,6 +680,65 @@ class SeventhReview(unittest.TestCase):
                          not a["issue"].startswith("CIP-L")]
                 self.assertEqual(kinds, ["guard" if tripped else "resolve"] * stale)
                 self.assertEqual(plan["guard"] is not None, tripped)
+
+
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
+
+
+def plan_exit(findings, files):
+    """(exit code, stderr) for a plan over {name: JSON} issue files."""
+    with tempfile.TemporaryDirectory() as d:
+        fp = Path(d, "f.json")
+        fp.write_text(json.dumps(findings))
+        paths = []
+        for name, data in sorted(files.items()):
+            paths.append(str(Path(d, name)))
+            Path(paths[-1]).write_text(data if isinstance(data, str) else json.dumps(data))
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+            code = vanta.main(["plan", "--findings", str(fp), "--issues", *paths, "--today", "2026-10-13"])
+        return code, err.getvalue()
+
+
+class RawConnectorInput(unittest.TestCase):
+    """#21: plan only from list_issues and get_issue results as the connector returned them."""
+    PAGE = json.loads((FIXTURES / "list_issues.json").read_text())
+    ISSUE = json.loads((FIXTURES / "get_issue.json").read_text())
+
+    def rejected(self, data, name="bad.json"):
+        code, err = plan_exit([finding()], {name: data})
+        self.assertEqual(code, 2, err)
+        self.assertIn(name, err)
+        return err
+
+    def test_raw_connector_responses_plan(self):
+        plan = run_plan_files([finding()], {"unstarted.json": self.PAGE, "CIP-5242.json": self.ISSUE})
+        acts = {(a["action"], a.get("issue")) for a in plan["actions"]}
+        self.assertIn(("keep", "CIP-5242"), acts)
+
+    def test_bare_array_is_rejected(self):
+        self.rejected(self.PAGE["issues"])
+
+    def test_missing_has_next_page_is_rejected(self):
+        self.rejected({"issues": self.PAGE["issues"]})
+
+    def test_missing_field_is_rejected(self):
+        issues = [dict(i) for i in self.PAGE["issues"]]
+        del issues[1]["statusType"]
+        err = self.rejected({**self.PAGE, "issues": issues})
+        self.assertIn("statusType", err)
+
+    def test_single_issue_without_description_is_rejected(self):
+        self.rejected({k: v for k, v in self.ISSUE.items() if k != "description"}, "CIP-5242.json")
+
+    def test_truncated_single_issue_description_is_rejected(self):
+        desc = self.ISSUE["description"]
+        self.rejected({**self.ISSUE, "description": desc[:desc.index("Advisory set:")]}, "CIP-5242.json")
+
+    def test_legacy_single_issue_description_is_accepted(self):
+        issue = {**self.ISSUE, "description": "## Vulnerability\n\nfiled by hand"}
+        code, err = plan_exit([finding()], {"CIP-5242.json": issue})
+        self.assertEqual(code, 0, err)
 
 
 class Credentials(unittest.TestCase):

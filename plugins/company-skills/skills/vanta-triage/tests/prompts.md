@@ -37,6 +37,7 @@
 - An advisory that spans several version lines appears once per affected range in the description table; package names keep their spelling in the `Vanta key:` line.
 - The generated section carries a fenced `json` advisory block with every advisory's id, raw affected range (including `||`), and fixed version or null; the table escapes `|` and is for people only. Covered by vanta-remediate's `test_contract.py`.
 - The same Linear issue seen once by uuid and once by its `CIP-` identifier (a list page keyed by `id` = uuid, a `get_issue` result with both) is one issue, never its own duplicate; every id the plan emits is the `CIP-` identifier. Covered by `test_vanta.py` (`SixthReview`).
+- A run that has only summarised Linear data (a hand-built array of ids and titles, or issues missing `statusType`) gets exit 2 from `plan` naming the file. It refetches with `list_issues` and saves the responses as returned; it never edits the data to pass the check, and never edits a description by hand. Covered by `test_vanta.py` (`RawConnectorInput`), with fixtures in `tests/fixtures/` that keep a real connector response's shape.
 - Unparsed `[Vanta]` issues (AWS configuration findings, legacy umbrellas) are listed and never edited or closed.
 - Dry-run mode performs no Linear writes and says so.
 - The run never stops to ask a question.

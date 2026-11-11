@@ -81,13 +81,16 @@ plan
     unparsed open Linear issues whose title is not a recognised Vanta
              package title, left untouched.
 
-  --issues takes one or more files, each a list_issues page (a JSON array,
-  or an object with an "issues" or "nodes" array) or a get_issue result (a
-  bare issue, or {"issue": {...}}); a host-saved list of {"type": "text"}
-  blocks is unwrapped first. Any other shape exits 2 naming the file. Issues
-  carry id or identifier, title, status or state (a string or an
-  object with name and type), and optionally statusType, description and
-  completedAt. An issue whose state type is completed (or named Done) is done,
+  --issues takes one or more files, each saved as the connector returned it:
+  a list_issues page (an object with an "issues" array and a boolean
+  "hasNextPage", every issue carrying each field in LIST_FIELDS, null when
+  empty) or a get_issue result (a bare issue, or {"issue": {...}}, carrying
+  each field in ISSUE_FIELDS, its description whole); a host-saved list of
+  {"type": "text"} blocks is unwrapped first. A bare array, a missing field
+  or "hasNextPage", a description cut off inside the generated section, or
+  any other shape exits 2 naming the file: the fetch is redone, never
+  repaired by hand. Issues carry id or identifier, title, status or state (a
+  string or an object with name and type), statusType, and completedAt. An issue whose state type is completed (or named Done) is done,
   canceled (or named Canceled or Duplicate) is ignored, and anything else is
   open. A description line "Vanta key: `<key>`" takes precedence over the
   title for matching. Records that share any of id, identifier or uuid are
@@ -618,27 +621,55 @@ def matches(g: dict, parsed: dict) -> bool:
     return place(g).lower() in parsed["where"]
 
 
-def load_issues(data) -> tuple[str | None, list[dict]]:
-    """("list", issues) for an array or an {issues|nodes: [...]} page, ("issue", [issue]) for a get_issue result
-    (a bare issue or {"issue": {...}}), or (None, []) for anything else. Host-saved tool results, a list of
-    {"type": "text", "text": "<json>"} blocks, are unwrapped first."""
+LIST_FIELDS = ("id", "title", "status", "statusType", "completedAt")
+ISSUE_FIELDS = ("id", "title", "description", "status", "statusType")
+GENERATED_PARTS = ("### Advisories", "```json", "Advisory set:")
+
+
+def truncated(description: str) -> bool:
+    """True when a description starts triage's generated section but stops before its "Vanta key:" line. A legacy
+    "## Vulnerability" heading written by hand carries none of the section's parts, so it is not truncated."""
+    start = description.find("## Vulnerability")
+    if start < 0 or generated_span(description) is not None:
+        return False
+    return any(part in description[start:] for part in GENERATED_PARTS)
+
+
+def load_issues(data) -> tuple[str, list[dict]]:
+    """("list", issues) for a list_issues page, ("issue", [issue]) for a get_issue result (a bare issue or
+    {"issue": {...}}), as the connector returned them. Host-saved tool results, a list of
+    {"type": "text", "text": "<json>"} blocks, are unwrapped first. Anything else raises ValueError saying why:
+    a page must be an object with an "issues" array and a boolean "hasNextPage", every issue carrying every field
+    step 2 requests (null when empty); a get_issue result must carry its description whole."""
     if isinstance(data, list) and data and all(isinstance(b, dict) and b.get("type") == "text" for b in data):
         try:
             data = json.loads("".join(b.get("text") or "" for b in data))
         except ValueError:
-            return None, []
-    if isinstance(data, dict):
-        if isinstance(data.get("issue"), dict):
-            data = data["issue"]
-        for k in ("issues", "nodes"):
-            if isinstance(data.get(k), list):
-                return load_issues(data[k])
-        if (data.get("id") or data.get("identifier")) and "title" in data:
-            return "issue", [data]
-        return None, []
-    if isinstance(data, list) and all(isinstance(i, dict) for i in data):
-        return "list", data
-    return None, []
+            raise ValueError("host-saved text blocks do not hold JSON")
+    if isinstance(data, list):
+        raise ValueError("a bare array is not a list_issues result; save the response as returned")
+    if not isinstance(data, dict):
+        raise ValueError("not a Linear issue list or issue")
+    if isinstance(data.get("issue"), dict):
+        data = data["issue"]
+    if "issues" in data:
+        if not isinstance(data["issues"], list) or not all(isinstance(i, dict) for i in data["issues"]):
+            raise ValueError('"issues" is not an array of issues')
+        if not isinstance(data.get("hasNextPage"), bool):
+            raise ValueError('no boolean "hasNextPage": not a list_issues result as returned')
+        for issue in data["issues"]:
+            missing = [f for f in LIST_FIELDS if f not in issue]
+            if missing:
+                raise ValueError(f"issue {issue.get('id', '?')} lacks requested field(s) {', '.join(missing)}")
+        return "list", data["issues"]
+    if (data.get("id") or data.get("identifier")) and "title" in data:
+        missing = [f for f in ISSUE_FIELDS if f not in data]
+        if missing:
+            raise ValueError(f"get_issue result lacks field(s) {', '.join(missing)}")
+        if truncated(data["description"] or ""):
+            raise ValueError("get_issue description is truncated before its \"Vanta key:\" line")
+        return "issue", [data]
+    raise ValueError("not a Linear issue list or issue")
 
 
 UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.I)
@@ -697,9 +728,11 @@ def cmd_plan(args) -> int:
         findings = json.loads(Path(args.findings).read_text())
         listed, fetched = [], []
         for path in args.issues:
-            kind, items = load_issues(json.loads(Path(path).read_text()))
-            if kind is None:
-                print(f"error: {path}: not a Linear issue list or issue", file=sys.stderr)
+            try:
+                kind, items = load_issues(json.loads(Path(path).read_text()))
+            except ValueError as exc:
+                print(f"error: {path}: {exc}. Redo the fetch and save the response as returned; never repair it "
+                      "by hand.", file=sys.stderr)
                 return 2
             (fetched if kind == "issue" else listed).extend(items)
     except (OSError, ValueError) as exc:

@@ -1,0 +1,61 @@
+{
+ "issues": [
+  {
+   "id": "CIP-5301",
+   "title": "[Vanta] Remediate tar to 7.5.3 / 6.2.2 (suite)",
+   "status": "Todo",
+   "statusType": "unstarted",
+   "priority": {
+    "value": 1,
+    "name": "Urgent"
+   },
+   "dueDate": "2026-11-20"
+  },
+  {
+   "id": "CIP-5310",
+   "title": "[Vanta] Remediate \"SQL database CPU monitored\"",
+   "status": "Todo",
+   "statusType": "unstarted",
+   "priority": {
+    "value": 3,
+    "name": "Medium"
+   },
+   "dueDate": "2026-12-01"
+  },
+  {
+   "id": "CIP-5320",
+   "title": "[Vanta] Remediate serde to 1.0.220 (stack)",
+   "status": "Todo",
+   "statusType": "unstarted",
+   "priority": {
+    "value": 2,
+    "name": "High"
+   },
+   "dueDate": "2026-11-12"
+  },
+  {
+   "id": "CIP-5330",
+   "title": "[Vanta] Remediate rustls to 0.23.20 (proxy)",
+   "status": "Todo",
+   "statusType": "unstarted",
+   "priority": {
+    "value": 0,
+    "name": "No priority"
+   },
+   "dueDate": null
+  },
+  {
+   "id": "CIP-5340",
+   "title": "Upgrade CI runners",
+   "status": "Todo",
+   "statusType": "unstarted",
+   "priority": {
+    "value": 3,
+    "name": "Medium"
+   },
+   "dueDate": null
+  }
+ ],
+ "hasNextPage": false,
+ "cursor": null
+}

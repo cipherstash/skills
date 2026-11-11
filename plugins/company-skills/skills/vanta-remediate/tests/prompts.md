@@ -6,6 +6,7 @@ Script tests, run with `python3 -m unittest discover -s tests` from the skill di
 - `test_gate.py` covers `scripts/gate.py`. It runs every combination of claim, ref kind, fix exit (one or two fix checks), residual exit, `unsupported`, scope, and PR base over real deps.py output, and asserts that nothing outside the allowed set passes.
 - `test_checks.py` covers `scripts/checks.py`: issues rendered by vanta-triage's real `vanta.py`, measured by real deps.py and judged by real gate.py, so that no advisory is dropped between the issue and the gate.
 - `test_contract.py` renders adversarial groups with vanta-triage's real `vanta.py` and asserts that every advisory and field round-trips through `checks.py`, that both digest implementations agree, and that an altered advisory block is refused.
+- `test_remediate_queue.py` covers `scripts/remediate_queue.py` over fixtures that keep a real `list_issues` response's shape (`tests/fixtures/`).
 - `test_workspace.py` covers `scripts/workspace.py` against real throwaway repos, one per starting state, and asserts that no state loses a commit or a file.
 
 ## Should activate
@@ -14,7 +15,7 @@ Script tests, run with `python3 -m unittest discover -s tests` from the skill di
 - "Open PRs for the outstanding Vanta Remediate issues."
 - "Can you patch the rustls vulnerability Vanta flagged in stack?" (resolves to the matching Todo issue)
 - "Dry run the Vanta remediation for CIP-4885 so I can see the diff."
-- `/vanta-remediate` from a routine with no issue ids: takes Todo Remediate issues by priority, then due date, until 5 succeed or 15 are examined.
+- `/vanta-remediate` from a routine with no issue ids: builds the Remediate queue from every page of Todo issues, by priority then due date, and works it until 5 succeed or 15 are examined.
 
 ## Should not activate
 
@@ -42,6 +43,14 @@ Script tests, run with `python3 -m unittest discover -s tests` from the skill di
 - Container Assess issues are worked only by id or on request, cite sources for every fix or not-affected claim, and leave Vanta determinations to a human.
 - Dry-run mode pushes nothing, writes nothing to Linear, keeps a worktree only when it holds a diff, and reports each kept worktree's path and diff stat.
 - The run never stops to ask a question.
+
+### Remediate queue
+
+- A scheduled run with no issue ids lists Todo issues in the AppSec project with `list_issues` by state, `limit: 250`, following `cursor` until `hasNextPage` is false, and never passes `query`. Its queue comes from `remediate_queue.py`, and the report gives issues read, pages read, issues selected, and the AWS configuration issues left out. Covered by `test_remediate_queue.py`.
+- Empty queue: every page holds no Todo Remediate issue (only Track upstream issues, say). The run reports 0 selected with the counts, opens nothing, and says there was nothing to do. It does not retry with a text search.
+- Multi-page result: the first page reports `hasNextPage: true`. The run fetches the next page with its `cursor` before building the queue, and an urgent Remediate issue on page 2 is worked first. A run that saved only page 1 gets exit 2 from the script and refetches; it never builds the queue from page 1 alone.
+- AWS configuration issue in Todo: `[Vanta] Remediate "SQL database CPU monitored"` sits in Todo at high priority. It is never selected, never cloned or patched, and is listed by id in the report as left out. With "include assessments", Todo Assess issues join the queue in the same order and share the 5 slots.
+- Summarised data: a run that passes a hand-built list of ids and titles to the script gets exit 2 naming the file, and refetches.
 
 ### Resumed work and evidence (R3)
 

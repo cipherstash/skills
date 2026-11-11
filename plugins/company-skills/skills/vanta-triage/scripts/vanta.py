@@ -506,14 +506,51 @@ def generated_span(description: str) -> str | None:
 BLOCK_RE = re.compile(r"^```json\n(.*?)\n```$", re.S | re.M)
 
 
+def valid_block(block) -> bool:
+    """Match vanta-remediate's schema and identity checks before trusting a saved block."""
+    def string(value):
+        return isinstance(value, str) and bool(value)
+
+    def optional(value):
+        return value is None or string(value)
+
+    if not isinstance(block, dict) or block.get("schema") != BLOCK_SCHEMA:
+        return False
+    if block.get("kind") not in ("dependency", "container"):
+        return False
+    if not all(string(block.get(k)) for k in ("key", "ecosystem", "package")):
+        return False
+    if not optional(block.get("repo")) or not optional(block.get("asset")):
+        return False
+    if not all(isinstance(block.get(k), list) and all(string(v) for v in block[k]) for k in ("targets", "images")):
+        return False
+    advisories = block.get("advisories")
+    if not isinstance(advisories, list) or not advisories:
+        return False
+    for advisory in advisories:
+        if not isinstance(advisory, dict) or set(advisory) != {"id", "affected", "fixed_version"}:
+            return False
+        if not string(advisory["id"]) or not optional(advisory["affected"]) or not optional(advisory["fixed_version"]):
+            return False
+    if block["kind"] == "dependency":
+        return block["key"] == f"dependency:{block.get('repo') or block.get('asset')}:{block['ecosystem']}:{block['package']}"
+    if block.get("repo"):
+        return block["key"] == f"container:{block['repo']}:{block['package']}"
+    return any(block["key"] == f"container:{image}:{block['package']}" for image in block["images"])
+
+
 def block_images(description: str) -> list[str] | None:
     """The images the generated section's advisory block lists, or None when it has no readable block or the block
     fails its integrity check: its recomputed digest must equal the section's "Advisory set:" value, as
     vanta-remediate's checks.py requires. An image added to the block by hand is never carried forward."""
     span = generated_span(description) or ""
-    m, d = BLOCK_RE.search(span), DIGEST_LINE_RE.search(span)
+    blocks, d, key = BLOCK_RE.findall(span), DIGEST_LINE_RE.search(span), KEY_LINE_RE.search(span)
+    if len(blocks) != 1 or not d or not key:
+        return None
     try:
-        block = json.loads(m.group(1)) if m and d else None
+        block = json.loads(blocks[0])
+        if not valid_block(block) or block["key"] != key.group(1):
+            return None
         sealed = {"key": block["key"], "targets": block["targets"], "images": block["images"],
                   "advisories": [{"id": a["id"], "affected": a["affected"], "fixed_version": a["fixed_version"]}
                                  for a in block["advisories"]]}
@@ -526,9 +563,9 @@ def block_images(description: str) -> list[str] | None:
 
 
 def tampered(description: str) -> bool:
-    """True when the generated section holds an advisory block that fails its integrity check, which
+    """True when the generated section lacks a single valid advisory block, which
     vanta-remediate refuses until triage rewrites it."""
-    return bool(BLOCK_RE.search(generated_span(description) or "")) and block_images(description) is None
+    return generated_span(description) is not None and block_images(description) is None
 
 
 def as_tracked(g: dict, issue: dict) -> tuple[dict, list[str]]:
@@ -706,7 +743,8 @@ def matches(g: dict, parsed: dict) -> bool:
 
 LIST_FIELDS = ("id", "title", "status", "statusType", "completedAt", "canceledAt", "priority", "dueDate")
 ISSUE_FIELDS = ("id", "title", "description", "status", "statusType")
-GENERATED_PARTS = ("### Advisories", "```json", "Advisory set:", "Vanta key:")
+GENERATED_PARTS = ("**Package:", "**Repo:", "**Asset:", "**Images:", "**Fix version:", "**Severity:",
+                   "### Advisories", "```json", "Advisory set:", "Vanta key:")
 
 
 def truncated(description: str) -> bool:
@@ -927,6 +965,20 @@ def cmd_plan(args) -> int:
     for g in groups:
         chosen, settled = claimed.get(g["key"]), None
         g["match"] = {"id": chosen["id"], "title": chosen["title"], "state": chosen["state"]} if chosen else None
+        # Risk acceptance wins over open matches too, including duplicateOf and urgency writes.
+        canceled = [i for i in recent_canceled if matches(g, i)]
+        accepted = next((i for i in canceled if i["described"] and i["key"]), None)
+        pending = next((i for i in canceled if not i["described"]), None)
+        if accepted or pending:
+            i = accepted or pending
+            used.update(match["id"] for match in fits[g["key"]])
+            actions.append({"action": "canceled", "key": g["key"], "issue": i["id"],
+                            "reason": f"{i['id']} was cancelled {i['canceled']}; Vanta still reports "
+                                      f"{g['finding_count']} open finding(s) for it. Not refiled: cancelling "
+                                      "accepts the risk"})
+            if not accepted:
+                actions[-1]["fetch_description"] = True
+            continue
         dups = [i["id"] for i in fits[g["key"]] if dup_of.get(i["id"]) == g["key"]]
         if dups:
             g["duplicates"] = dups
@@ -936,7 +988,8 @@ def cmd_plan(args) -> int:
             # A recently closed issue holds the group back only if it tracked exactly these advisories.
             closed = [i for i in recent_done if i["age"] <= args.rescan_days and matches(g, i)
                       and (g["kind"] != "remediate" or covers(i["versions"], g["targets"]))]
-            same = next((i for i in closed if i["described"] and i["digest"] == as_tracked(g, i)[0]["advisory_digest"]),
+            same = next((i for i in closed if i["described"] and not tampered(i["description"])
+                         and i["digest"] == as_tracked(g, i)[0]["advisory_digest"]),
                         None)
             unseen = next((i for i in closed if not i["described"]), None)
             # Otherwise a Done issue from the reopen window whose Vanta key line names this group is reopened, the most
@@ -944,18 +997,7 @@ def cmd_plan(args) -> int:
             window = sorted((i for i in recent_done if i["age"] <= args.reopen_days and matches(g, i)),
                             key=lambda i: i["age"])
             keyed = next((i for i in window if i["described"] and i["key"]), None)
-            # A cancelled issue is never reopened or refiled: its match is reported, and nothing is written.
-            dropped = [i for i in recent_canceled if matches(g, i)]
-            accepted = next((i for i in dropped if i["described"] and i["key"]), None)
-            if accepted or any(not i["described"] for i in dropped):
-                i = accepted or next(i for i in dropped if not i["described"])
-                actions.append({"action": "canceled", "key": g["key"], "issue": i["id"],
-                                "reason": f"{i['id']} was cancelled {i['canceled']}; Vanta still reports "
-                                          f"{g['finding_count']} open finding(s) for it. Not refiled: cancelling "
-                                          "accepts the risk"})
-                if not accepted:
-                    actions[-1]["fetch_description"] = True
-            elif same or unseen:
+            if same or unseen:
                 i = same or unseen
                 actions.append({"action": "await-rescan", "key": g["key"], "issue": i["id"],
                                 "reason": f"{i['id']} closed {i['completed']} with the same advisories; "
@@ -972,7 +1014,8 @@ def cmd_plan(args) -> int:
                 if not i["described"]:
                     actions[-1]["fetch_description"] = True
                 else:
-                    if i["digest"] != tg["advisory_digest"] or not same_key(i["key"], g["key"]):
+                    if (tampered(i["description"]) or i["digest"] != tg["advisory_digest"]
+                            or not same_key(i["key"], g["key"])):
                         actions[-1]["patch"] = description_patch(i["description"], tg["description"])
                     settled = i
             else:

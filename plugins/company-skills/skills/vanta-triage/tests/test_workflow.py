@@ -17,6 +17,7 @@ import re
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
@@ -153,7 +154,18 @@ def triage(store, findings):
                     issue["description"] = apply_patch(issue["description"], a["patch"])
                 issue.update(status="Todo", title=a["title"], completedAt=None)
                 store.comments.append((a["issue"], a["reason"]))
-            elif a["action"] == "realign":  # step 5: the stricter values, then a comment
+            elif a["action"] == "realign":  # step 5: reread, tighten each field independently, then comment
+                current = store.get_issue(a["issue"])
+                fields = {field for field in ("priority", "dueDate") if field in a}
+                if not fields <= current.keys():
+                    raise PatchError("realign reread omitted a required field")
+                fresh = vanta.realign(groups[a["key"]], {
+                    "id": a["issue"],
+                    "urgency": {field: value for field, value in vanta.urgency(current).items() if field in fields},
+                })
+                if fresh is None:
+                    continue
+                a = fresh
                 issue = store.issues[a["issue"]]
                 if "priority" in a:
                     issue["priority"] = {"value": a["priority"], "name": PRIORITY_NAMES[a["priority"]]}
@@ -287,6 +299,68 @@ class Workflow(unittest.TestCase):
         store = FakeLinear([{**self.generated(findings, "CIP-1"), "priority": {"value": 1, "name": "Urgent"},
                              "dueDate": "2026-10-20"}])
         self.assertEqual(triage(store, findings), [])
+
+    def test_human_escalation_after_planning_is_preserved(self):
+        findings = [dep("1", "CVE-1", "npm-left-pad < 1.2.2", "1.2.2")]
+        store = FakeLinear([{**self.generated(findings, "CIP-1"),
+                             "priority": {"value": 3, "name": "Medium"}, "dueDate": "2026-12-20"}])
+        original_plan = plan
+
+        def escalate_after_plan(*args):
+            result = original_plan(*args)
+            if any(a["action"] == "realign" for a in result["actions"]):
+                store.issues["CIP-1"].update(priority={"value": 1, "name": "Urgent"}, dueDate="2026-10-20")
+            return result
+
+        with patch(__name__ + ".plan", side_effect=escalate_after_plan):
+            writes = triage(store, findings)
+        self.assertEqual(store.issues["CIP-1"]["priority"]["value"], 1, "realign relaxed a human priority escalation")
+        self.assertEqual(store.issues["CIP-1"]["dueDate"], "2026-10-20", "realign postponed a human deadline")
+        self.assertEqual((writes, store.comments), ([], []), "skipped realign should not write or comment")
+
+    def test_human_priority_escalation_still_allows_due_date_tightening(self):
+        findings = [dep("1", "CVE-1", "npm-left-pad < 1.2.2", "1.2.2")]
+        store = FakeLinear([{**self.generated(findings, "CIP-1"),
+                             "priority": {"value": 3, "name": "Medium"}, "dueDate": "2026-12-20"}])
+        original_plan = plan
+
+        def escalate_after_plan(*args):
+            result = original_plan(*args)
+            if any(a["action"] == "realign" for a in result["actions"]):
+                store.issues["CIP-1"]["priority"] = {"value": 1, "name": "Urgent"}
+            return result
+
+        with patch(__name__ + ".plan", side_effect=escalate_after_plan):
+            triage(store, findings)
+        self.assertEqual(store.issues["CIP-1"]["priority"]["value"], 1, "realign relaxed a human priority escalation")
+        self.assertEqual(store.issues["CIP-1"]["dueDate"], "2026-11-05")
+        self.assertNotIn("priority", store.comments[-1][1], "comment claimed a priority change that was skipped")
+
+    def test_realign_reread_failure_leaves_the_issue_unchanged(self):
+        for failure in ("connector failure", "missing field"):
+            with self.subTest(failure=failure):
+                findings = [dep("1", "CVE-1", "npm-left-pad < 1.2.2", "1.2.2")]
+                store = FakeLinear([{**self.generated(findings, "CIP-1"),
+                                     "priority": {"value": 3, "name": "Medium"}, "dueDate": "2026-12-20"}])
+                original_get = store.get_issue
+                calls = 0
+
+                def fail_on_reread(ident):
+                    nonlocal calls
+                    calls += 1
+                    result = original_get(ident)
+                    if calls > 1:
+                        if failure == "connector failure":
+                            raise PatchError("get_issue failed")
+                        result.pop("dueDate")
+                    return result
+
+                with patch.object(store, "get_issue", side_effect=fail_on_reread):
+                    triage(store, findings)
+                self.assertEqual(store.issues["CIP-1"]["priority"]["value"], 3)
+                self.assertEqual(store.issues["CIP-1"]["dueDate"], "2026-12-20")
+                self.assertEqual(store.comments, [])
+                self.assertEqual(len(store.failures), 1, "failed reread must be reported")
 
     def test_done_issue_outside_the_window_is_not_reopened(self):
         findings = [dep("1", "CVE-1", "npm-left-pad < 1.2.2", "1.2.2")]

@@ -47,7 +47,7 @@ Script tests, run with `python3 -m unittest discover -s tests` from the skill di
 ### Remediate queue
 
 - A scheduled run with no issue ids lists Todo issues in the AppSec project with `list_issues` by state, `limit: 250`, following `cursor` until `hasNextPage` is false, and never passes `query`. Its queue comes from `remediate_queue.py`, and the report gives issues read, pages read, issues selected, and the AWS configuration issues left out. Covered by `test_remediate_queue.py`.
-- Empty queue: every page holds no Todo Remediate issue (only Track upstream issues, say). The run reports 0 selected with the counts, opens nothing, and says there was nothing to do. It does not retry with a text search.
+- Empty queue: every page holds no Todo Remediate issue (only Track-upstream issues, say). The run reports 0 selected with the counts, opens nothing, and says there was nothing to do. It does not retry with a text search.
 - Multi-page result: the first page reports `hasNextPage: true`. The run fetches the next page with its `cursor` before building the queue, and an urgent Remediate issue on page 2 is worked first. A run that saved only page 1 gets exit 2 from the script and refetches; it never builds the queue from page 1 alone.
 - AWS configuration issue in Todo: `[Vanta] Remediate "SQL database CPU monitored"` sits in Todo at high priority. It is never selected, never cloned or patched, and is listed by id in the report as left out. With "include assessments", Todo Assess issues join the queue in the same order and share the 5 slots.
 - Summarised data: a run that passes a hand-built list of ids and titles to the script gets exit 2 naming the file, and refetches.

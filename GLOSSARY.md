@@ -24,7 +24,7 @@ _Avoid_: Container issue
 A tracking issue for a vulnerability with no fix available yet, waiting on the upstream project.
 
 **Remediate queue**:
-The Todo Remediate issues in the AppSec project that a scheduled remediation run works through, ordered by priority and then due date.
+The Todo Remediate issues in the AppSec project that a scheduled remediation run works through, ordered by priority and then due date. A run asked to include assessments adds Todo Assess issues to it, in the same order.
 _Avoid_: Backlog, Todo list
 
 ## Triage actions

@@ -38,7 +38,10 @@ plan
              findings group by (repo, ecosystem, package); container
              findings group by (source repo, package) across every image
              built from that repo — one base-image fix clears them all —
-             or by (image, package) when the image is not in the config. Each carries key, kind
+             or by (image, package) when the image is not in the config. A
+             container group with a repo also carries source_images, every
+             image the config maps to that repo; an issue titled for any of
+             them fits the group. Each carries key, kind
              (remediate | track-upstream | assess-container), severity,
              priority (Linear 1-4), sla, images (container only), targets (highest fixed version
              per major line), advisories, title, description (Markdown),
@@ -57,12 +60,12 @@ plan
              the end of the first "Vanta key:" line after it) is the only
              test of whether it is current, for every group kind: refresh
              keeps the issue's title but its digest differs from the group's
-             (or it has none), unless the only change is images dropped from
-             a container group: the digest over the issue's own images
-             matches and Vanta reports no image the issue lacks. That is a
-             keep with images_dropped (a scanning signal), never a refresh,
-             since Vanta alternates between images. An added image, or any
-             change to the advisories, refreshes. retarget and refresh carry patch, a save_issue
+             (or it has none). A container group is judged, and written, with
+             every image the issue's advisory block already lists beside the
+             ones Vanta reports, since Vanta alternates between images: an
+             image dropping out is a keep with images_dropped (a scanning
+             signal), never a refresh, and an added image or any change to
+             the advisories refreshes, keeping the dropped images listed. retarget and refresh carry patch, a save_issue
              patch to pass verbatim: a replace of that span, or a prepend for
              an issue with no such span. An action whose issue the plan saw
              without a whole generated section (no description, or a list
@@ -91,7 +94,8 @@ plan
              state named Duplicate does not count) carries a "Vanta key:"
              line for the group: report only, no write. One seen without its
              description gives canceled with fetch_description: true.
-             realign follows the action of a group's open or reopened issue
+             realign follows the action of a group's open or reopened issue,
+             once that action needs no fetch and is not ambiguous,
              when the issue's priority (1-4; none counts as least urgent) is
              less urgent than the group's, or its due date is later than the
              group's sla or missing while sla is set. It carries only the
@@ -507,13 +511,21 @@ def block_images(description: str) -> list[str] | None:
     return images if isinstance(images, list) and all(isinstance(i, str) for i in images) else None
 
 
-def only_images_dropped(issue: dict, g: dict) -> list[str]:
-    """The images an issue's section lists that Vanta no longer reports, when that is all that changed: its digest is
-    the group's digest over the issue's own images, and every image Vanta reports is already listed. Else []."""
-    images = block_images(issue["description"])
-    if not images or not set(g["images"]) < set(images):
-        return []
-    return sorted(set(images) - set(g["images"])) if advisory_digest({**g, "images": images}) == issue["digest"] else []
+def as_tracked(g: dict, issue: dict) -> tuple[dict, list[str]]:
+    """The group as the issue should record it, and the images it lists that Vanta did not report this run.
+
+    Vanta alternates between the images it reports, so an image dropping out is a scanning signal, never a rewrite:
+    a container group keeps every image the issue's advisory block already lists beside the ones Vanta reports. Its
+    digest and description cover that union, so a dropped image leaves the issue current, and only an added image or
+    a changed advisory set makes it stale. Any other group, or an issue with no readable block, is the group as is."""
+    old = block_images(issue["description"]) if g["kind"] == "assess-container" and issue.get("described") else None
+    dropped = sorted(set(old or ()) - set(g["images"]))
+    if not dropped:
+        return g, []
+    tracked = {**g, "images": sorted(set(g["images"]) | set(old))}
+    tracked["advisory_digest"] = advisory_digest(tracked)
+    tracked["description"] = render_description(tracked)
+    return tracked, dropped
 
 
 def description_patch(description: str, section: str) -> list[dict]:
@@ -665,7 +677,9 @@ def matches(g: dict, parsed: dict) -> bool:
     if parsed["package"] != g["package"].lower():
         return False
     if g["kind"] == "assess-container":
-        places = {i.lower() for i in g["images"]} | ({short(g["repo"]).lower()} if g["repo"] else set())
+        # Any image built from the group's source repo counts: Vanta alternates between the images it reports.
+        places = ({i.lower() for i in g["images"] + g.get("source_images", [])}
+                  | ({short(g["repo"]).lower()} if g["repo"] else set()))
         return bool(parsed["where"] & places)
     return place(g).lower() in parsed["where"]
 
@@ -775,7 +789,7 @@ def merge_issues(listed: list[dict], fetched: list[dict]) -> list[dict]:
 PRIORITY_NAMES = {0: "No priority", 1: "Urgent", 2: "High", 3: "Medium", 4: "Low"}
 
 
-def tracking(issue: dict) -> dict:
+def urgency(issue: dict) -> dict:
     """The issue's Linear priority (1-4, 0 for none) and due date, for each the plan was given."""
     out = {}
     if "priority" in issue:
@@ -790,7 +804,7 @@ def tracking(issue: dict) -> dict:
 def realign(g: dict, issue: dict) -> dict | None:
     """A realign action making the issue's priority or due date as strict as Vanta's, or None. Never relaxes either:
     a more urgent priority or an earlier due date set by a human stays."""
-    have, out, why = issue["tracking"], {}, []
+    have, out, why = issue["urgency"], {}, []
     if "priority" in have and (have["priority"] == 0 or have["priority"] > g["priority"]):
         out["priority"] = g["priority"]
         why.append(f"priority {PRIORITY_NAMES[have['priority']]} -> {PRIORITY_NAMES[g['priority']]} "
@@ -834,6 +848,9 @@ def cmd_plan(args) -> int:
         if f.get("kind") == "container" and not f.get("repo"):
             f["repo"] = (config.get("images", {}).get(f["target"]) or {}).get("repo")
     groups = group_findings(findings)
+    for g in groups:
+        if g["kind"] == "assess-container" and g["repo"]:
+            g["source_images"] = sorted(i for i, v in config.get("images", {}).items() if (v or {}).get("repo") == g["repo"])
     issues = merge_issues(listed, fetched)
 
     today = dt.date.fromisoformat(args.today) if args.today else dt.date.today()
@@ -857,13 +874,13 @@ def cmd_plan(args) -> int:
                 parsed = parse_issue(title, desc, issue.get("_fetched", False))
                 if parsed:
                     recent_done.append({"id": ident, "title": title, "state": state, "completed": done, "age": age,
-                                        "tracking": tracking(issue), **parsed})
+                                        "urgency": urgency(issue), **parsed})
             continue
         parsed = parse_issue(title, desc, issue.get("_fetched", False))
         if parsed is None:
             unparsed.append({"id": ident, "title": title, "state": state})
         else:
-            open_issues.append({"id": ident, "title": title, "state": state, "tracking": tracking(issue), **parsed})
+            open_issues.append({"id": ident, "title": title, "state": state, "urgency": urgency(issue), **parsed})
 
     # Each open issue serves one group. Claim in rounds so a weak title match never takes an issue
     # that another group fits better: key line first, then titles whose versions cover the targets, then any match.
@@ -886,9 +903,9 @@ def cmd_plan(args) -> int:
         for i in fits[g["key"]]:
             if i["id"] not in owner:
                 dup_of.setdefault(i["id"], g["key"])
-    actions, used, realigned = [], set(owner), []
+    actions, used = [], set(owner)
     for g in groups:
-        chosen = claimed.get(g["key"])
+        chosen, settled = claimed.get(g["key"]), None
         g["match"] = {"id": chosen["id"], "title": chosen["title"], "state": chosen["state"]} if chosen else None
         dups = [i["id"] for i in fits[g["key"]] if dup_of.get(i["id"]) == g["key"]]
         if dups:
@@ -926,50 +943,50 @@ def cmd_plan(args) -> int:
                     actions[-1]["fetch_description"] = True
             elif keyed or any(not i["described"] for i in window):
                 i = keyed or next(i for i in window if not i["described"])
+                tg, _ = as_tracked(g, i)
                 title, _ = retitle(g, i)
                 actions.append({"action": "reopen", "key": g["key"], "issue": i["id"], "title": title,
                                 "reason": f"{i['id']} was closed {i['completed']}, but Vanta reports "
                                           f"{g['finding_count']} open finding(s) for it again"})
                 if not i["described"]:
                     actions[-1]["fetch_description"] = True
-                elif i["digest"] != g["advisory_digest"] or not same_key(i["key"], g["key"]):
-                    actions[-1]["patch"] = description_patch(i["description"], g["description"])
-                realigned.append((g, i))
+                else:
+                    if i["digest"] != tg["advisory_digest"] or not same_key(i["key"], g["key"]):
+                        actions[-1]["patch"] = description_patch(i["description"], tg["description"])
+                    settled = i
             else:
                 actions.append({"action": "create", "key": g["key"], "title": g["title"],
                                 "reason": f"{g['finding_count']} open finding(s), no open Linear issue"})
         else:
+            tg, dropped = as_tracked(g, chosen)
             title, why = retitle(g, chosen)
             if why:
                 action = {"action": "retarget", "title": title, "reason": why}
             elif chosen["described"] and chosen["key"] and not same_key(chosen["key"], g["key"]):
                 action = {"action": "refresh", "title": chosen["title"],
                           "reason": f"the image's source repo is now known; Vanta key is now {g['key']}"}
-            elif chosen["described"] and chosen["digest"] != g["advisory_digest"] and only_images_dropped(chosen, g):
-                dropped = only_images_dropped(chosen, g)
-                action = {"action": "keep", "images_dropped": dropped,
-                          "reason": f"tracked ({chosen['state']}); Vanta did not report {', '.join(dropped)} this run, "
-                                    "a scanning signal, not a change: the issue is not rewritten"}
-            elif chosen["described"] and chosen["digest"] != g["advisory_digest"]:
+            elif chosen["described"] and chosen["digest"] != tg["advisory_digest"]:
                 action = {"action": "refresh", "title": chosen["title"],
                           "reason": "Vanta's advisories" + (" or added images" if g["images"] else "")
                                     + f" changed; the target {' / '.join(g['targets']) or '(none)'} did not"}
+            elif dropped:
+                action = {"action": "keep", "images_dropped": dropped,
+                          "reason": f"tracked ({chosen['state']}); Vanta did not report {', '.join(dropped)} this run, "
+                                    "a scanning signal, not a change: the issue is not rewritten"}
             else:
                 action = {"action": "keep", "reason": f"tracked ({chosen['state']})"}
             actions.append({"action": action.pop("action"), "key": g["key"], "issue": chosen["id"], **action})
             if not chosen["described"]:
                 actions[-1]["fetch_description"] = True
             elif actions[-1]["action"] in ("retarget", "refresh"):
-                actions[-1]["patch"] = description_patch(chosen["description"], g["description"])
+                actions[-1]["patch"] = description_patch(chosen["description"], tg["description"])
         if chosen and len(ambiguous) > 1:
             actions[-1]["ambiguous"] = ambiguous
-        if chosen:
-            realigned.append((g, chosen))
-        for rg, ri in realigned:
-            r = realign(rg, ri)
-            if r:
-                actions.append(r)
-        realigned.clear()
+        # Realign only an issue the plan has settled on: one awaiting its description or its key line may move.
+        if chosen and not actions[-1].get("fetch_description") and not actions[-1].get("ambiguous"):
+            settled = chosen
+        if settled and realign(g, settled):
+            actions.append(realign(g, settled))
     stale = [i for i in open_issues if i["id"] not in used]
     # A partial Vanta response looks exactly like everything being fixed, so a mass resolve is withheld.
     guard = None

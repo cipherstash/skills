@@ -806,6 +806,19 @@ class RefreshRule(unittest.TestCase):
         [a] = self.plan([self.f("1", "a-img"), self.f("2", "a-zk")], issue)["actions"]
         self.assertEqual((a["action"], a["issue"]), ("refresh", "CIP-1"))
 
+    def test_swapped_image_refreshes_once_and_keeps_both(self):
+        # Vanta reports one image per run, alternating: the first refresh lists both, later runs write nothing.
+        issue = self.tracked([self.f("1", "a-img")])
+        plan = self.plan([self.f("2", "a-zk")], issue)
+        [a] = plan["actions"]
+        self.assertEqual((a["action"], a["issue"]), ("refresh", "CIP-1"))
+        self.assertIn("**Images:** `cts`, `zerokms`", a["patch"][0]["new_string"])
+        refreshed = {**issue, "description": a["patch"][0]["new_string"]}
+        for findings in ([self.f("1", "a-img")], [self.f("2", "a-zk")]):
+            [k] = self.plan(findings, refreshed)["actions"]
+            self.assertEqual(k["action"], "keep")
+            self.assertEqual(len(k["images_dropped"]), 1)
+
     def test_changed_advisory_set_with_a_dropped_image_refreshes(self):
         issue = self.tracked([self.f("1", "a-img"), self.f("2", "a-zk")])
         [a] = self.plan([self.f("1", "a-img"), self.f("3", "a-img", name="CVE-B")], issue)["actions"]
@@ -817,7 +830,9 @@ class Realign(unittest.TestCase):
     TITLE = "[Vanta] Remediate left-pad to 1.2.2 (stack)"  # finding(): HIGH (priority 2), SLA 2026-11-05
 
     def actions(self, priority, due, findings=None, **kw):
-        issue = {"id": "CIP-1", "title": self.TITLE, "status": "Todo", "priority": priority, "dueDate": due, **kw}
+        [g] = vanta.group_findings([finding()])  # the issue as filed, settled: realign waits for a fetched description
+        issue = {"id": "CIP-1", "title": self.TITLE, "status": "Todo", "description": g["description"],
+                 "priority": priority, "dueDate": due, **kw}
         return run_plan(findings or [finding()], [issue])["actions"]
 
     def realign(self, priority, due, **kw):
@@ -863,6 +878,13 @@ class Realign(unittest.TestCase):
         acts = run_plan([finding()], [done])["actions"]
         self.assertEqual([a["action"] for a in acts], ["reopen", "realign"])
         self.assertEqual((acts[1]["priority"], acts[1]["dueDate"]), (2, "2026-11-05"))
+
+    def test_unsettled_reopen_is_not_realigned_yet(self):
+        # The issue's key line may show it belongs to no group; realign waits for the fetch.
+        done = {"id": "CIP-1", "title": self.TITLE, "status": "Done", "statusType": "completed",
+                "completedAt": "2026-10-03T01:00:00Z", "priority": {"value": 4, "name": "Low"}, "dueDate": None}
+        acts = run_plan([finding()], [done])["actions"]
+        self.assertEqual([(a["action"], a.get("fetch_description")) for a in acts], [("reopen", True)])
 
     def test_resolved_or_awaiting_issues_are_not_realigned(self):
         acts = run_plan([finding(packageIdentifier="npm-other < 1.2.2")],

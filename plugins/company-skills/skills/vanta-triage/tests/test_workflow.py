@@ -318,6 +318,13 @@ class Workflow(unittest.TestCase):
         for findings in (both[:1], both, both[1:], both):
             self.assertEqual(triage(store, findings), [], "a dropped or returning image rewrote the issue")
 
+    def test_alternating_single_images_settle_after_one_refresh(self):
+        cts, zk = [os_pkg("1", "CVE-A")], [os_pkg("2", "CVE-A", image="a-zk")]
+        store = FakeLinear([self.generated(cts, "CIP-1")])
+        self.assertEqual([a["action"] for a in triage(store, zk)], ["refresh"])
+        for findings in (cts, zk, cts):
+            self.assertEqual(triage(store, findings), [], "alternating images rewrote the issue again")
+
     def test_track_upstream_legacy_with_notes(self):
         findings = [dep("1", "CVE-1", "npm-left-pad < 3.0.0", None)]
         store = FakeLinear([{"id": "CIP-1", "title": "[Vanta] Track upstream fix for left-pad (stack)", "status": "Backlog",

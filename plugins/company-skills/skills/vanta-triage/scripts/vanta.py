@@ -65,7 +65,9 @@ plan
              ones Vanta reports, since Vanta alternates between images: an
              image dropping out is a keep with images_dropped (a scanning
              signal), never a refresh, and an added image or any change to
-             the advisories refreshes, keeping the dropped images listed. retarget and refresh carry patch, a save_issue
+             the advisories refreshes, keeping the dropped images listed.
+             Only images from a block its digest seals are kept, and an
+             issue whose advisory block fails that check is refreshed. retarget and refresh carry patch, a save_issue
              patch to pass verbatim: a replace of that span, or a prepend for
              an issue with no such span. An action whose issue the plan saw
              without a whole generated section (no description, or a list
@@ -487,7 +489,9 @@ def display_only(text: str) -> str:
 
 
 def generated_span(description: str) -> str | None:
-    """The generated section: from the first "## Vulnerability" to the end of the first "Vanta key:" line after it."""
+    """The generated section: from the first "## Vulnerability" to the end of the first "Vanta key:" line after it.
+    None when that line is not whole ("Vanta key: `<key>`"): a description cut inside it would be patched as if the
+    cut were its end, leaving the rest of the original line behind."""
     start = description.find("## Vulnerability")
     if start < 0:
         return None
@@ -495,20 +499,36 @@ def generated_span(description: str) -> str | None:
     if key < 0:
         return None
     end = description.find("\n", key)
-    return description[start:end if end >= 0 else len(description)]
+    end = end if end >= 0 else len(description)
+    return description[start:end] if KEY_LINE_RE.match(description, key, end) else None
 
 
 BLOCK_RE = re.compile(r"^```json\n(.*?)\n```$", re.S | re.M)
 
 
 def block_images(description: str) -> list[str] | None:
-    """The images the generated section's advisory block lists, or None when it has no readable block."""
-    m = BLOCK_RE.search(generated_span(description) or "")
+    """The images the generated section's advisory block lists, or None when it has no readable block or the block
+    fails its integrity check: its recomputed digest must equal the section's "Advisory set:" value, as
+    vanta-remediate's checks.py requires. An image added to the block by hand is never carried forward."""
+    span = generated_span(description) or ""
+    m, d = BLOCK_RE.search(span), DIGEST_LINE_RE.search(span)
     try:
-        images = json.loads(m.group(1)).get("images") if m else None
-    except (ValueError, AttributeError):
+        block = json.loads(m.group(1)) if m and d else None
+        sealed = {"key": block["key"], "targets": block["targets"], "images": block["images"],
+                  "advisories": [{"id": a["id"], "affected": a["affected"], "fixed_version": a["fixed_version"]}
+                                 for a in block["advisories"]]}
+        if block["schema"] != BLOCK_SCHEMA or advisory_digest(sealed) != d.group(1):
+            return None
+    except (ValueError, TypeError, KeyError, AttributeError):
         return None
+    images = sealed["images"]
     return images if isinstance(images, list) and all(isinstance(i, str) for i in images) else None
+
+
+def tampered(description: str) -> bool:
+    """True when the generated section holds an advisory block that fails its integrity check, which
+    vanta-remediate refuses until triage rewrites it."""
+    return bool(BLOCK_RE.search(generated_span(description) or "")) and block_images(description) is None
 
 
 def as_tracked(g: dict, issue: dict) -> tuple[dict, list[str]]:
@@ -686,7 +706,7 @@ def matches(g: dict, parsed: dict) -> bool:
 
 LIST_FIELDS = ("id", "title", "status", "statusType", "completedAt", "canceledAt", "priority", "dueDate")
 ISSUE_FIELDS = ("id", "title", "description", "status", "statusType")
-GENERATED_PARTS = ("### Advisories", "```json", "Advisory set:")
+GENERATED_PARTS = ("### Advisories", "```json", "Advisory set:", "Vanta key:")
 
 
 def truncated(description: str) -> bool:
@@ -916,7 +936,8 @@ def cmd_plan(args) -> int:
             # A recently closed issue holds the group back only if it tracked exactly these advisories.
             closed = [i for i in recent_done if i["age"] <= args.rescan_days and matches(g, i)
                       and (g["kind"] != "remediate" or covers(i["versions"], g["targets"]))]
-            same = next((i for i in closed if i["described"] and i["digest"] == g["advisory_digest"]), None)
+            same = next((i for i in closed if i["described"] and i["digest"] == as_tracked(g, i)[0]["advisory_digest"]),
+                        None)
             unseen = next((i for i in closed if not i["described"]), None)
             # Otherwise a Done issue from the reopen window whose Vanta key line names this group is reopened, the most
             # recently closed first. One seen only by title is fetched first: only its key line can settle the match.
@@ -965,6 +986,10 @@ def cmd_plan(args) -> int:
             elif chosen["described"] and chosen["key"] and not same_key(chosen["key"], g["key"]):
                 action = {"action": "refresh", "title": chosen["title"],
                           "reason": f"the image's source repo is now known; Vanta key is now {g['key']}"}
+            elif chosen["described"] and tampered(chosen["description"]):
+                action = {"action": "refresh", "title": chosen["title"],
+                          "reason": "the advisory block fails its integrity check (edited by hand?), so "
+                                    "vanta-remediate refuses it; rewritten from Vanta's findings"}
             elif chosen["described"] and chosen["digest"] != tg["advisory_digest"]:
                 action = {"action": "refresh", "title": chosen["title"],
                           "reason": "Vanta's advisories" + (" or added images" if g["images"] else "")

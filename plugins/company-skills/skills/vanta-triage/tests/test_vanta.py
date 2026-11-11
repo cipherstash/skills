@@ -819,6 +819,24 @@ class RefreshRule(unittest.TestCase):
             self.assertEqual(k["action"], "keep")
             self.assertEqual(len(k["images_dropped"]), 1)
 
+    def test_r1_hand_added_image_is_never_sealed(self):
+        # A human adds an image to the advisory block; its digest no longer matches, so remediation refuses it.
+        # The next refresh must not keep that image and seal it with a fresh digest.
+        issue = self.tracked([self.f("1", "a-img")])
+        issue["description"] = issue["description"].replace('"images": ["cts"]', '"images": ["cts", "rogue"]')
+        self.assertIn('"rogue"', issue["description"])
+        [a] = self.plan([self.f("1", "a-img")], issue)["actions"]
+        self.assertEqual(a["action"], "refresh")
+        self.assertNotIn("rogue", a["patch"][0]["new_string"])
+        self.assertNotIn("images_dropped", a)
+
+    def test_r2_closed_issue_with_both_images_awaits_rescan(self):
+        # Closed yesterday listing cts and zerokms; Vanta reports only cts: Vanta has not rescanned yet.
+        issue = {**self.tracked([self.f("1", "a-img"), self.f("2", "a-zk")]), "status": "Done",
+                 "statusType": "completed", "completedAt": "2026-10-12T01:00:00Z"}
+        [a] = self.plan([self.f("1", "a-img")], issue)["actions"]
+        self.assertEqual((a["action"], a["issue"]), ("await-rescan", "CIP-1"))
+
     def test_changed_advisory_set_with_a_dropped_image_refreshes(self):
         issue = self.tracked([self.f("1", "a-img"), self.f("2", "a-zk")])
         [a] = self.plan([self.f("1", "a-img"), self.f("3", "a-img", name="CVE-B")], issue)["actions"]
@@ -944,6 +962,19 @@ class RawConnectorInput(unittest.TestCase):
     def test_truncated_single_issue_description_is_rejected(self):
         desc = self.ISSUE["description"]
         self.rejected({**self.ISSUE, "description": desc[:desc.index("Advisory set:")]}, "CIP-5242.json")
+
+    def test_r3_description_cut_after_the_key_label_is_rejected(self):
+        desc = self.ISSUE["description"]
+        self.rejected({**self.ISSUE, "description": desc[:desc.index("Vanta key:") + len("Vanta key:")]}, "CIP-5242.json")
+
+    def test_r3_list_description_cut_after_the_key_label_is_fetched_not_patched(self):
+        [g] = vanta.group_findings([finding()])
+        desc = g["description"].replace(g["advisory_digest"], "000000000000")  # stale, so a patch would be written
+        cut = desc[:desc.index("Vanta key:") + len("Vanta key:")]
+        listed = {"id": "CIP-1", "title": g["title"], "status": "Todo", "description": cut}
+        [a] = run_plan_files([finding()], {"a-list.json": {"issues": [listed], "hasNextPage": False}})["actions"]
+        self.assertTrue(a.get("fetch_description"))
+        self.assertNotIn("patch", a)
 
     def test_legacy_single_issue_description_is_accepted(self):
         issue = {**self.ISSUE, "description": "## Vulnerability\n\nfiled by hand"}

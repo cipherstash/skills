@@ -42,6 +42,9 @@
 - The generated section carries a fenced `json` advisory block with every advisory's id, raw affected range (including `||`), and fixed version or null; the table escapes `|` and is for people only. Covered by vanta-remediate's `test_contract.py`.
 - The same Linear issue seen once by uuid and once by its `CIP-` identifier (a list page keyed by `id` = uuid, a `get_issue` result with both) is one issue, never its own duplicate; every id the plan emits is the `CIP-` identifier. Covered by `test_vanta.py` (`SixthReview`).
 - A run that has only summarised Linear data (a hand-built array of ids and titles, or issues missing `statusType`) gets exit 2 from `plan` naming the file. It refetches with `list_issues` and saves the responses as returned; it never edits the data to pass the check, and never edits a description by hand. Covered by `test_vanta.py` (`RawConnectorInput`), with fixtures in `tests/fixtures/` that keep a real connector response's shape.
+- A `track-upstream` group whose match is a cancelled issue gains a registry release that fixes it. Step 4's stale "no fix" override files nothing and retargets nothing: the run reports the release beside the cancelled issue. Likewise for an issue awaiting a rescan.
+- A container issue whose advisory block a human edited (an image added by hand) fails its integrity check. The next run refreshes it from Vanta's findings, and never keeps the added image or seals it with a fresh digest. Covered by `test_vanta.py` (`RefreshRule`).
+- A description cut right after its `Vanta key:` label is not a whole generated section: a `get_issue` result like that is rejected, and a list result is fetched before any patch is planned. Covered by `test_vanta.py` (`RawConnectorInput`).
 - Unparsed `[Vanta]` issues (AWS configuration findings, legacy umbrellas) are listed and never edited or closed.
 - Dry-run mode performs no Linear writes and says so.
 - The run never stops to ask a question.

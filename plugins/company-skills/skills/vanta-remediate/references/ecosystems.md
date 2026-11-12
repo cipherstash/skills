@@ -1,5 +1,13 @@
 # Patching by ecosystem
 
+## Contents
+
+- [npm family: pnpm, npm, yarn, bun](#npm-family-pnpm-npm-yarn-bun)
+- [Rust: cargo](#rust-cargo)
+- [Go](#go)
+- [Python: poetry, uv, pip, pipenv](#python-poetry-uv-pip-pipenv)
+- [PHP: composer](#php-composer)
+
 Read the section for the issue's ecosystem. Every section follows the same escalation ladder. Stop at the first rung after which the fix check exits 0; SKILL.md's evidence gate (gate.py) still decides the outcome, and it fails on any `unsupported` lockfile. A binary `bun.lockb` cannot be read, so a repo that has one is **blocked** until a human converts it to a text `bun.lock`. Never delete a lockfile to regenerate it.
 
 1. **In-range update.** Refresh the resolved version without touching any manifest. This works when every dependent's version range already admits the fix.
@@ -17,14 +25,6 @@ A direct dependency crossing exactly one major line (0.x minor counts as major) 
 Move as little as possible. Take the lowest release that meets the target, not the latest. Pull in only the extra upgrades the target forces. A bump that drags sibling packages to their newest releases can raise the minimum toolchain: in Rust, `rust-version` in `Cargo.toml` or `rust-toolchain.toml`; in npm, `engines`. A raised minimum breaks builds that the lockfile check won't catch. When the ecosystem command overshoots, pin each forced upgrade to its lowest compatible version (`cargo update -p <dep> --precise <lowest>`), and say in the PR body which extra packages moved and why.
 
 Run commands in the directory that holds the lockfile, once per lockfile deps.py listed. Use the package manager version the repo pins: `packageManager` in package.json via corepack, `rust-toolchain.toml`, or the `go` directive.
-
-## Contents
-
-- [npm family: pnpm, npm, yarn, bun](#npm-family-pnpm-npm-yarn-bun)
-- [Rust: cargo](#rust-cargo)
-- [Go](#go)
-- [Python: poetry, uv, pip, pipenv](#python-poetry-uv-pip-pipenv)
-- [PHP: composer](#php-composer)
 
 ## npm family: pnpm, npm, yarn, bun
 

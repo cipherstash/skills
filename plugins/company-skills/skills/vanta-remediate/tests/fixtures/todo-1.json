@@ -1,0 +1,50 @@
+{
+ "issues": [
+  {
+   "id": "CIP-5242",
+   "title": "[Vanta] Remediate left-pad to 1.2.2 (stack)",
+   "status": "Todo",
+   "statusType": "unstarted",
+   "priority": {
+    "value": 2,
+    "name": "High"
+   },
+   "dueDate": "2026-11-26"
+  },
+  {
+   "id": "CIP-5256",
+   "title": "[Vanta] Assess zlib CVE-2026-0009 (cts + zerokms images)",
+   "status": "Todo",
+   "statusType": "unstarted",
+   "priority": {
+    "value": 2,
+    "name": "High"
+   },
+   "dueDate": "2026-11-26"
+  },
+  {
+   "id": "CIP-5056",
+   "title": "[Vanta] Assess glibc CVE-2026-0011, CVE-2026-0012, CVE-2026-0013 \u2026 (cts + zerokms images)",
+   "status": "Todo",
+   "statusType": "unstarted",
+   "priority": {
+    "value": 2,
+    "name": "High"
+   },
+   "dueDate": "2026-11-15"
+  },
+  {
+   "id": "CIP-4894",
+   "title": "[Vanta] Track upstream fix for cyrus-sasl2 (zerokms + cts images)",
+   "status": "Todo",
+   "statusType": "unstarted",
+   "priority": {
+    "value": 2,
+    "name": "High"
+   },
+   "dueDate": null
+  }
+ ],
+ "hasNextPage": true,
+ "cursor": "7dd43b42-18c2-4b87-8631-3233734f8f30"
+}

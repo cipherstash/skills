@@ -1,0 +1,13 @@
+{
+ "id": "CIP-5242",
+ "title": "[Vanta] Remediate left-pad to 1.2.2 (stack)",
+ "description": "## Vulnerability\n\n**Package:** `left-pad` (npm)\n**Repo:** `acme/stack`\n**Fix version:** `>= 1.2.2`\n**Severity:** High, Vanta SLA 2026-11-05\n\n### Advisories\n\n| Advisory | CVSS | Affected | Fixed in | Vanta findings |\n| -- | -- | -- | -- | -- |\n| [CVE-2026-0001 / GHSA-abcd-efgh-ijkl](<https://github.com/advisories/GHSA-abcd-efgh-ijkl>) | 7.5 | `>= 1.0.0, < 1.2.2` | 1.2.2 | [1](<https://github.com/acme/stack/security/dependabot/7>) |\n\n## Action\n\nBump `left-pad` to `>= 1.2.2` in every lockfile location that resolves a vulnerable version.\n\nThe table above is for reading; vanta-remediate reads the advisory block below.\n\n```json\n{\"schema\": 1, \"kind\": \"dependency\", \"key\": \"dependency\\u003aacme/stack\\u003anpm\\u003aleft-pad\", \"repo\": \"acme/stack\", \"asset\": null, \"ecosystem\": \"npm\", \"package\": \"left-pad\", \"targets\": [\"1.2.2\"], \"images\": [], \"advisories\": [\n  {\"id\": \"CVE-2026-0001\", \"affected\": \"\\u003e= 1.0.0, \\u003c 1.2.2\", \"fixed_version\": \"1.2.2\"}\n]}\n```\n\nAdvisory set: `00b7dc69ee7a`\nVanta key: `dependency:acme/stack:npm:left-pad`",
+ "status": "Todo",
+ "statusType": "unstarted",
+ "priority": {
+  "value": 2,
+  "name": "High"
+ },
+ "dueDate": "2026-11-05",
+ "completedAt": null
+}

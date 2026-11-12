@@ -51,7 +51,7 @@ plan
              images for a container group), match (the open Linear issue it
              maps to, or null).
     actions  create | retarget | refresh | reopen | resolve | guard | keep |
-             await-rescan | canceled | realign, one per group or unmatched open issue, each with
+             await-rescan | canceled | realign | damaged, one per group or unmatched open issue, each with
              the reason. Each open issue serves at most one group; an open
              issue that fits a group another issue already serves is listed
              in the first such group's duplicates, never resolved. An issue
@@ -66,7 +66,9 @@ plan
              ones Vanta reports, since Vanta alternates between images: an
              image dropping out is a keep with images_dropped (a scanning
              signal), never a refresh, and an added image or any change to
-             the advisories refreshes, keeping the dropped images listed.
+             the advisories refreshes, keeping the dropped images listed. An explicit config mapping
+             to another repo prunes that image from the old issue instead. Groups for the new repo
+             require current findings; the config alone never creates findings.
              Only images from a block its digest seals are kept, and an
              issue whose advisory block fails that check is refreshed. retarget and refresh carry patch, a save_issue
              patch to pass verbatim: a replace of that span, or a prepend for
@@ -74,10 +76,15 @@ plan
              without a whole generated section (no description, or a list
              result truncated before its "Vanta key:" line) and not from
              get_issue carries fetch_description: true (and no patch); add
-             get_issue's result and rerun. A retarget or keep
+             get_issue's result and rerun. A fetched description with generated
+             markers but no complete key becomes damaged: preserve its text,
+             report it for human repair and withhold matching groups.
+             A retarget or keep
              whose issue was matched by title alone and also fits other
              groups carries ambiguous: [group keys]; the issue's description
-             (with its "Vanta key:" line) settles it.
+             (with its "Vanta key:" line) settles it. An ambiguous open candidate
+             hidden by cancellation still gets a fetch-only keep with issue and
+             ambiguous keys, but no group key until its ownership is settled.
              await-rescan replaces create when a matching issue was closed
              as Done within --rescan-days (default 7) of --today, its version
              covers the targets, and its digest equals the group's: Vanta has
@@ -95,8 +102,11 @@ plan
              canceled replaces create, await-rescan and reopen when an issue
              cancelled within --reopen-days of --today (by canceledAt; a
              state named Duplicate does not count) carries a "Vanta key:"
-             line for the group: report only, no write. One seen without its
-             description gives canceled with fetch_description: true.
+             line for the group and a valid sealed block with the same advisory set and targets:
+             report only, no write. Image scan coverage does not change the accepted risk.
+             One seen without its description gives canceled with fetch_description: true.
+             A changed risk uses an open issue or creates a new one with relatedTo listing prior
+             cancelled issue ids; the cancelled issues remain unchanged.
              realign follows the action of a group's open or reopened issue,
              once that action needs no fetch and is not ambiguous,
              when the issue's priority (1-4; none counts as least urgent) is
@@ -164,7 +174,7 @@ OS_PACKAGE_RE = re.compile(r"^(?P<pkg>[^:\s]+):(?P<ver>\S+)$")
 KEY_LINE_RE = re.compile(r"Vanta key:\s*`([^`]+)`")
 DIGEST_LINE_RE = re.compile(r"Advisory set:\s*`([0-9a-f]+)`")
 TITLE_RES = [
-    ("remediate", re.compile(r"^\[Vanta\] Remediate (?P<pkg>[^\s\"]+) to (?P<ver>.+?) \((?P<where>[^()]+)\)\s*$")),
+    ("remediate", re.compile(r"^\[Vanta\] Remediate (?P<pkg>[^\s\"]+) to (?P<ver>\S.*?) \((?P<where>[^()]+)\)\s*$")),
     ("track-upstream", re.compile(r"^\[Vanta\] Track upstream fix for (?P<pkg>\S+) \((?P<where>[^()]+)\)\s*$")),
     ("assess", re.compile(r"^\[Vanta\] Assess (?P<pkg>\S+)\b.*\((?P<where>[^()]+?)(?: image)?\)\s*$")),
 ]
@@ -521,7 +531,7 @@ def valid_block(block) -> bool:
         return False
     if not all(string(block.get(k)) for k in ("key", "ecosystem", "package")):
         return False
-    if not optional(block.get("repo")) or not optional(block.get("asset")):
+    if not all(k in block and optional(block[k]) for k in ("repo", "asset")):
         return False
     if not all(isinstance(block.get(k), list) and all(string(v) for v in block[k]) for k in ("targets", "images")):
         return False
@@ -540,8 +550,8 @@ def valid_block(block) -> bool:
     return any(block["key"] == f"container:{image}:{block['package']}" for image in block["images"])
 
 
-def block_images(description: str) -> list[str] | None:
-    """The images the generated section's advisory block lists, or None when it has no readable block or the block
+def trusted_block(description: str) -> dict | None:
+    """The generated section's advisory block, or None when it has no readable block or the block
     fails its integrity check: its recomputed digest must equal the section's "Advisory set:" value, as
     vanta-remediate's checks.py requires. An image added to the block by hand is never carried forward."""
     span = generated_span(description) or ""
@@ -555,32 +565,32 @@ def block_images(description: str) -> list[str] | None:
         sealed = {"key": block["key"], "targets": block["targets"], "images": block["images"],
                   "advisories": [{"id": a["id"], "affected": a["affected"], "fixed_version": a["fixed_version"]}
                                  for a in block["advisories"]]}
-        if block["schema"] != BLOCK_SCHEMA or advisory_digest(sealed) != d.group(1):
+        if advisory_digest(sealed) != d.group(1):
             return None
-    except (ValueError, TypeError, KeyError, AttributeError):
+    except ValueError:
         return None
-    images = sealed["images"]
-    return images if isinstance(images, list) and all(isinstance(i, str) for i in images) else None
+    return block
 
 
-def tampered(description: str) -> bool:
-    """True when the generated section lacks a single valid advisory block, which
-    vanta-remediate refuses until triage rewrites it."""
-    return generated_span(description) is not None and block_images(description) is None
+def risk_signature(block: dict) -> tuple:
+    """The accepted advisory set and targets, independent of image scan coverage and display order."""
+    rows = sorted((a["id"] or "", a["affected"] or "", a["fixed_version"] or "") for a in block["advisories"])
+    return tuple(sorted(block["targets"])), tuple(rows)
 
 
 def as_tracked(g: dict, issue: dict) -> tuple[dict, list[str]]:
     """The group as the issue should record it, and the images it lists that Vanta did not report this run.
 
     Vanta alternates between the images it reports, so an image dropping out is a scanning signal, never a rewrite:
-    a container group keeps every image the issue's advisory block already lists beside the ones Vanta reports. Its
-    digest and description cover that union, so a dropped image leaves the issue current, and only an added image or
+    a container group keeps previously listed images unless the config explicitly maps them to another repo. Its
+    digest and description cover that union, so a dropped image leaves the issue current, and an added image, explicit remapping, or
     a changed advisory set makes it stale. Any other group, or an issue with no readable block, is the group as is."""
-    old = block_images(issue["description"]) if g["kind"] == "assess-container" and issue.get("described") else None
-    dropped = sorted(set(old or ()) - set(g["images"]))
+    old = issue["block_images"] if g["kind"] == "assess-container" and issue.get("described") else None
+    retained = set(old or ()) - set(g.get("remapped_images", []))
+    dropped = sorted(retained - set(g["images"]))
     if not dropped:
         return g, []
-    tracked = {**g, "images": sorted(set(g["images"]) | set(old))}
+    tracked = {**g, "images": sorted(set(g["images"]) | retained)}
     tracked["advisory_digest"] = advisory_digest(tracked)
     tracked["description"] = render_description(tracked)
     return tracked, dropped
@@ -681,7 +691,10 @@ def parse_issue(title: str, description: str, fetched: bool = False) -> dict | N
     if parsed is not None:
         span = generated_span(description) or ""
         d = DIGEST_LINE_RE.search(span)
-        parsed.update(described=fetched or generated_span(description) is not None, digest=d.group(1) if d else None, description=description)
+        block = trusted_block(description) if span else None
+        parsed.update(described=fetched or bool(span), digest=d.group(1) if d else None, description=description,
+                      block_images=block["images"] if block else None, risk=risk_signature(block) if block else None,
+                      tampered=bool(span) and block is None)
     return parsed
 
 
@@ -763,7 +776,8 @@ def load_issues(data) -> tuple[str, list[dict]]:
     {"issue": {...}}), as the connector returned them. Host-saved tool results, a list of
     {"type": "text", "text": "<json>"} blocks, are unwrapped first. Anything else raises ValueError saying why:
     a page must be an object with an "issues" array and a boolean "hasNextPage", every issue carrying every field
-    step 2 requests (null when empty); a get_issue result must carry its description whole."""
+    step 2 requests (null when empty); a get_issue result must carry its description.
+    Damaged generated sections are reported by plan."""
     if isinstance(data, list) and data and all(isinstance(b, dict) and b.get("type") == "text" for b in data):
         try:
             data = json.loads("".join(b.get("text") or "" for b in data))
@@ -789,8 +803,6 @@ def load_issues(data) -> tuple[str, list[dict]]:
         missing = [f for f in ISSUE_FIELDS if f not in data]
         if missing:
             raise ValueError(f"get_issue result lacks field(s) {', '.join(missing)}")
-        if truncated(data["description"] or ""):
-            raise ValueError("get_issue description is truncated before its \"Vanta key:\" line")
         return "issue", [data]
     raise ValueError("not a Linear issue list or issue")
 
@@ -905,19 +917,27 @@ def cmd_plan(args) -> int:
         return 2
     config = load_config(args.config)
     for f in findings:  # re-apply the image map so config edits take effect without a re-fetch
-        if f.get("kind") == "container" and not f.get("repo"):
-            f["repo"] = (config.get("images", {}).get(f["target"]) or {}).get("repo")
+        if f.get("kind") == "container":
+            mapped = (config.get("images", {}).get(f["target"]) or {}).get("repo")
+            if mapped:
+                f["repo"] = mapped
     groups = group_findings(findings)
     for g in groups:
         if g["kind"] == "assess-container" and g["repo"]:
             g["source_images"] = sorted(i for i, v in config.get("images", {}).items() if (v or {}).get("repo") == g["repo"])
+            g["remapped_images"] = sorted(i for i, v in config.get("images", {}).items()
+                                          if (v or {}).get("repo") and v["repo"].lower() != g["repo"].lower())
     issues = merge_issues(listed, fetched)
 
     today = dt.date.fromisoformat(args.today) if args.today else dt.date.today()
-    open_issues, recent_done, recent_canceled, unparsed = [], [], [], []
+    open_issues, recent_done, recent_canceled, unparsed, damaged = [], [], [], [], []
     for issue in issues:
         ident, title, state, cls, desc = issue_fields(issue)
         if not title.startswith("[Vanta]"):
+            continue
+        if issue.get("_fetched") and truncated(desc):
+            damaged.append({"id": ident, "title": title, "state": state,
+                            "parsed": parse_issue(title, desc, True)})
             continue
         if cls == "canceled":
             # Cancelling is a human decision to accept the risk; marking a duplicate is not.
@@ -963,13 +983,20 @@ def cmd_plan(args) -> int:
         for i in fits[g["key"]]:
             if i["id"] not in owner:
                 dup_of.setdefault(i["id"], g["key"])
-    actions, used = [], set(owner)
+    actions = [{"action": "damaged", "issue": i["id"], "title": i["title"], "state": i["state"],
+                "reason": "fetched description has a damaged generated section without a complete Vanta key; "
+                          "preserved for human repair, with matching groups withheld"} for i in damaged]
+    used = set(owner)
     for g in groups:
         chosen, settled = claimed.get(g["key"]), None
         g["match"] = {"id": chosen["id"], "title": chosen["title"], "state": chosen["state"]} if chosen else None
-        # Risk acceptance wins over open matches too, including duplicateOf and urgency writes.
+        if any(i["parsed"] and matches(g, i["parsed"]) for i in damaged):
+            used.update(i["id"] for i in fits[g["key"]])
+            continue
+        # Only the same sealed advisory set and targets inherit the cancellation.
         canceled = [i for i in recent_canceled if matches(g, i)]
-        accepted = next((i for i in canceled if i["described"] and i["key"]), None)
+        accepted = next((i for i in canceled if i["described"] and i["key"]
+                         and i["risk"] == risk_signature(g)), None)
         pending = next((i for i in canceled if not i["described"]), None)
         if accepted or pending:
             i = accepted or pending
@@ -977,7 +1004,7 @@ def cmd_plan(args) -> int:
             actions.append({"action": "canceled", "key": g["key"], "issue": i["id"],
                             "reason": f"{i['id']} was cancelled {i['canceled']}; Vanta still reports "
                                       f"{g['finding_count']} open finding(s) for it. Not refiled: cancelling "
-                                      "accepts the risk"})
+                                      "accepts these advisories and targets"})
             if not accepted:
                 actions[-1]["fetch_description"] = True
             continue
@@ -990,7 +1017,7 @@ def cmd_plan(args) -> int:
             # A recently closed issue holds the group back only if it tracked exactly these advisories.
             closed = [i for i in recent_done if i["age"] <= args.rescan_days and matches(g, i)
                       and (g["kind"] != "remediate" or covers(i["versions"], g["targets"]))]
-            same = next((i for i in closed if i["described"] and not tampered(i["description"])
+            same = next((i for i in closed if i["described"] and not i["tampered"]
                          and i["digest"] == as_tracked(g, i)[0]["advisory_digest"]),
                         None)
             unseen = next((i for i in closed if not i["described"]), None)
@@ -1016,13 +1043,17 @@ def cmd_plan(args) -> int:
                 if not i["described"]:
                     actions[-1]["fetch_description"] = True
                 else:
-                    if (tampered(i["description"]) or i["digest"] != tg["advisory_digest"]
+                    if (i["tampered"] or i["digest"] != tg["advisory_digest"]
                             or not same_key(i["key"], g["key"])):
                         actions[-1]["patch"] = description_patch(i["description"], tg["description"])
                     settled = i
             else:
                 actions.append({"action": "create", "key": g["key"], "title": g["title"],
                                 "reason": f"{g['finding_count']} open finding(s), no open Linear issue"})
+                previous = sorted({i["id"] for i in canceled if i["described"] and i["key"]})
+                if previous:
+                    actions[-1]["relatedTo"] = previous
+                    actions[-1]["reason"] += "; prior cancellation does not cover the current advisories and targets"
         else:
             tg, dropped = as_tracked(g, chosen)
             title, why = retitle(g, chosen)
@@ -1031,13 +1062,13 @@ def cmd_plan(args) -> int:
             elif chosen["described"] and chosen["key"] and not same_key(chosen["key"], g["key"]):
                 action = {"action": "refresh", "title": chosen["title"],
                           "reason": f"the image's source repo is now known; Vanta key is now {g['key']}"}
-            elif chosen["described"] and tampered(chosen["description"]):
+            elif chosen["described"] and chosen["tampered"]:
                 action = {"action": "refresh", "title": chosen["title"],
                           "reason": "the advisory block fails its integrity check (edited by hand?), so "
                                     "vanta-remediate refuses it; rewritten from Vanta's findings"}
             elif chosen["described"] and chosen["digest"] != tg["advisory_digest"]:
                 action = {"action": "refresh", "title": chosen["title"],
-                          "reason": "Vanta's advisories" + (" or added images" if g["images"] else "")
+                          "reason": "Vanta's advisories" + (" or affected images" if g["images"] else "")
                                     + f" changed; the target {' / '.join(g['targets']) or '(none)'} did not"}
             elif dropped:
                 action = {"action": "keep", "images_dropped": dropped,
@@ -1055,8 +1086,16 @@ def cmd_plan(args) -> int:
         # Realign only an issue the plan has settled on: one awaiting its description or its key line may move.
         if chosen and not actions[-1].get("fetch_description") and not actions[-1].get("ambiguous"):
             settled = chosen
-        if settled and realign(g, settled):
-            actions.append(realign(g, settled))
+        if settled and (alignment := realign(g, settled)):
+            actions.append(alignment)
+    # A cancellation must not hide an open issue's ambiguous title match from the fetch loop.
+    for issue in open_issues:
+        ambiguous = [g["key"] for g in groups if issue in fits[g["key"]]]
+        if (not issue["described"] and not issue["key"] and len(ambiguous) > 1
+                and not any(a.get("issue") == issue["id"] and (a.get("fetch_description") or a.get("ambiguous"))
+                            for a in actions)):
+            actions.append({"action": "keep", "issue": issue["id"], "ambiguous": ambiguous,
+                            "fetch_description": True, "reason": "fetch the key before assigning this shared title"})
     stale = [i for i in open_issues if i["id"] not in used]
     # A partial Vanta response looks exactly like everything being fixed, so a mass resolve is withheld.
     guard = None

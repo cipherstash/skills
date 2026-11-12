@@ -69,6 +69,17 @@ class Queue(unittest.TestCase):
         code, q, err = run({"page-1.json": {"issues": [], "hasNextPage": False, "cursor": None}})
         self.assertEqual((code, q["queue"], q["selected"], q["issues_read"]), (0, [], 0, 0), err)
 
+    def test_unrecognised_remediate_titles_are_reported_even_when_queue_is_empty(self):
+        for title in ("[Vanta] Remediate foo to 2.0 for stack", "[Vanta] Remediate foo to 2.0"):
+            with self.subTest(title=title):
+                issue = {"id": "CIP-99", "title": title, "status": "Todo", "statusType": "unstarted",
+                         "priority": 2, "dueDate": None}
+                code, q, err = run({"page-1.json": {"issues": [issue], "hasNextPage": False}})
+                self.assertEqual(code, 0, err)
+                self.assertEqual(q["queue"], [])
+                self.assertEqual(q["unrecognised"], ["CIP-99"])
+                self.assertIn("CIP-99", err, "Excluded remediation issues must be visible in the run summary")
+
     def test_host_saved_text_blocks_are_unwrapped(self):
         blocks = [{"type": "text", "text": json.dumps(PAGE2)}]
         code, q, err = run({"page-1.json": PAGE1, "page-2.json": blocks})

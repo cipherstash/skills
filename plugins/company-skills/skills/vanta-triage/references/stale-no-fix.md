@@ -26,12 +26,13 @@ If the registry cannot be queried (no network, the tool is missing) or the ecosy
 
 Treat the group as remediate at the lowest fixing release, titled `[Vanta] Remediate <pkg> to <version> (<repo>)`. Never edit the generated section by hand: the advisory block keeps the advisory's missing fix until Vanta catches up, and vanta-remediate adds a fix check for the title's target when the title and block differ.
 
-When the matched issue's title already names `Remediate` at this version or higher, make no override write: an earlier run made it, and repeating it would only add a comment. A `refresh` action's own write still applies.
+Except for `canceled` (handled separately below), when the matched issue's title already names `Remediate` at this version or higher, make no override write: an earlier run made it, and repeating it would only add a comment. A `refresh` action's own write still applies.
 
 - **create**: `save_issue` as SKILL.md step 5 says, with the plan's `description`, `priority`, and `sla`, but the Remediate title.
 - **keep**: `save_issue` with only the new title, then `save_comment` citing the release.
 - **refresh**: `save_issue` with the new title and the action's `patch`, verbatim, then `save_comment` with the action's `reason` and the release.
 - **reopen**: the reopen as SKILL.md step 5 says, but with the Remediate title, and the release cited in the comment. Never file a new issue for it.
-- **canceled** or **await-rescan**: the entire group is report-only, even when an open duplicate supplies a `match`. Suppress every write for that group, and report the release beside the cancelled or closed issue instead.
+- **await-rescan**: the entire group stays report-only, even when an open duplicate supplies a `match`; report the release beside the closed issue.
+- **canceled**: compare the cancelled issue's Remediate title with the verified release. A title already covering that release, with the unchanged advisories established by the plan, remains report-only. Otherwise the verified target is new work; preserve the cancelled issue and its comments. Before creating, inspect the saved open issues for this group, including the plan's `match`, and fetch any descriptions needed to verify their `Vanta key:` and current state. Reuse a matching open issue: when its title already covers the release, make no override write; otherwise update only its title and comment with the release. If none exists, create using the group's generated description, priority and SLA, the Remediate title, and `relatedTo` containing the cancelled issue's id. The new open issue is reused on subsequent runs; never create solely because the planner still emits `canceled`. If a candidate cannot be verified, report the group as unchecked and withhold its writes.
 
 The override persists: the plan never retitles a Remediate issue whose group lost every fix, it only refreshes the table, so the next run does not undo the retarget.

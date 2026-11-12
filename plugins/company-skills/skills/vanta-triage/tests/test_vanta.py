@@ -1020,26 +1020,30 @@ class RawConnectorInput(unittest.TestCase):
     def test_single_issue_without_description_is_rejected(self):
         self.rejected({k: v for k, v in self.ISSUE.items() if k != "description"}, "CIP-5242.json")
 
-    def test_truncated_single_issue_description_is_rejected(self):
+    def test_damaged_single_issue_description_is_reported(self):
         desc = self.ISSUE["description"]
-        self.rejected({**self.ISSUE, "description": desc[:desc.index("Advisory set:")]}, "CIP-5242.json")
+        result = run_plan_files([finding()], {"CIP-5242.json": {**self.ISSUE, "description": desc[:desc.index("Advisory set:")]}})
+        self.assertEqual(result["actions"][0]["action"], "damaged")
 
-    def test_f3_description_cut_inside_generated_metadata_is_rejected(self):
+    def test_f3_description_cut_inside_generated_metadata_is_reported(self):
         [group] = vanta.group_findings([finding()])
         for marker in ("**Package:**", "**Repo:**", "**Severity:**"):
             with self.subTest(marker=marker):
                 cut = group["description"][:group["description"].index(marker) + len(marker) + 2]
                 issue = connector({"id": "CIP-1", "title": group["title"], "status": "Todo", "description": cut})
                 code, err = plan_exit([finding()], {"CIP-1.json": issue})
-                self.assertEqual(code, 2, "a partial generated section must not be accepted and prepended to")
-                self.assertIn("truncated", err)
+                self.assertEqual(code, 0, err)
+                [damaged] = run_plan_files([finding()], {"CIP-1.json": issue})["actions"]
+                self.assertEqual(damaged["action"], "damaged")
+                self.assertNotIn("patch", damaged)
                 [action] = run_plan([finding()], [issue])["actions"]
                 self.assertTrue(action.get("fetch_description"))
                 self.assertNotIn("patch", action)
 
-    def test_r3_description_cut_after_the_key_label_is_rejected(self):
+    def test_r3_description_cut_after_the_key_label_is_reported(self):
         desc = self.ISSUE["description"]
-        self.rejected({**self.ISSUE, "description": desc[:desc.index("Vanta key:") + len("Vanta key:")]}, "CIP-5242.json")
+        result = run_plan_files([finding()], {"CIP-5242.json": {**self.ISSUE, "description": desc[:desc.index("Vanta key:") + len("Vanta key:")]}})
+        self.assertEqual(result["actions"][0]["action"], "damaged")
 
     def test_r3_list_description_cut_after_the_key_label_is_fetched_not_patched(self):
         [g] = vanta.group_findings([finding()])
@@ -1132,6 +1136,114 @@ class Credentials(unittest.TestCase):
             self.assertEqual(vanta.load_credentials(), ("id", "s"))
         os.unlink(fh.name)
 
+
+
+
+
+class ReviewFixRegressions(unittest.TestCase):
+    def test_damaged_fetched_section_is_reported_without_aborting_or_patching(self):
+        [g] = vanta.group_findings([finding()])
+        for state, stype in (("Todo", "unstarted"), ("Done", "completed"), ("Canceled", "canceled")):
+            with self.subTest(state=state):
+                issue = connector({"id": "CIP-1", "title": g["title"], "status": state, "statusType": stype,
+                                   "completedAt": "2026-10-08", "canceledAt": "2026-10-08",
+                                   "description": g["description"].split("Vanta key:")[0]})
+                code, err = plan_exit([finding()], {"CIP-1.json": issue})
+                self.assertEqual(code, 0, "a complete but damaged fetched issue must not abort planning: " + err)
+                result = run_plan_files([finding()], {"CIP-1.json": issue})
+                self.assertTrue(any(a.get("issue") == "CIP-1" and a["action"] == "damaged"
+                                    for a in result["actions"]), "report the damaged issue for human repair")
+                self.assertFalse(any(a.get("patch") for a in result["actions"]))
+                self.assertEqual({a["action"] for a in result["actions"]}, {"damaged"})
+
+    def test_missing_identity_keys_refresh_but_explicit_null_is_valid(self):
+        [g] = vanta.group_findings([finding()])
+        original = vanta.BLOCK_RE.search(g["description"]).group(1)
+        block = json.loads(original)
+        self.assertTrue(vanta.valid_block(block), "explicit null asset must remain valid")
+        asset_block = {**block, "repo": None, "asset": "external-asset",
+                       "key": "dependency:external-asset:npm:left-pad"}
+        self.assertTrue(vanta.valid_block(asset_block), "explicit null repo must remain valid")
+        self.assertFalse(vanta.valid_block({k: v for k, v in asset_block.items() if k != "repo"}),
+                         "asset-backed blocks must still contain the repo key")
+        for field in ("repo", "asset"):
+            with self.subTest(field=field):
+                altered = {k: v for k, v in block.items() if k != field}
+                self.assertFalse(vanta.valid_block(altered), "missing identity key must fail validation: " + field)
+                description = g["description"].replace(original, json.dumps(altered))
+                issue = {"id": "CIP-1", "title": g["title"], "status": "Todo", "description": description}
+                result = run_plan_files([finding()], {"CIP-1.json": issue})
+                self.assertEqual(result["actions"][0]["action"], "refresh")
+
+
+class AcceptedDesignDecisions(unittest.TestCase):
+    def test_cancellation_covers_only_recorded_advisories_and_targets(self):
+        old = finding()
+        [g] = vanta.group_findings([old])
+        canceled = {"id": "CIP-1", "title": g["title"], "description": g["description"],
+                    "status": "Canceled", "statusType": "canceled", "canceledAt": "2026-10-08"}
+        for current in ([old, finding(id="2", name="CVE-NEW")], [finding(fixedVersion="1.2.5")]):
+            with self.subTest(current=current):
+                [action] = run_plan(current, [canceled])["actions"]
+                self.assertEqual(action["action"], "create", "changed risk must not inherit cancellation")
+                self.assertEqual(action.get("relatedTo"), ["CIP-1"])
+                self.assertNotIn("patch", action)
+
+    def test_changed_canceled_risk_uses_existing_open_issue(self):
+        old, current = finding(), finding(fixedVersion="1.2.5")
+        [g] = vanta.group_findings([old])
+        canceled = {"id": "CIP-1", "title": g["title"], "description": g["description"],
+                    "status": "Canceled", "statusType": "canceled", "canceledAt": "2026-10-08"}
+        opened = {**canceled, "id": "CIP-2", "status": "Todo", "statusType": "unstarted"}
+        [action] = run_plan([current], [canceled, opened])["actions"]
+        self.assertEqual((action["action"], action.get("issue")), ("retarget", "CIP-2"))
+
+    def test_same_risk_stays_canceled_when_image_scan_coverage_changes(self):
+        helper = RefreshRule()
+        both = [helper.f("1", "a-img"), helper.f("2", "a-zk")]
+        canceled = {**helper.tracked(both), "status": "Canceled", "statusType": "canceled",
+                    "canceledAt": "2026-10-08"}
+        [action] = helper.plan([both[0]], canceled)["actions"]
+        self.assertEqual((action["action"], action["issue"]), ("canceled", "CIP-1"))
+
+    def test_invalid_canceled_block_cannot_establish_risk_acceptance(self):
+        old = finding()
+        [g] = vanta.group_findings([old])
+        canceled = {"id": "CIP-1", "title": g["title"],
+                    "description": g["description"].replace('"targets": ["1.2.2"]', '"targets": ["9.9.9"]'),
+                    "status": "Canceled", "statusType": "canceled", "canceledAt": "2026-10-08"}
+        [action] = run_plan([old], [canceled])["actions"]
+        self.assertEqual(action["action"], "create")
+        self.assertEqual(action["relatedTo"], ["CIP-1"])
+
+    def test_missing_mapping_does_not_prune_previously_tracked_images(self):
+        helper = RefreshRule()
+        both = [helper.f("1", "a-img"), helper.f("2", "a-zk")]
+        issue = helper.tracked(both)
+        [action] = run_plan_files([both[0]], {"CIP-1.json": issue}, {})["actions"]
+        self.assertEqual(action["action"], "keep")
+        self.assertEqual(action["images_dropped"], ["zerokms"])
+
+    def test_remapped_image_is_pruned_without_inventing_a_new_finding(self):
+        helper = RefreshRule()
+        both = [helper.f("1", "a-img"), helper.f("2", "a-zk")]
+        issue = helper.tracked(both)
+        config = {"images": {"cts": {"repo": "acme/suite"}, "zerokms": {"repo": "acme/new"}}}
+        result = run_plan_files([both[0]], {"CIP-1.json": issue}, config)
+        [action] = result["actions"]
+        self.assertEqual(action["action"], "refresh", "explicit remapping must prune the old image")
+        block = json.loads(vanta.BLOCK_RE.search(action["patch"][0]["new_string"]).group(1))
+        self.assertEqual(block["images"], ["cts"])
+        self.assertEqual([g["repo"] for g in result["groups"]], ["acme/suite"])
+
+    def test_current_finding_moves_to_its_explicitly_remapped_repo(self):
+        helper = RefreshRule()
+        both = [helper.f("1", "a-img"), helper.f("2", "a-zk")]
+        issue = helper.tracked(both)
+        config = {"images": {"cts": {"repo": "acme/suite"}, "zerokms": {"repo": "acme/new"}}}
+        result = run_plan_files(both, {"CIP-1.json": issue}, config)
+        self.assertEqual({g["repo"] for g in result["groups"]}, {"acme/suite", "acme/new"})
+        self.assertEqual({a["action"] for a in result["actions"]}, {"refresh", "create"})
 
 
 if __name__ == "__main__":

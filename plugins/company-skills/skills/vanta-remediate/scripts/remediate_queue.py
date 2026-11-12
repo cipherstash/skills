@@ -25,8 +25,8 @@ then issue number.
 Output: JSON on stdout,
   {"queue": [{"id", "title", "kind" (remediate | assess), "priority", "dueDate"}],
    "issues_read", "pages_read", "selected", "aws_configuration": [ids], "unrecognised": [ids]}
-where unrecognised lists "[Vanta] Remediate" titles of neither shape. A one-line summary of the counts and
-the AWS configuration issues goes to stderr; the run report carries both.
+where unrecognised lists "[Vanta] Remediate" titles of neither shape. A one-line summary of the counts,
+AWS configuration issues, and unrecognised issue ids goes to stderr; the run report carries all three.
 
 Exit 0 on success, including an empty queue. Exit 2, naming the file and the reason on stderr, when a file
 is unreadable or is not a connector page as returned (a bare array, a missing field or "hasNextPage"), or
@@ -161,7 +161,9 @@ def main(argv=None) -> int:
         return 2
     result = build(pages, args.include_assessments)
     print(f"{result['issues_read']} issues read, {result['pages_read']} pages read, {result['selected']} selected; "
-          f"AWS configuration issues left out: {', '.join(result['aws_configuration']) or 'none'}", file=sys.stderr)
+          f"AWS configuration issues left out: {', '.join(result['aws_configuration']) or 'none'}; "
+          f"unrecognised Remediate titles needing correction: {', '.join(result['unrecognised']) or 'none'}",
+          file=sys.stderr)
     json.dump(result, sys.stdout, indent=2)
     print()
     return 0

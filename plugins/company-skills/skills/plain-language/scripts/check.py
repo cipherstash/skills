@@ -7,8 +7,9 @@
 #   python3 check.py [--json] [--block-only] [--chat] [file ...]
 #
 # With no file, it reads standard input. It exits 1 when there is a finding that
-# must be fixed, and 0 otherwise, so it can sit in a script or a hook. It exits 2
-# when a project's settings file is broken, and names the file.
+# must be fixed, and 0 otherwise, so a script can act on the result. It exits 2,
+# naming the file and the reason, when it cannot read a file it was given or when
+# a project's settings file is broken.
 #
 # Each file is read with the names in the project's .plain-language.json (see
 # settings.py). Standard input is read with the names for the current folder.
@@ -27,8 +28,8 @@ from decimal import ROUND_HALF_UP, Decimal
 from functools import lru_cache
 
 HERE = os.path.dirname(os.path.realpath(__file__))
-# A hook runs this with "python3 -I", which leaves the script's own folder off the
-# import path, so it is added here.
+# Running this with "python3 -I" leaves the script's own folder off the import
+# path, so it is added here.
 if HERE not in sys.path:
     sys.path.insert(0, HERE)
 
@@ -940,7 +941,13 @@ def main(argv):
     files = [arg for arg in argv if not arg.startswith("--")]
     rules = load_rules()
     if files:
-        inputs = [(file, read_text(file), file) for file in files]
+        inputs = []
+        for file in files:
+            try:
+                inputs.append((file, read_text(file), file))
+            except OSError as error:
+                print(f"Cannot read {file}: {error.strerror or error}.", file=sys.stderr)
+                return 2
     else:
         inputs = [("stdin", sys.stdin.buffer.read().decode("utf-8", "replace"), os.getcwd())]
 

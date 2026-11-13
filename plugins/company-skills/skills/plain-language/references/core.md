@@ -9,6 +9,19 @@ These rules replace any terse or compressed style, so write complete sentences.
 In the clause references below, "1:" means ISO 24495-1:2023. "3:" means ISO 24495-3:2026.
 "GOV.UK" means the UK government's content guidance. The guidance turns the standard into specific rules.
 
+## Contents
+
+- Before you write
+- Order
+- New terms
+- Words
+- Numbers and tables
+- Sentences and paragraphs
+- Evidence and certainty
+- Tone
+- House style
+- Check before you send
+
 ## Before you write
 
 - **Know the reader.** In chat, the reader is the person you are working with. For a file, work out who will read it, what they already know, and what they will do with it. (1: 5.1.2 to 5.1.4)

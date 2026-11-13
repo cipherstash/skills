@@ -435,6 +435,14 @@ class TheCommandLine(unittest.TestCase):
         out = json.loads(run([CLI, "--json", *files]).stdout)
         self.assertEqual(out["mustFix"], 0)
 
+    def test_exits_2_and_names_a_file_it_cannot_read(self):
+        missing = os.path.join(temporary_folder(self), "missing.md")
+        result = run([CLI, missing])
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(result.stdout, "")
+        self.assertIn(missing, result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+
 
 
 GLOSSARY = "- **Fit for Role assessment** — one of the eight Fit for Role assessments.\n  They are Swim, Lift and Shift, Carry, Hike, Drag, Haul, Hold, and Ladder Climb and Lift.\n"

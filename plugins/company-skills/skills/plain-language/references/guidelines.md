@@ -8,7 +8,7 @@ This file restates every guideline in two standards, clause by clause:
 It paraphrases them and does not quote them.
 The licence for both standards is for one user. It prohibits copying, so do not paste their text here.
 
-Each section ends with notes on what the guideline means for Claude's writing, marked "For Claude".
+Each section ends with notes on what the guideline means for the agent's writing, marked "For the agent".
 
 ## Contents
 
@@ -48,7 +48,7 @@ The introduction makes three points that shape everything else:
 - Plain language is not easy language. Easy language is for people who have difficulty reading. Plain language suits a general audience.
 - The four principles depend on each other. They are not steps to follow in order, and a document needs all four (clause 4).
 
-**For Claude:** the checker in this skill is a mechanical measure. Passing it does not make text plain. Only the reader's ability to use the text does.
+**For the agent:** the checker in this skill is a mechanical measure. Passing it does not make text plain. Only the reader's ability to use the text does.
 
 ### Principle 1: readers get what they need
 
@@ -93,7 +93,7 @@ Keep the readers' needs first, even when the author must include some content fo
 - Consider the author's purposes as well.
 - Select content ethically. Make it accurate, include nothing false, or misleading, and do not hide or omit anything readers need to know.
 
-#### For Claude
+#### For the agent
 
 - In chat, the reader is the person you are working with. The conversation shows what they know, so use it.
 - For a file, the person you are working with is rarely the only reader. Ask who else reads it when the answer changes what you write.
@@ -136,7 +136,7 @@ Use enough headings to help readers find things, and no more.
 Some information matters to few readers, such as the legal basis of a policy, a list of sources, or a detailed explanation.
 Put it in an appendix, a bibliography, or another separate place.
 
-#### For Claude
+#### For the agent
 
 - Prominence works only when it is rare. When half the words in a reply are bold, nothing stands out.
 - A short chat reply needs no headings. A reply with several separate topics does.
@@ -189,7 +189,7 @@ Structure, design, images, personal pronouns, and sentence patterns also signal 
 Make clear how every word, sentence, paragraph, section, and image relates to the others.
 Use consistent design, follow any relevant style guide, and keep the tone consistent.
 
-#### For Claude
+#### For the agent
 
 - Idioms and metaphors break 5.3.2 a) and b): they are imprecise, and the picture they create is the wrong one. "Load-bearing test" makes the reader picture a wall.
 - An invented label, such as "the guard" or "option B", breaks 5.3.2 f) unless it was explained where it first appeared.
@@ -223,10 +223,10 @@ Re-evaluate a document that is used again and again.
 Change it if it is still needed, or withdraw it if it is not.
 Measure outcomes where possible: how many readers respond or follow the instructions correctly, how satisfied they are, and how many questions they ask.
 
-#### For Claude
+#### For the agent
 
 - 5.4.2 is the checker and the reread in step 5 of SKILL.md.
-- Claude cannot test a document with readers (5.4.3). It can tell the user when that test matters.
+- The agent cannot test a document with readers (5.4.3). It can tell the user when that test matters.
 - For a long-lived document, suggest a review date or a check that fails when the document goes stale.
 
 ## Part 3: technical and scientific writing
@@ -241,7 +241,7 @@ Part 3 also defines a **noun string**: two or more nouns run together to name on
 "Hospital employee safety protocol violation report form" is one.
 Noun strings make text hard to understand.
 
-**For Claude:** treat these as science writing:
+**For the agent:** treat these as science writing:
 
 - the results of an investigation or a debugging session;
 - performance measurements and data analysis;
@@ -302,7 +302,7 @@ On top of Part 1's ethical guidance:
 - Do not plagiarise, falsify, or fabricate.
 - Say when technology helped produce the content, including content written or generated with artificial intelligence.
 
-#### For Claude
+#### For the agent
 
 - The limits clause is the one most often broken. A fix tested on one input has not been shown to work on every input, so say which input you tested.
 - Fabrication includes stating a command's output, a file's contents, or a test result you did not see.
@@ -333,7 +333,7 @@ In a longer document, give readers signposts, because readers take different rou
 - Design the document to work on a phone when possible.
 - Make the document work with assistive technology, and meet standards such as the Web Content Accessibility Guidelines.
 
-**For Claude:** in Markdown, a blockquote callout such as `> [!NOTE]` is a sidebar. A relative link to a section or file is a bookmark.
+**For the agent:** in Markdown, a blockquote callout such as `> [!NOTE]` is a sidebar. A relative link to a section or file is a bookmark.
 
 ### Principle 3 in Part 3
 
@@ -419,9 +419,9 @@ Some readers go straight to charts, others want the data explained, and their sk
 - Align comparable numbers to the right or on the decimal point, centre values that are not comparable, and align text to the left.
 - Avoid complicated links from cells to table notes.
 
-#### For Claude
+#### For the agent
 
-- Status labels are the guideline Claude most needs. "Verified by running the test", "inferred from the code", and "not checked" are three different claims.
+- Status labels are the guideline the agent most needs. "Verified by running the test", "inferred from the code", and "not checked" are three different claims.
 - A hedge such as "this should work" hides whether you tested it. Say what you ran and what it showed.
 - In a Markdown table, `---:` right-aligns a column of numbers.
 - A timing from one run is not a measurement. Give the number of runs and the spread.
@@ -446,4 +446,4 @@ Check the document against these questions, in addition to Part 1's evaluation g
 - Does the document show the practical uses and real-world consequences of the information?
 - Where it fits, does the document tell readers what to do next, or how to apply the information?
 
-**For Claude:** in a report of findings, end with what the user can do next, and with what remains unknown.
+**For the agent:** in a report of findings, end with what the user can do next, and with what remains unknown.

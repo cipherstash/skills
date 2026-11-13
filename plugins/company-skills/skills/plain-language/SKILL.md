@@ -1,6 +1,6 @@
 ---
 name: plain-language
-description: Writes, rewrites, and reviews prose a person reads in plain language, following ISO 24495-1:2023, ISO 24495-3:2026, and the GOV.UK content guidance, and checks the result with a bundled checker. Use when writing a document, README, plan, spec, report, findings, or summary for people to read; when rewriting or reviewing text that is hard to read or full of jargon, metaphor, idiom, or cliché; and when the user mentions plain language, plain English, or ISO 24495. Not for code, configuration, or generated reference output such as API docs, and it does not replace a repository's own style guide, which wins where it is stricter.
+description: Writes, rewrites, and reviews prose a person reads in plain language, following ISO 24495-1:2023, ISO 24495-3:2026, and the GOV.UK content guidance, and checks the result with a bundled checker. Use when writing a document, README, plan, spec, report, findings, or summary for people to read; when rewriting or reviewing text that is hard to read or full of jargon, metaphor, idiom, or cliché; and when the user mentions plain language, plain English, or ISO 24495. Not for writing or changing code or configuration, or for generated reference output such as API docs, though code comments and commit messages are in scope, and it does not replace a repository's own style guide, which wins where it is stricter.
 ---
 
 # Plain language
@@ -17,10 +17,14 @@ In clause references, "1:" means ISO 24495-1:2023. "3:" means ISO 24495-3:2026.
 
 ## Choose the branch
 
+First, check that you have the text. A rewrite or a review needs the text itself, pasted in the conversation or in a file the user named. If it has neither, such as "make this plainer" with nothing attached, ask the user which text to change.
+Draft nothing until they answer.
+
 - **A chat reply the user asked to be in plain language:** core.md is enough. Do step 5b before you send it.
 - **A new document or file:** do every step.
 - **A rewrite of existing text:** do every step. Before you draft, list every fact in the original. In step 5, check that each fact is in the new version, or that you cut it on purpose and said so.
 - **A review of someone else's text:** do step 1, then step 5. Report each problem with the sentence, the clause it breaks, and a rewrite. Do not rewrite the whole text unless the user asks.
+  In step 5a, run the checker on the text under review, and report its findings in the review instead of fixing them.
 - **Findings, investigations, measurements, or data:** also apply the Part 3 guidelines in [references/guidelines.md](references/guidelines.md), under "Part 3: technical and scientific writing".
 
 ## Steps
@@ -108,7 +112,10 @@ If `python3` is not available, do step 5b anyway, and tell the user the checker 
 For text that is not in a file, pipe it in and add `--chat`.
 
 The checker exits with 1 when there is a "must fix" finding.
-It exits with 2 when the project's `.plain-language.json` is broken, and names the file.
+It exits with 2 when it cannot read a file it was given, or when the project's `.plain-language.json` is broken. It names the file and the reason.
+
+Exit 2 means the check did not run. Tell the user the file and the reason, and do not treat the check as passed.
+
 Fix every "must fix" finding.
 Decide on each "consider" finding: fix it, or keep it because this reader needs it that way.
 
@@ -133,7 +140,10 @@ Some documents are read by many people, or a misunderstanding of them is costly.
 For those, say that testing with one real reader is the only way to know the document works (1: 5.4.3).
 For a document that people will use for a long time, suggest when to review it (1: 5.4.4).
 
-**Done when** the checker reports no "must fix" findings, and the answer to every question in 5b is yes.
+#### Done when
+
+Step 5 is done when the checker exits with 0 on the text you wrote, and the answer to every question in 5b is yes.
+In a review, it is done when the review lists the checker's findings on the reviewed text.
 
 ## The checker
 
@@ -159,7 +169,7 @@ The checker reads each name as one word. The file cannot turn rules off.
 If a finding is wrong, such as a listed word used literally, rephrase the sentence anyway.
 Then tell the user which rule fired wrongly, so they can change `rules.json`.
 
-A repository can have writing rules of its own, in a CLAUDE.md, a style guide, or a content guidance folder.
+A repository can have writing rules of its own, in a CLAUDE.md or AGENTS.md file, a style guide, or a content guidance folder.
 Follow those too.
 Where they are stricter than this skill, they win.
 
@@ -168,7 +178,7 @@ Where they are stricter than this skill, they win.
 [references/guidelines.md](references/guidelines.md) states every guideline of both standards in our own words, clause by clause.
 You need it in three cases: for the detail of one guideline, for a clause to cite in a review, and for Part 3 work.
 
-[references/content-guidance.md](references/content-guidance.md) states the GOV.UK rules that apply to Claude's writing, including the full list of words to avoid.
+[references/content-guidance.md](references/content-guidance.md) states the GOV.UK rules that apply to the agent's writing, including the full list of words to avoid.
 Read it before you write a document with headings, links, lists, or tables, and when the checker names a GOV.UK rule.
 The GOV.UK guidance is licensed under the Open Government Licence v3.0. That licence allows reuse with credit.
 

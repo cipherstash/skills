@@ -1,8 +1,8 @@
-# GOV.UK content guidance, for Claude's writing
+# GOV.UK content guidance, for the agent's writing
 
 ISO 24495 says what plain language has to achieve.
 The UK government's content guidance turns that into specific rules, tested on millions of readers.
-This file states the GOV.UK rules that apply to Claude's writing, and the ISO clause each one serves.
+This file states the GOV.UK rules that apply to the agent's writing, and the ISO clause each one serves.
 Where GOV.UK is stricter than ISO, follow GOV.UK.
 
 ## Where this comes from

@@ -18,6 +18,8 @@
 
 ## Expected behavior
 
+- A zero-findings code-review handoff preserves run-level source/skills and exact reviewed commit even without finding-level attribution. Failed specialist assignments and unresolved verification appear under Coverage limits, not as a claim that review completed cleanly.
+
 - One PR review is posted: inline comments plus a summary body; replies to existing threads follow as separate calls only after the review succeeds.
 - Every inline comment ends with a source line naming the skill or agent and model; a finding with no stated source is `unattributed`, never a guessed source.
 - The summary is headed `Review attestation` and names the reviewed commit, the posting host and model, every distinct finding source and model, and the skills used; any value the session does not reveal is `unknown`.

@@ -1,6 +1,6 @@
 ---
 name: plain-language
-description: Writes, rewrites, and reviews prose a person reads in plain language, following ISO 24495-1:2023, ISO 24495-3:2026, and the GOV.UK content guidance, and checks the result with a bundled checker. Use when writing a document, README, plan, spec, report, findings, or summary for people to read; when rewriting or reviewing text that is hard to read or full of jargon, metaphor, idiom, or cliché; and when the user mentions plain language, plain English, or ISO 24495. Not for writing or changing code or configuration, or for generated reference output such as API docs, though code comments and commit messages are in scope, and it does not replace a repository's own style guide, which wins where it is stricter.
+description: Writes, rewrites, and reviews prose a person reads in plain language, following ISO 24495-1:2023, ISO 24495-3:2026, and the GOV.UK content guidance, and checks the result with a bundled checker. Use when writing a document, README, plan, spec, report, findings, or summary for people to read; when rewriting or reviewing text that is hard to read or full of jargon, metaphor, idiom, or cliché; and when the user mentions plain language, plain English, or ISO 24495. Not for writing or changing code or configuration, or for generated reference output such as API docs, though code comments and commit messages are in scope, and a repository's own style guide wins where it is stricter or where it sets a different house style.
 ---
 
 # Plain language
@@ -116,7 +116,7 @@ It exits with 2 when it cannot read a file it was given, or when the project's `
 
 Exit 2 means the check did not run. Tell the user the file and the reason, and do not treat the check as passed.
 
-Fix every "must fix" finding.
+Fix every "must fix" finding, except a house-style finding that the repository's own rules override (see "The checker" below).
 Decide on each "consider" finding: fix it, or keep it because this reader needs it that way.
 
 #### b. Reread it as the reader
@@ -143,6 +143,7 @@ For a document that people will use for a long time, suggest when to review it (
 #### Done when
 
 Step 5 is done when the checker exits with 0 on the text you wrote, and the answer to every question in 5b is yes.
+A "must fix" finding can stay only if it is a house-style rule that the repository overrides.
 In a review, it is done when the review lists the checker's findings on the reviewed text.
 
 ## The checker
@@ -172,6 +173,14 @@ Then tell the user which rule fired wrongly, so they can change `rules.json`.
 A repository can have writing rules of its own, in a CLAUDE.md or AGENTS.md file, a style guide, or a content guidance folder.
 Follow those too.
 Where they are stricter than this skill, they win.
+
+The house style in core.md is a default for a repository that has none.
+Where a repository's rules set a different convention, follow the repository.
+Examples are US spelling, another date format, or no serial comma.
+
+The checker still reports a finding whose clause starts with "house style" when the text breaks the house style.
+If the repository's rules override that finding, leave the text as it is.
+Tell the user which findings you left, and the rule that overrides each one.
 
 ## Reference
 

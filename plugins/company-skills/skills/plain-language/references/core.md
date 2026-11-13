@@ -104,6 +104,7 @@ These rules come from ISO 24495-3. That standard covers technical and scientific
 ## House style
 
 These rules come from the original skill's author and from GOV.UK, not from the ISO standards.
+Where a repository's own style guide sets a different convention, follow the repository.
 
 - Write negatives in full: "does not", "cannot", "is not". Do not write "should've" or "they've" either.
 - Write dates as "1 July 2026".

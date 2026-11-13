@@ -23,6 +23,6 @@
 - When the checker exits 2 because the project's `.plain-language.json` is broken, the skill reports the named file and the reason, and does not treat the run as passing.
 - When a checker finding is wrong, such as a listed word used literally, the skill rephrases the sentence anyway and tells the user which rule fired, so they can change `scripts/rules.json`.
 - When Python 3 is not available, the skill still follows the steps and the reread in step 5b, and tells the user the checker did not run.
-- Where the repository has its own style guide or writing rules in CLAUDE.md or AGENTS.md, the skill follows them as well, and they win where they are stricter.
+- Where the repository has its own style guide or writing rules in CLAUDE.md or AGENTS.md, the skill follows them as well, and they win where they are stricter. Where they set a different convention from the house style, such as US spelling or no serial comma, the skill follows the repository, leaves the checker's house-style findings for those rules unfixed, and tells the user which findings it left and why.
 - The skill never quotes the text of ISO 24495-1 or ISO 24495-3; it paraphrases and cites the clause.
 - For a document many people will read, or one where a misunderstanding is costly, the skill tells the user that testing with a real reader is the only way to know the document works.

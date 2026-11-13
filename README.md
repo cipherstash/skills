@@ -92,6 +92,7 @@ Each skill is authored once under `plugins/company-skills/skills/`. The portable
 | `rust-testing` | Conventions for Rust tests: nextest, scenario modules, fake data, mocktail, paused time | Automatic while writing Rust tests |
 | `filing-github-issues` | Draft and file well-structured GitHub issues on CipherStash repos | Explicit or automatic |
 | `authoring-pull-requests` | Branch, commit, and open draft pull requests with a consistent structure | Explicit or automatic |
+| `plain-language` | Write, rewrite, and review prose in plain language (ISO 24495 and GOV.UK), with a bundled checker | Explicit or automatic |
 
 Code review skills (`review-*`) work with the findings of a code review: auditing a PR's existing feedback, cross-checking new findings against it, posting them, and fixing them. None of them performs the review itself.
 
@@ -100,6 +101,8 @@ Rust convention skills (`rust-*`) carry coding rules rather than a workflow. Cla
 `review-audit` and `review-cross-check` require Python 3, Git, and `gh` authenticated for the target repository; `review-post` requires `gh` and `python3` or `jq`. These are local CLI dependencies; the plugin does not bundle an MCP server.
 
 The Vanta skills also need the Linear connector, read-only Vanta API credentials (`vanta-api.all:read`) with network access to `api.vanta.com` for `vanta-triage`, either as an environment network secret of type OAuth 2.0 client credentials for `api.vanta.com` or as `VANTA_CLIENT_ID` and `VANTA_CLIENT_SECRET`, and each target ecosystem's toolchain (`cargo`, `pnpm`/`npm`/`yarn`/`bun`, `go`, `poetry`/`uv`) for `vanta-remediate`. `vanta-remediate` also needs the GitHub MCP server for pull requests and `git` push access to the target repos; it does not use the `gh` CLI. Both run unattended, so they suit Claude Code routines.
+
+`plain-language` is ported from [auxesis/plain-language-skill](https://github.com/auxesis/plain-language-skill) under the Apache License 2.0; its `LICENSE` and `NOTICE` files carry the licence, the Open Government Licence credit for the GOV.UK material, and the changes made here. The port ships the skill and its checker, `scripts/check.py`, which needs Python 3.9 or later and no packages. It does not ship the upstream plugin's hooks, which add the rules to every session and send back chat replies that break them; install that plugin separately if you want them.
 
 `run-report` publishes through Claude's Artifact tool; on a host without it, the report goes in the run's final message. List it first in a routine's prompt so it logs problems from the start of the run, for example:
 

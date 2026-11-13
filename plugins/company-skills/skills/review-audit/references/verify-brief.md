@@ -19,19 +19,20 @@ Build every delegate prompt from this file. Fill the bracketed fields in **Assig
 
 ## Rules
 
-1. **Understand the claim as written.** Read the code the reviewer saw: `git -C <tree> show <originalCommit>:<path>` around `originalLine`, or the entry's diffHunk when no commit is given. `side: LEFT` means a line the PR deleted: the claim is about its removal. A whole-file comment has no line; read the file. A conversation comment carries no commit; judge it at head alone. Restate the failure the claim describes before judging it.
+1. **Understand the claim as written.** Read the code the reviewer saw: `git -C <tree> show <originalCommit>:<path>` around `originalLine`, or the entry's diffHunk when no commit is given. `side: LEFT` means a line the PR deleted: the claim is about its removal. A whole-file comment has no line; read the file. A conversation comment carries no commit; judge it at head alone. Restate the failure or objective violation the claim describes before judging it.
 2. **Find the code now.** Lines move. Locate the same code at head by content, not line number; `git -C <tree> log --oneline <originalCommit>..HEAD -- <path>` lists the commits that touched it since — after a force-push the commit may not be an ancestor, so fall back to `git -C <tree> log --oneline -- <path>`.
-3. **Verdict**, each with evidence citing head file:line:
-   - `unresolved` — the failure the claim describes still happens at head. Show it: trace the path, or reproduce it.
-   - `addressed` — the code at head no longer allows the failure. Cite the change, and the commit that made it where found. An outdated thread, a moved line, or a reply saying "fixed" is not evidence on its own.
-   - `refuted` — the claim was never correct: trace exactly why the failure cannot happen, at the code the reviewer saw where known, and at head.
+3. **Establish evidence.** For a behavioural claim, reproduce the failure or trace exactly why it can or cannot happen. For an objective non-behavioural claim, such as a documented convention violation or a missing test assertion, cite the applicable rule or contract and the code or tests that establish or disprove the violation, at the reviewed version where known and at head. A test-gap claim must name a required case and show how the relevant suite omits it or accepts a wrong result; a coverage percentage alone is insufficient. Mark its runtime failure scenario `n/a`; a test gap does not prove the implementation is broken. A subjective preference without an applicable requirement is `needs-decision`.
+4. **Verdict**, each with evidence citing head file:line:
+   - `unresolved` — the failure or objective violation the claim describes still exists at head. Show the behavioural reproduction or trace, or the applicable requirement and violation evidence.
+   - `addressed` — the code or tests at head remove the claimed failure or satisfy the cited requirement. Cite the change, and the commit that made it where found. An outdated thread, a moved line, or a reply saying "fixed" is not evidence on its own.
+   - `refuted` — the claim was never correct: show why the failure cannot happen or the objective violation did not exist, at the code the reviewer saw where known, and at head. A requirement changed since the review does not by itself refute the original claim.
    - `needs-decision` — the claim turns on a product or design choice, or the thread's discussion ended without agreement; state the question.
-4. **Partial fixes are unresolved.** A change that handles some of the claim's cases but not all is `unresolved`, naming what remains.
+5. **Partial fixes are unresolved.** A change that handles some of the claim's cases but not all is `unresolved`, naming what remains.
 
 ## Return format
 
 Per entry:
 
 - `id` and verdict.
-- Evidence: head file:line, the fixing commit for `addressed`, the reproduction or trace for `unresolved` and `refuted`, the question for `needs-decision`.
+- Evidence: head file:line, the fixing commit for `addressed`, the reproduction, trace, or applicable requirement and violation evidence for `unresolved` and `refuted`, the question for `needs-decision`.
 - For `unresolved`: the claim restated in one line as it stands at head.

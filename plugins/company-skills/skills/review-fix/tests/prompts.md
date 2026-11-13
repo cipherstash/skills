@@ -21,6 +21,8 @@
 
 ## Expected behavior
 
+- A confirmed test-gap finding from code-review or review-audit is verified against the contract and existing assertions. If production behavior is already correct, add/strengthen the missing test in the fix batch and report its actual passing result; do not refute the gap or change production code merely to force red. A behavioral defect still requires red-first regression evidence where possible.
+
 - Findings about a PR are fixed only on that PR's head branch with `headRefOid` in `HEAD`: from another branch on a clean tree the skill asks to run `gh pr checkout`; with uncommitted changes it stops and asks, never stashing, resetting, or switching over them; a push goes only to the PR's head branch and remote.
 - A review-audit report in the session is used: its Unresolved entries become ledger entries sourced by their comment URLs, its Needs decision entries end `needs-decision` with the audit's question, and its Addressed and Refuted entries are not worked. Findings from a session review or pasted input merge into the same ledger, a defect raised in both being one entry.
 - Asked to fix a PR's feedback with no audit report in the session, the skill runs review-audit first instead of reading PR comments itself.

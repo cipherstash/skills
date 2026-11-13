@@ -80,6 +80,13 @@ Each skill is authored once under `plugins/company-skills/skills/`. The portable
 
 | Skill | Purpose | Invocation |
 | --- | --- | --- |
+| `code-review` | Review a PR or diff through selected specialist agents, then hand findings to cross-check and posting | Explicit or automatic |
+| `review-test-gaps` | Find missing regression protection and ineffective test assertions | Selected by code-review, or focused request |
+| `review-infracode` | Review infrastructure lifecycle, permissions, deployment, CI, and observability risks | Selected by code-review, or focused request |
+| `review-golang` | Review Go semantics, concurrency, errors, and API compatibility | Selected by code-review, or focused request |
+| `review-typescript` | Review TypeScript/JavaScript boundaries, types, async behavior, and compatibility | Selected by code-review, or focused request |
+| `review-rust` | Review Rust safety, async behavior, APIs, and applicable company conventions | Selected by code-review, or focused request |
+| `review-python` | Review Python state, exceptions, async behavior, packaging, and test validity | Selected by code-review, or focused request |
 | `review-audit` | Audit existing PR feedback against the PR head | Explicit or automatic |
 | `review-cross-check` | Verify new findings and report which are new against existing PR feedback | Explicit or automatic |
 | `review-post` | Post review findings to a PR with source-tagged inline comments and a review attestation | Explicit or automatic |
@@ -93,7 +100,13 @@ Each skill is authored once under `plugins/company-skills/skills/`. The portable
 | `filing-github-issues` | Draft and file well-structured GitHub issues on CipherStash repos | Explicit or automatic |
 | `authoring-pull-requests` | Branch, commit, and open draft pull requests with a consistent structure | Explicit or automatic |
 
-Code review skills (`review-*`) work with the findings of a code review: auditing a PR's existing feedback, cross-checking new findings against it, posting them, and fixing them. None of them performs the review itself.
+Start a fresh review with `code-review`. It pins the diff or working snapshot, selects the applicable lower-level review skills, delegates them through the host's agents, and combines supported findings with their evidence and sources. Hosts without subagents use the same skills sequentially. No separate agent setup, model matrix, or external review runner is needed.
+
+In Claude Code, use `/company-skills:code-review <PR URL or comparison>`. In Codex, select the installed `company-skills` `code-review` skill from `/skills` or the `$` picker and provide the target. Prefer the plugin-qualified selection if a personal skill also uses the name `code-review`.
+
+For PRs, `code-review` passes findings to `review-cross-check` unless raw review alone was requested. `review-post` publishes the resulting postable set when asked. Receiving agents use `review-audit` to check existing feedback against the current head and `review-fix` to verify and fix outstanding findings. A review request alone does not post or fix anything. Local dirty reviews remain identified as snapshots until verified against a PR head.
+
+The six specialist capabilities are independently authored adaptations informed by an [audit of auxesis/junk pr-review](plugins/company-skills/skills/code-review/references/upstream-audit.md). The audit records the pinned source, omitted infrastructure, and corrected source assumptions.
 
 Rust convention skills (`rust-*`) carry coding rules rather than a workflow. Claude Code applies them automatically and hides them from the `/` menu; Codex selects them implicitly.
 
@@ -105,7 +118,7 @@ The Vanta skills also need the Linear connector, read-only Vanta API credentials
 
 ```text
 /company-skills:run-report Code review
-/code-review medium
+/company-skills:code-review <PR URL>
 /company-skills:review-cross-check
 /company-skills:review-post
 ```

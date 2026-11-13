@@ -19,6 +19,8 @@
 
 ## Expected behavior
 
+- If every candidate is removed from the postable set, preserve supplied review-run sources, skills, checks, and limitations for review-post; unresolved verification is not described as a clean review.
+
 - Every input finding lands in one ledger exactly once; duplicates merge with all sources at the higher normalised severity.
 - Existing feedback comes from `scripts/pr_feedback.py` and includes resolved threads, review bodies, conversation comments, and the user's own earlier comments; minimized comments are skipped, and a multi-finding bot body is split.
 - New findings are verified against the PR head commit — in place only when HEAD matches and the tree is clean, otherwise in a detached worktree — by at most three read-only delegates at once, each prompt built from `references/verify-brief.md`.
@@ -35,3 +37,6 @@
 - A `covered+` addition matching several existing entries targets one existing entry: an unresolved thread in preference to a resolved one, and a thread in preference to a review body or conversation comment.
 - With every finding refuted or needs-decision, the postable set is empty and the skill says no finding survived verification — not that the existing review covers them.
 - In a Claude Code cloud session or scheduled task, where GitHub refuses GraphQL, the fetch falls back to REST instead of stopping at a 403.
+- A finding that a required rejection case has no assertion is verified against the contract and relevant test suite. Confirmation cites the requirement and the omitted case or wrong result the suite accepts, marks the runtime failure scenario `n/a`, and does not claim production code is broken merely because its test is missing.
+- An objective convention violation cites the applicable rule and head evidence; a preference for a different abstraction without such a requirement is `needs-decision`, outside the postable set. Behavioural claims still require a reachable trigger and wrong result.
+- A missing-test claim is refuted when an existing test exercises and asserts the required case, even if its name differs; low aggregate coverage alone does not confirm the claim.

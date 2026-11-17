@@ -56,6 +56,23 @@ class AssessTest(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertIn("review-python", skills(plan([path])))
 
+    def test_infrastructure_paths_select_review_infracode(self) -> None:
+        for path in [
+            ".github/workflows/ci.yml",
+            ".github/workflows/release.yaml",
+            "Dockerfile",
+            "docker/Dockerfile.prod",
+            "build/app.dockerfile",
+            "infra/main.tf",
+            "infra/prod.tfvars",
+            "infra/.terraform.lock.hcl",
+        ]:
+            with self.subTest(path=path):
+                self.assertEqual(skills(plan([path])), ["review-infracode"])
+
+    def test_yaml_outside_workflows_is_not_infrastructure(self) -> None:
+        self.assertEqual(skills(plan(["config/settings.yml"])), [])
+
 
 if __name__ == "__main__":
     unittest.main()

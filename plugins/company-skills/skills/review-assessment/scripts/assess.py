@@ -10,7 +10,8 @@ import json
 import sys
 from fnmatch import fnmatchcase
 
-# (skill, reason, basename patterns). Order is the plan's row order.
+# (skill, reason, patterns). Order is the plan's row order. A pattern with a
+# "/" matches the whole path; any other pattern matches the file name.
 RULES = [
     ("review-golang", "Go code or module files changed", ["*.go", "go.mod", "go.sum"]),
     ("review-rust", "Rust code or Cargo files changed", ["*.rs", "Cargo.toml", "Cargo.lock"]),
@@ -29,12 +30,26 @@ RULES = [
         "Python code or packaging files changed",
         ["*.py", "*.pyi", "pyproject.toml", "setup.py", "setup.cfg", "requirements*.txt", "uv.lock", "poetry.lock"],
     ),
+    (
+        "review-infracode",
+        "CI workflows, container builds, or Terraform changed",
+        [
+            ".github/workflows/*.yml",
+            ".github/workflows/*.yaml",
+            "Dockerfile",
+            "Dockerfile.*",
+            "*.dockerfile",
+            "*.tf",
+            "*.tfvars",
+            ".terraform.lock.hcl",
+        ],
+    ),
 ]
 
 
 def matches(path: str, patterns: list[str]) -> bool:
     name = path.rsplit("/", 1)[-1]
-    return any(fnmatchcase(name, pattern) for pattern in patterns)
+    return any(fnmatchcase(path if "/" in pattern else name, pattern) for pattern in patterns)
 
 
 def main() -> int:

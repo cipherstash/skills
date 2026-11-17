@@ -1,12 +1,12 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "company-skills",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "description": "Shared company agent skills for Codex and Claude Code.",
   "author": {
     "name": "Company Skills contributors"
   },
-  "license": "MIT",
+  "license": "MIT AND Apache-2.0 AND OGL-UK-3.0",
   "keywords": [
     "agent-skills",
     "codex",

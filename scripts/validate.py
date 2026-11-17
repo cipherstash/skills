@@ -14,7 +14,8 @@ PLUGIN = ROOT / "plugins" / "company-skills"
 SKILLS = PLUGIN / "skills"
 NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$")
-LINK_RE = re.compile(r"\[[^]]*]\(([^)]+)\)")
+SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+LINK_RE =re.compile(r"\[[^]]*]\(([^)]+)\)")
 REQUIRED_CASES = ("Should activate", "Should not activate", "Expected behavior")
 RESERVED_WORDS = ("anthropic", "claude")
 XML_TAG_RE = re.compile(r"<[^>]+>")
@@ -65,6 +66,18 @@ def parse_frontmatter(path: Path, text: str) -> dict[str, str]:
     if not "\n".join(lines[end + 1 :]).strip():
         fail(path, "instruction body must not be empty")
     return fields
+
+
+def validate_git_subdir(path: Path, entry: dict) -> None:
+    """A git-subdir entry must be pinned to a full commit so nothing auto-updates."""
+    source = entry.get("source")
+    if not isinstance(source, dict) or source.get("source") != "git-subdir":
+        return
+    name = entry.get("name")
+    if not all(isinstance(source.get(field), str) and source[field].strip() for field in ("url", "path")):
+        fail(path, f"{name}: git-subdir source needs url and path")
+    if not isinstance(source.get("sha"), str) or not SHA_RE.fullmatch(source["sha"]):
+        fail(path, f"{name}: sha must be a full 40-character lowercase commit SHA")
 
 
 def validate_manifests() -> None:
@@ -153,6 +166,9 @@ def validate_manifests() -> None:
     if not isinstance(claude_entries, list):
         fail(claude_market_path, "plugins must be an array")
         claude_entries = []
+    for entry in claude_entries:
+        if isinstance(entry, dict):
+            validate_git_subdir(claude_market_path, entry)
     if not any(
         entry.get("name") == portable.get("name")
         and entry.get("source") == "./plugins/company-skills"

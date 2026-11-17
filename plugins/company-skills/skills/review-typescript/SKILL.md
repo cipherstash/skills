@@ -1,6 +1,6 @@
 ---
 name: review-typescript
-description: Reviews TypeScript and JavaScript changes for runtime/type mismatches, API compatibility, asynchronous behavior, and invalid tests. Use for a focused TypeScript or JavaScript diff review or an assignment from review-code. Does not implement fixes, post feedback, or assess general coverage gaps (review-test-gaps).
+description: Reviews TypeScript and JavaScript changes for runtime/type mismatches, API compatibility, asynchronous behavior, and invalid tests. Use for a TypeScript-specific concern named directly, or a TypeScript assignment from review-code; a general request to review TypeScript changes goes to review-code. Does not implement fixes, post feedback, or assess general coverage gaps (review-test-gaps).
 ---
 
 # review-typescript

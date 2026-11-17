@@ -1,6 +1,6 @@
 ---
 name: review-python
-description: Reviews Python changes for shared state, exception and resource behavior, async lifecycles, packaging compatibility, and ineffective tests. Use for a focused Python diff review or a Python assignment from review-code. Does not implement fixes, post feedback, or assess general coverage gaps (review-test-gaps).
+description: Reviews Python changes for shared state, exception and resource behavior, async lifecycles, packaging compatibility, and ineffective tests. Use for a Python-specific concern named directly, or a Python assignment from review-code; a general request to review Python changes goes to review-code. Does not implement fixes, post feedback, or assess general coverage gaps (review-test-gaps).
 ---
 
 # review-python

@@ -144,10 +144,10 @@ Each skill is authored once under `plugins/company-skills/skills/`. The portable
 | `review-code` | Review a PR or diff through selected specialist agents, then hand findings to cross-check and posting | Explicit or automatic |
 | `review-test-gaps` | Find missing regression protection and ineffective test assertions | Selected by review-code, or focused request |
 | `review-infracode` | Review infrastructure lifecycle, permissions, deployment, CI, and observability risks | Selected by review-code, or focused request |
-| `review-golang` | Review Go semantics, concurrency, errors, and API compatibility | Selected by review-code, or focused request |
-| `review-typescript` | Review TypeScript/JavaScript boundaries, types, async behavior, and compatibility | Selected by review-code, or focused request |
-| `review-rust` | Review Rust safety, async behavior, APIs, and applicable company conventions | Selected by review-code, or focused request |
-| `review-python` | Review Python state, exceptions, async behavior, packaging, and test validity | Selected by review-code, or focused request |
+| `review-golang` | Review Go semantics, concurrency, errors, and API compatibility | Selected by review-code, or a request naming a specific concern |
+| `review-typescript` | Review TypeScript/JavaScript boundaries, types, async behavior, and compatibility | Selected by review-code, or a request naming a specific concern |
+| `review-rust` | Review Rust safety, async behavior, APIs, and applicable company conventions | Selected by review-code, or a request naming a specific concern |
+| `review-python` | Review Python state, exceptions, async behavior, packaging, and test validity | Selected by review-code, or a request naming a specific concern |
 | `review-audit` | Audit existing PR feedback against the PR head | Explicit or automatic |
 | `review-cross-check` | Verify new findings and report which are new against existing PR feedback | Explicit or automatic |
 | `review-post` | Post review findings to a PR with source-tagged inline comments and a review attestation | Explicit or automatic |
@@ -165,6 +165,8 @@ Each skill is authored once under `plugins/company-skills/skills/`. The portable
 Start a fresh review with `review-code`. It pins the diff or working snapshot, selects the applicable lower-level review skills, delegates them through the host's agents, and combines supported findings with their evidence and sources. Hosts without subagents use the same skills sequentially. No separate agent setup, model matrix, or external review runner is needed.
 
 In Claude Code, use `/company-skills:review-code <PR URL or comparison>`. In Codex, select the installed `company-skills` `review-code` skill from `/skills` or the `$` picker and provide the target.
+
+A general request to review changes goes to `review-code`, whatever the language. Calling a language specialist directly reviews only that language: it skips `review-test-gaps`, `review-infracode` and the cross-check handoff.
 
 For PRs, `review-code` passes findings to `review-cross-check` unless raw review alone was requested. `review-post` publishes the resulting postable set when asked. Receiving agents use `review-audit` to check existing feedback against the current head and `review-fix` to verify and fix outstanding findings. A review request alone does not post or fix anything. Local dirty reviews remain identified as snapshots until verified against a PR head.
 

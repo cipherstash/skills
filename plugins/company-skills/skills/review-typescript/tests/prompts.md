@@ -4,10 +4,11 @@
 
 - "Use review-typescript for this PR's TypeScript diff at the supplied commits."
 - "Check whether this new type predicate and its consumers handle malformed JSON safely."
-- "Review the TypeScript branch." If no branch or base can be identified, ask for the target.
+- "Check the TypeScript branch's new type guards." If no branch or base can be identified, ask for the target.
 
 ## Should not activate
 
+- "Review the TypeScript branch." Use review-code, which selects review-typescript alongside review-test-gaps and hands findings to review-cross-check.
 - "Refactor these TypeScript types."
 - "Post these verified findings to GitHub." Use review-post.
 

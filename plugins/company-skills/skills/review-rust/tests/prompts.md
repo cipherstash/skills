@@ -4,10 +4,11 @@
 
 - "Use review-rust on this base/head diff and matching worktree."
 - "Check the soundness and cancellation behavior of this Rust API change."
-- "Review my Rust code." If there is no identifiable diff or target, ask for it.
+- "Check my Rust change for panics on bad input." If there is no identifiable diff or target, ask for it.
 
 ## Should not activate
 
+- "Review my Rust code." Use review-code, which selects review-rust alongside review-test-gaps and hands findings to review-cross-check.
 - "Implement a Rust builder following our conventions."
 - "Audit the existing PR comments." Use review-audit.
 

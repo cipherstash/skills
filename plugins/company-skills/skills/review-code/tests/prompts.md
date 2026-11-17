@@ -5,6 +5,7 @@
 - Review https://github.example/team/service/pull/42 before we merge it.
 - Assess this branch since its merge-base with main, including the tests it needs.
 - Review my changes. If the repository and comparison cannot be inferred, ask for the missing scope.
+- Review my Go changes. A general request to review one language's changes routes here, not to the language specialist, so test-gaps and cross-check still run.
 
 ## Should not activate
 

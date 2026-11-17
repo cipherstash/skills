@@ -4,10 +4,11 @@
 
 - "Use review-golang on the supplied base/head diff and tree."
 - "Check whether these Go worker changes leak goroutines when a request is cancelled."
-- "Review my Go changes." With no identifiable target, ask for the diff or PR rather than guessing a branch.
+- "Check this Go change for goroutine leaks." With no identifiable target, ask for the diff or PR rather than guessing a branch.
 
 ## Should not activate
 
+- "Review my Go changes." Use review-code, which selects review-golang alongside review-test-gaps and hands findings to review-cross-check.
 - "Implement a Go worker pool."
 - "Find missing test scenarios across this repository." Use review-test-gaps.
 

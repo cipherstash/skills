@@ -81,6 +81,19 @@ class AssessTest(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertEqual(skills(plan([path, "README.md"])), expected)
 
+    def test_code_changed_with_test_change_does_not_select_review_test_gaps(self) -> None:
+        cases = {
+            ("pkg/server.go", "pkg/server_test.go"),
+            ("src/lib.rs", "crates/core/tests/integration.rs"),
+            ("src/app.ts", "src/__tests__/app.ts"),
+            ("src/app.ts", "spec/app.spec.js"),
+            ("pkg/app.py", "tests/test_app.py"),
+            ("pkg/app.py", "pkg/app_test.py"),
+        }
+        for code, test in sorted(cases):
+            with self.subTest(code=code, test=test):
+                self.assertNotIn("review-test-gaps", skills(plan([code, test])))
+
     def test_yaml_outside_workflows_is_not_infrastructure(self) -> None:
         self.assertEqual(skills(plan(["config/settings.yml"])), [])
 

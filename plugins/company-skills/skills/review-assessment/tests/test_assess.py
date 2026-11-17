@@ -94,6 +94,11 @@ class AssessTest(unittest.TestCase):
             with self.subTest(code=code, test=test):
                 self.assertNotIn("review-test-gaps", skills(plan([code, test])))
 
+    def test_docs_only_change_has_empty_plan_and_lists_files_unmatched(self) -> None:
+        result = plan(["README.md", "docs/guide.md"])
+        self.assertEqual(result["plan"], [])
+        self.assertEqual(result["unmatched"], ["README.md", "docs/guide.md"])
+
     def test_yaml_outside_workflows_is_not_infrastructure(self) -> None:
         self.assertEqual(skills(plan(["config/settings.yml"])), [])
 

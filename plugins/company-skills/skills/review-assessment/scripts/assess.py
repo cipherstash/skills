@@ -24,6 +24,11 @@ RULES = [
         "TypeScript or JavaScript files changed",
         ["*.ts", "*.tsx", "*.mts", "*.cts", "*.js", "*.jsx", "*.mjs", "*.cjs"],
     ),
+    (
+        "review-python",
+        "Python code or packaging files changed",
+        ["*.py", "*.pyi", "pyproject.toml", "setup.py", "setup.cfg", "requirements*.txt", "uv.lock", "poetry.lock"],
+    ),
 ]
 
 

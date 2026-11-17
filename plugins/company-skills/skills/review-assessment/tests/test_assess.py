@@ -51,6 +51,11 @@ class AssessTest(unittest.TestCase):
                 result = plan([path, "test/app.test.ts"])
                 self.assertEqual(skills(result), ["review-typescript"])
 
+    def test_python_change_selects_review_python(self) -> None:
+        for path in ["pkg/app.py", "pyproject.toml", "requirements.txt", "stubs/app.pyi"]:
+            with self.subTest(path=path):
+                self.assertIn("review-python", skills(plan([path])))
+
 
 if __name__ == "__main__":
     unittest.main()

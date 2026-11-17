@@ -101,9 +101,29 @@ class PackagingTests(unittest.TestCase):
         shutil.rmtree(validate.SKILLS)
         self.check_result(1, "shared skills directory is required")
 
+    def add_to_both_catalogs(self, claude_entry, codex_entry):
+        policy = {"policy": {"installation": "AVAILABLE", "authentication": "ON_INSTALL"}, "category": "Productivity"}
+        self.change_json(".claude-plugin/marketplace.json", lambda data: data["plugins"].extend([claude_entry] if claude_entry else []))
+        self.change_json(
+            ".agents/plugins/marketplace.json",
+            lambda data: data["plugins"].extend([{**codex_entry, **policy}] if codex_entry else []),
+        )
+
     def test_pinned_git_subdir_entry_passes(self):
-        self.change_json(".claude-plugin/marketplace.json", lambda data: data["plugins"].append(git_subdir()))
+        self.add_to_both_catalogs(git_subdir(), git_subdir())
         self.check_result(0, "Validation passed")
+
+    def test_git_subdir_pins_match_across_catalogs(self):
+        other = "0" * 40
+        for claude_entry, codex_entry in (
+            (git_subdir(), git_subdir(sha=other)),
+            (git_subdir(), git_subdir(path="./plugins/other")),
+            (git_subdir(), None),
+            (None, git_subdir()),
+        ):
+            with self.subTest(claude=claude_entry, codex=codex_entry):
+                self.add_to_both_catalogs(claude_entry, codex_entry)
+                self.check_result(1, "example-plugin: git-subdir pin must match in both marketplace catalogs")
 
     def test_claude_git_subdir_entries_are_pinned(self):
         for changes, diagnostic in (

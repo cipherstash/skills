@@ -80,6 +80,19 @@ def validate_git_subdir(path: Path, entry: dict) -> None:
         fail(path, f"{name}: sha must be a full 40-character lowercase commit SHA")
 
 
+def git_subdir_pins(entries: list) -> dict[str, tuple]:
+    """Map each git-subdir plugin name to its (url, path, sha) pin."""
+    pins = {}
+    for entry in entries:
+        source = entry.get("source") if isinstance(entry, dict) else None
+        if isinstance(source, dict) and source.get("source") == "git-subdir":
+            path = source.get("path")
+            if isinstance(path, str):
+                path = path.removeprefix("./")
+            pins[entry.get("name")] = (source.get("url"), path, source.get("sha"))
+    return pins
+
+
 def validate_manifests() -> None:
     portable_path = PLUGIN / "plugin.json"
     portable = load_json(portable_path)
@@ -177,6 +190,12 @@ def validate_manifests() -> None:
         if isinstance(entry, dict)
     ):
         fail(claude_market_path, "must publish ./plugins/company-skills")
+
+    claude_pins = git_subdir_pins(claude_entries)
+    codex_pins = git_subdir_pins(codex_entries)
+    for name in sorted(set(claude_pins) | set(codex_pins), key=str):
+        if claude_pins.get(name) != codex_pins.get(name):
+            fail(claude_market_path, f"{name}: git-subdir pin must match in both marketplace catalogs")
 
 
 def validate_cases(skill: Path) -> None:

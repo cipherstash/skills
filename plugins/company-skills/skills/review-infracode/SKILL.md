@@ -1,11 +1,11 @@
 ---
 name: review-infracode
-description: Reviews infrastructure, deployment, CI permissions, task definitions, and observability changes for lifecycle, access, availability, and operational defects. Use for a focused infrastructure review or when delegated by code-review. Does not provision resources, apply plans, or set up review agents.
+description: Reviews infrastructure, deployment, CI permissions, task definitions, and observability changes for lifecycle, access, availability, and operational defects. Use for a focused infrastructure review or when delegated by review-code. Does not provision resources, apply plans, or set up review agents.
 ---
 
 # review-infracode
 
-Accept the comparison, reviewed tree or working snapshot, assigned files, and intended deployment behavior from `code-review`. For a standalone request, resolve these from context and ask for an ambiguous target or base. Read the installed `code-review` skill's `references/findings.md` unless the contract was supplied in the assignment.
+Accept the comparison, reviewed tree or working snapshot, assigned files, and intended deployment behavior from `review-code`. For a standalone request, resolve these from context and ask for an ambiguous target or base. Read the installed `review-code` skill's `references/findings.md` unless the contract was supplied in the assignment.
 
 ## Trace operational effects
 

@@ -1,15 +1,15 @@
 ---
 name: review-rust
-description: Reviews Rust changes for soundness, panic and error paths, async lifecycles, public API compatibility, and invalid test assertions. Use for a focused Rust diff review or a Rust assignment from code-review. Does not implement fixes, post feedback, or assess general coverage gaps (review-test-gaps).
+description: Reviews Rust changes for soundness, panic and error paths, async lifecycles, public API compatibility, and invalid test assertions. Use for a focused Rust diff review or a Rust assignment from review-code. Does not implement fixes, post feedback, or assess general coverage gaps (review-test-gaps).
 ---
 
 # review-rust
 
-Review the Rust portion of an identified change. Return findings to `code-review` or the user; preserve the reviewed source tree and leave publishing to `review-post`.
+Review the Rust portion of an identified change. Return findings to `review-code` or the user; preserve the reviewed source tree and leave publishing to `review-post`.
 
 ## Inputs and scope
 
-Require a diff, its exact base and head commits (or an identified working-tree snapshot), the matching tree, and available requirements and repository guidance. When invoked directly, resolve the installed `code-review` skill and read its `references/findings.md` contract. A delegated assignment supplies that contract. If the target is missing or ambiguous, ask for it before reviewing; use `code-review` to prepare a PR target that has not yet been resolved.
+Require a diff, its exact base and head commits (or an identified working-tree snapshot), the matching tree, and available requirements and repository guidance. When invoked directly, resolve the installed `review-code` skill and read its `references/findings.md` contract. A delegated assignment supplies that contract. If the target is missing or ambiguous, ask for it before reviewing; use `review-code` to prepare a PR target that has not yet been resolved.
 
 Review Rust code and Cargo, feature, target, or test configuration affecting it. If there are no applicable changes, return `not applicable` with the reviewed scope.
 

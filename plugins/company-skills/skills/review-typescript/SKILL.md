@@ -1,15 +1,15 @@
 ---
 name: review-typescript
-description: Reviews TypeScript and JavaScript changes for runtime/type mismatches, API compatibility, asynchronous behavior, and invalid tests. Use for a focused TypeScript or JavaScript diff review or an assignment from code-review. Does not implement fixes, post feedback, or assess general coverage gaps (review-test-gaps).
+description: Reviews TypeScript and JavaScript changes for runtime/type mismatches, API compatibility, asynchronous behavior, and invalid tests. Use for a focused TypeScript or JavaScript diff review or an assignment from review-code. Does not implement fixes, post feedback, or assess general coverage gaps (review-test-gaps).
 ---
 
 # review-typescript
 
-Review the TypeScript and JavaScript portion of an identified change. Return findings to `code-review` or the user; preserve the reviewed source tree and leave publishing to `review-post`.
+Review the TypeScript and JavaScript portion of an identified change. Return findings to `review-code` or the user; preserve the reviewed source tree and leave publishing to `review-post`.
 
 ## Inputs and scope
 
-Require a diff, its exact base and head commits (or an identified working-tree snapshot), the matching tree, and available requirements and repository guidance. When invoked directly, resolve the installed `code-review` skill and read its `references/findings.md` contract. A delegated assignment supplies that contract. If the target is missing or ambiguous, ask for it before reviewing; use `code-review` to prepare a PR target that has not yet been resolved.
+Require a diff, its exact base and head commits (or an identified working-tree snapshot), the matching tree, and available requirements and repository guidance. When invoked directly, resolve the installed `review-code` skill and read its `references/findings.md` contract. A delegated assignment supplies that contract. If the target is missing or ambiguous, ask for it before reviewing; use `review-code` to prepare a PR target that has not yet been resolved.
 
 Review TypeScript and JavaScript source, including TSX/JSX, declarations, and compiler/package configuration that changes their behavior. Apply runtime, input-boundary, async, and consumer checks to JavaScript-only projects; apply type-system checks only where TypeScript or checked JavaScript is configured. If there are no applicable changes, return `not applicable` with the reviewed scope.
 

@@ -21,7 +21,7 @@
 
 ## Expected behavior
 
-- A confirmed test-gap finding from code-review or review-audit is verified against the contract and existing assertions. If production behavior is already correct, add/strengthen the missing test in the fix batch and report its actual passing result; do not refute the gap or change production code merely to force red. A behavioral defect still requires red-first regression evidence where possible.
+- A confirmed test-gap finding from review-code or review-audit is verified against the contract and existing assertions. If production behavior is already correct, add/strengthen the missing test in the fix batch and report its actual passing result; do not refute the gap or change production code merely to force red. A behavioral defect still requires red-first regression evidence where possible.
 
 - Findings about a PR are fixed only on that PR's head branch with `headRefOid` in `HEAD`: from another branch on a clean tree the skill asks to run `gh pr checkout`; with uncommitted changes it stops and asks, never stashing, resetting, or switching over them; a push goes only to the PR's head branch and remote.
 - A review-audit report in the session is used: its Unresolved entries become ledger entries sourced by their comment URLs, its Needs decision entries end `needs-decision` with the audit's question, and its Addressed and Refuted entries are not worked. Findings from a session review or pasted input merge into the same ledger, a defect raised in both being one entry.
@@ -30,7 +30,7 @@
 - Every input finding lands in one ledger exactly once; a defect reported by two sources is one entry listing both, at the higher normalised severity.
 - The done bar runs on the untouched tree before any delegate starts, and its failures are recorded as the baseline; with a pull request open, only a completed CI run for the checked-out commit is added — a stale or in-progress run is not used.
 - The baseline records `git status`; files already dirty are flagged before any commit, never committed silently with the fixes.
-- Groups own disjoint file sets, including covering tests and every planned new test file; a delegate needing an unplanned file defers. A test file covering several groups belongs to none, so one shared integration suite does not pool every finding into one group.
+- Groups own disjoint file sets, including covering tests and every planned new test file; a delegate needing an unplanned file defers. A test file covering several groups belongs to none, so one shared integration suite does not pool every finding into one group. A finding citing a weak assertion in that suite owns the suite, and its fix strengthens the assertion in place; it neither defers repeatedly nor adds a duplicate test in a new file.
 - At most three delegates run at once; delegates never stage, commit, or push. Without subagent support (e.g. Codex without them), the main agent works the groups in turn under the same rules.
 - Dispatch runs in two batches: every verify delegate (verdicts and red tests, no other edits) returns before any fix starts, so no red or refutation rests on a sibling's half-made edit.
 - Each delegate prompt is built from `references/delegate-brief.md`: entries verbatim, owned files, baseline failures, and the brief's rules and return format pasted unchanged — never ledger ids alone.

@@ -39,4 +39,5 @@
 - In a Claude Code cloud session or scheduled task, where GitHub refuses GraphQL, the fetch falls back to REST instead of stopping at a 403.
 - A finding that a required rejection case has no assertion is verified against the contract and relevant test suite. Confirmation cites the requirement and the omitted case or wrong result the suite accepts, marks the runtime failure scenario `n/a`, and does not claim production code is broken merely because its test is missing.
 - An objective convention violation cites the applicable rule and head evidence; a preference for a different abstraction without such a requirement is `needs-decision`, outside the postable set. Behavioural claims still require a reachable trigger and wrong result.
+- A conditionally phrased test-gap finding ("a regression returning the input would pass") is confirmed when the suite omits the required case; it is not refuted for lacking a reachable production trigger.
 - A missing-test claim is refuted when an existing test exercises and asserts the required case, even if its name differs; low aggregate coverage alone does not confirm the claim.

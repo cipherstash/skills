@@ -1,11 +1,11 @@
 ---
 name: review-test-gaps
-description: Reviews changed behavior and tests for missing regression protection, ineffective assertions, and boundary or negative-case gaps. Use for a focused test-coverage review or when delegated by code-review. Does not implement tests, equate coverage percentages with correctness, or replace language and infrastructure defect review.
+description: Reviews changed behavior and tests for missing regression protection, ineffective assertions, and boundary or negative-case gaps. Use for a focused test-coverage review or when delegated by review-code. Does not implement tests, equate coverage percentages with correctness, or replace language and infrastructure defect review.
 ---
 
 # review-test-gaps
 
-Accept the comparison, reviewed tree or working snapshot, changed files, and requirements from `code-review`. For a standalone request, resolve these from the user's context and ask for the missing target or comparison if ambiguous. Read the installed `code-review` skill's `references/findings.md` for the output contract unless supplied in the assignment. Review only this scope, reading surrounding tests and callers as needed.
+Accept the comparison, reviewed tree or working snapshot, changed files, and requirements from `review-code`. For a standalone request, resolve these from the user's context and ask for the missing target or comparison if ambiguous. Read the installed `review-code` skill's `references/findings.md` for the output contract unless supplied in the assignment. Review only this scope, reading surrounding tests and callers as needed.
 
 ## Map behavior to protection
 

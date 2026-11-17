@@ -10,7 +10,7 @@ Audited [auxesis/junk pr-review at ddc19fafd4e952dfc6aa2ff2c05042c0773b8015](htt
 | src/pr_review/review_types/typescript.py | review-typescript |
 | src/pr_review/review_types/rust.py | review-rust |
 | src/pr_review/review_types/python.py | review-python |
-| synthesis.py, attribution.py, context/ | code-review scope, evidence checks, deduplication, context and provenance |
+| synthesis.py, attribution.py, context/ (except filter.py) | review-code scope, evidence checks, within-run deduplication, context and provenance |
 | output.py, payload.py, diff_guard.py | Existing review-post owns publication and exact line placement |
 | context/filter.py | Existing review-cross-check owns duplicate matching; review-audit and review-fix receive the resulting feedback |
 

@@ -71,7 +71,7 @@ def main() -> int:
     if code and not any(is_test(p) for p in code):
         plan.append({"skill": "review-test-gaps", "reason": TEST_GAPS_REASON})
     unmatched = [p for p in paths if not any(matches(p, patterns) for _, _, patterns in RULES)]
-    json.dump({"plan": plan, "unmatched": unmatched}, sys.stdout)
+    sys.stdout.write(json.dumps({"plan": plan, "unmatched": unmatched}, indent=2) + "\n")
     return 0
 
 

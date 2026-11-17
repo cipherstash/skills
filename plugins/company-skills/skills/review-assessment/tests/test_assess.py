@@ -104,6 +104,14 @@ class AssessTest(unittest.TestCase):
         self.assertEqual(skills(result), ["review-golang"])
         self.assertEqual(result["unmatched"], ["alpha.md", "zeta.txt"])
 
+    def test_same_change_gives_byte_identical_stable_output(self) -> None:
+        paths = ["infra/main.tf", "src/lib.rs", "README.md", "web/app.ts", "Dockerfile"]
+        first = run(paths)
+        second = run(list(reversed(paths)))
+        self.assertEqual(first.returncode, 0, first.stderr)
+        self.assertEqual(first.stdout, second.stdout)
+        self.assertEqual(first.stdout, json.dumps(json.loads(first.stdout), indent=2) + "\n")
+
     def test_yaml_outside_workflows_is_not_infrastructure(self) -> None:
         self.assertEqual(skills(plan(["config/settings.yml"])), [])
 

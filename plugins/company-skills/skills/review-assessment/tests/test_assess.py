@@ -112,6 +112,12 @@ class AssessTest(unittest.TestCase):
         self.assertEqual(first.stdout, second.stdout)
         self.assertEqual(first.stdout, json.dumps(json.loads(first.stdout), indent=2) + "\n")
 
+    def test_empty_input_exits_non_zero_without_a_plan(self) -> None:
+        proc = run([])
+        self.assertEqual(proc.returncode, 2)
+        self.assertEqual(proc.stdout, "")
+        self.assertIn("no changed files", proc.stderr)
+
     def test_yaml_outside_workflows_is_not_infrastructure(self) -> None:
         self.assertEqual(skills(plan(["config/settings.yml"])), [])
 

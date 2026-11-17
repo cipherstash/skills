@@ -63,6 +63,9 @@ def matches(path: str, patterns: list[str]) -> bool:
 
 def main() -> int:
     paths = sorted({line.strip() for line in sys.stdin if line.strip()})
+    if not paths:
+        sys.stderr.write("assess.py: no changed files on stdin; refusing to print an empty plan\n")
+        return 2
     plan = []
     for skill, reason, patterns in RULES:
         if any(matches(p, patterns) for p in paths):

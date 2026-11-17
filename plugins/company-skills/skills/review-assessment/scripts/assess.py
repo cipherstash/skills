@@ -62,7 +62,7 @@ def matches(path: str, patterns: list[str]) -> bool:
 
 
 def main() -> int:
-    paths = [line.strip() for line in sys.stdin if line.strip()]
+    paths = sorted({line.strip() for line in sys.stdin if line.strip()})
     plan = []
     for skill, reason, patterns in RULES:
         if any(matches(p, patterns) for p in paths):

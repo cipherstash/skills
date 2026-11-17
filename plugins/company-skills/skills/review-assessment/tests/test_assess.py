@@ -99,6 +99,11 @@ class AssessTest(unittest.TestCase):
         self.assertEqual(result["plan"], [])
         self.assertEqual(result["unmatched"], ["README.md", "docs/guide.md"])
 
+    def test_mixed_change_lists_only_unmatched_files_once_and_sorted(self) -> None:
+        result = plan(["zeta.txt", "cmd/main.go", "cmd/main_test.go", "alpha.md", "zeta.txt"])
+        self.assertEqual(skills(result), ["review-golang"])
+        self.assertEqual(result["unmatched"], ["alpha.md", "zeta.txt"])
+
     def test_yaml_outside_workflows_is_not_infrastructure(self) -> None:
         self.assertEqual(skills(plan(["config/settings.yml"])), [])
 

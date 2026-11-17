@@ -150,6 +150,21 @@ class PackagingTests(unittest.TestCase):
                 )
                 self.check_result(1, diagnostic)
 
+    def test_dependencies_name_listed_plugins(self):
+        self.add_to_both_catalogs(git_subdir(), git_subdir())
+        manifest = "plugins/company-skills/.claude-plugin/plugin.json"
+        self.change_json(manifest, lambda data: data.update(dependencies=["example-plugin"]))
+        self.check_result(0, "Validation passed")
+        for dependencies in (
+            ["unlisted-plugin"],
+            ["example-plugin@other"],
+            [{"name": "example-plugin", "version": "^1.0.0"}],
+            "example-plugin",
+        ):
+            with self.subTest(dependencies=dependencies):
+                self.change_json(manifest, lambda data: data.update(dependencies=dependencies))
+                self.check_result(1, "dependencies must name plugins in the company marketplace")
+
     def test_publisher_required(self):
         for author in (None, {}, {"name": None}, {"name": ""}):
             with self.subTest(author=author):

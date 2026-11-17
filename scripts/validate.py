@@ -191,6 +191,16 @@ def validate_manifests() -> None:
     ):
         fail(claude_market_path, "must publish ./plugins/company-skills")
 
+    # Same-marketplace dependencies by bare name: the git-subdir SHA is the pin,
+    # so version ranges and cross-marketplace names are not used here.
+    claude_manifest_path = PLUGIN / ".claude-plugin" / "plugin.json"
+    dependencies = load_json(claude_manifest_path).get("dependencies", [])
+    listed = {entry.get("name") for entry in claude_entries if isinstance(entry, dict)}
+    if not isinstance(dependencies, list) or not all(
+        isinstance(name, str) and name in listed and name != portable.get("name") for name in dependencies
+    ):
+        fail(claude_manifest_path, "dependencies must name plugins in the company marketplace")
+
     claude_pins = git_subdir_pins(claude_entries)
     codex_pins = git_subdir_pins(codex_entries)
     for name in sorted(set(claude_pins) | set(codex_pins), key=str):

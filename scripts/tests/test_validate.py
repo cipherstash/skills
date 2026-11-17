@@ -96,5 +96,26 @@ class PackagingTests(unittest.TestCase):
                 self.check_result(1, "author.name is required")
 
 
+class LicenseDeclarationTests(unittest.TestCase):
+    # plain-language ships Apache-2.0 code and OGL-UK-3.0 content
+    # (skills/plain-language/LICENSE and NOTICE); the rest of the plugin is MIT.
+    BUNDLED = ("MIT", "Apache-2.0", "OGL-UK-3.0")
+
+    def test_manifests_declare_every_bundled_license(self):
+        for relative in ("plugin.json", ".claude-plugin/plugin.json", ".codex-plugin/plugin.json"):
+            license_value = json.loads((REPO / "plugins/company-skills" / relative).read_text())["license"]
+            identifiers = set(license_value.replace("(", " ").replace(")", " ").split())
+            for spdx in self.BUNDLED:
+                with self.subTest(manifest=relative, spdx=spdx):
+                    self.assertIn(spdx, identifiers, f"{relative} license is {license_value!r}")
+
+    def test_readme_license_section_names_every_bundled_license(self):
+        readme = (REPO / "README.md").read_text()
+        section = readme.split("\n## License\n", 1)[1].split("\n## ", 1)[0]
+        for name in ("MIT", "Apache", "Open Government Licence"):
+            with self.subTest(name=name):
+                self.assertIn(name, section)
+
+
 if __name__ == "__main__":
     unittest.main()

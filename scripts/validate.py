@@ -77,8 +77,9 @@ def validate_manifests() -> None:
         fail(portable_path, "name must match the plugin directory")
     if not SEMVER_RE.fullmatch(str(portable.get("version", ""))):
         fail(portable_path, "version must be semantic versioning")
-    if portable.get("license") != "MIT":
-        fail(portable_path, "license must be MIT")
+    expected_license = "MIT AND Apache-2.0 AND OGL-UK-3.0"
+    if portable.get("license") != expected_license:
+        fail(portable_path, f"license must be {expected_license}")
     author = portable.get("author")
     if (
         not isinstance(author, dict)

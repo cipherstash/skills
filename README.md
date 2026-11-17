@@ -125,4 +125,6 @@ See the official [Codex skills documentation](https://developers.openai.com/code
 
 ## License
 
-MIT
+The repository is licensed under the MIT License; see [LICENSE](LICENSE).
+
+`plugins/company-skills/skills/plain-language` is licensed under the Apache License 2.0, and some of its content is public sector information under the Open Government Licence v3.0. See its [LICENSE](plugins/company-skills/skills/plain-language/LICENSE) and [NOTICE](plugins/company-skills/skills/plain-language/NOTICE). The plugin manifests declare the combined SPDX expression `MIT AND Apache-2.0 AND OGL-UK-3.0`.

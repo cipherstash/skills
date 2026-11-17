@@ -41,6 +41,10 @@ class AssessTest(unittest.TestCase):
         self.assertEqual(skills(result), ["review-golang"])
         self.assertTrue(result["plan"][0]["reason"])
 
+    def test_rust_change_selects_review_rust_and_rust_security(self) -> None:
+        result = plan(["Cargo.toml", "src/lib.rs", "tests/lib_test.rs"])
+        self.assertEqual(skills(result), ["review-rust", "rust-security"])
+
 
 if __name__ == "__main__":
     unittest.main()

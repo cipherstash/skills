@@ -4,10 +4,11 @@
 
 - "Use review-python on this PR's Python diff at the supplied commits."
 - "Check whether the changed async worker loses exceptions or leaks its client."
-- "Review the Python changes." If the target cannot be inferred, ask for the diff or PR.
+- "Check the Python changes for leaked exceptions." If the target cannot be inferred, ask for the diff or PR.
 
 ## Should not activate
 
+- "Review the Python changes." Use review-code, which selects review-python alongside review-test-gaps and hands findings to review-cross-check.
 - "Write Python tests for these edge cases."
 - "Check which new findings are already covered by PR feedback." Use review-cross-check.
 

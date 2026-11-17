@@ -1,6 +1,6 @@
 ---
 name: review-golang
-description: Reviews Go changes for concurrency, error handling, API compatibility, and language-specific test defects. Use for a focused Go diff review or a Go assignment from review-code. Does not implement fixes, post feedback, or assess general coverage gaps (review-test-gaps).
+description: Reviews Go changes for concurrency, error handling, API compatibility, and language-specific test defects. Use for a Go-specific concern named directly, or a Go assignment from review-code; a general request to review Go changes goes to review-code. Does not implement fixes, post feedback, or assess general coverage gaps (review-test-gaps).
 ---
 
 # review-golang

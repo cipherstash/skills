@@ -25,7 +25,7 @@ Build every delegate prompt from this file. Fill the bracketed fields in **Assig
    - `refuted` — the failure cannot happen at head, or the claimed objective violation does not hold. Cite the preventing guard, type, invariant or caller, the satisfied or inapplicable requirement, or a later commit that fixed it (name it).
    - `needs-decision` — the finding turns on a product or design choice the code cannot settle; state the question.
 3. **Correct the finding.** Where the claim is right but a detail is wrong — the line, the scope, the severity, the suggested fix — confirm it and return the corrected detail. List every other site with the same defect. Where the claimed failure or violation does not hold, the verdict is `refuted`, even if the code has a different defect nearby; report that defect separately under **Other defects**, not as a correction.
-4. **No speculation.** A failure that needs an input no caller can produce is `refuted`. "Could be a problem if…" with no reachable trigger is not `confirmed`.
+4. **No speculation.** For a behavioural claim, a failure that needs an input no caller can produce is `refuted`, and "could be a problem if…" with no reachable trigger is not `confirmed`. A test-gap claim needs no reachable production trigger: judge it by whether the suite omits a required case, even when it is phrased conditionally ("a regression returning the input would pass").
 
 ## Return format
 

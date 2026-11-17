@@ -1,15 +1,15 @@
 ---
 name: review-python
-description: Reviews Python changes for shared state, exception and resource behavior, async lifecycles, packaging compatibility, and ineffective tests. Use for a focused Python diff review or a Python assignment from code-review. Does not implement fixes, post feedback, or assess general coverage gaps (review-test-gaps).
+description: Reviews Python changes for shared state, exception and resource behavior, async lifecycles, packaging compatibility, and ineffective tests. Use for a focused Python diff review or a Python assignment from review-code. Does not implement fixes, post feedback, or assess general coverage gaps (review-test-gaps).
 ---
 
 # review-python
 
-Review the Python portion of an identified change. Return findings to `code-review` or the user; preserve the reviewed source tree and leave publishing to `review-post`.
+Review the Python portion of an identified change. Return findings to `review-code` or the user; preserve the reviewed source tree and leave publishing to `review-post`.
 
 ## Inputs and scope
 
-Require a diff, its exact base and head commits (or an identified working-tree snapshot), the matching tree, and available requirements and repository guidance. When invoked directly, resolve the installed `code-review` skill and read its `references/findings.md` contract. A delegated assignment supplies that contract. If the target is missing or ambiguous, ask for it before reviewing; use `code-review` to prepare a PR target that has not yet been resolved.
+Require a diff, its exact base and head commits (or an identified working-tree snapshot), the matching tree, and available requirements and repository guidance. When invoked directly, resolve the installed `review-code` skill and read its `references/findings.md` contract. A delegated assignment supplies that contract. If the target is missing or ambiguous, ask for it before reviewing; use `review-code` to prepare a PR target that has not yet been resolved.
 
 Review Python changes and packaging, typing, or test configuration affecting them. If there are no applicable changes, return `not applicable` with the reviewed scope.
 

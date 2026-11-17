@@ -1,15 +1,15 @@
 ---
 name: review-golang
-description: Reviews Go changes for concurrency, error handling, API compatibility, and language-specific test defects. Use for a focused Go diff review or a Go assignment from code-review. Does not implement fixes, post feedback, or assess general coverage gaps (review-test-gaps).
+description: Reviews Go changes for concurrency, error handling, API compatibility, and language-specific test defects. Use for a focused Go diff review or a Go assignment from review-code. Does not implement fixes, post feedback, or assess general coverage gaps (review-test-gaps).
 ---
 
 # review-golang
 
-Review the Go portion of an identified change. Return findings to `code-review` or the user; preserve the reviewed source tree and leave publishing to `review-post`.
+Review the Go portion of an identified change. Return findings to `review-code` or the user; preserve the reviewed source tree and leave publishing to `review-post`.
 
 ## Inputs and scope
 
-Require a diff, its exact base and head commits (or an identified working-tree snapshot), the matching tree, and available requirements and repository guidance. When invoked directly, resolve the installed `code-review` skill and read its `references/findings.md` contract. A delegated assignment supplies that contract. If the target is missing or ambiguous, ask for it before reviewing; use `code-review` to prepare a PR target that has not yet been resolved.
+Require a diff, its exact base and head commits (or an identified working-tree snapshot), the matching tree, and available requirements and repository guidance. When invoked directly, resolve the installed `review-code` skill and read its `references/findings.md` contract. A delegated assignment supplies that contract. If the target is missing or ambiguous, ask for it before reviewing; use `review-code` to prepare a PR target that has not yet been resolved.
 
 Review `.go` changes and Go module, build, and test configuration that affects them. Follow calls into unchanged code to prove consequences introduced by the diff. If there are no applicable changes, return `not applicable` with the reviewed scope.
 

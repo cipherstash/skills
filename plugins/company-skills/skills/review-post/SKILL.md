@@ -36,7 +36,7 @@ With no review in the session and nothing pasted, ask whether to run a review fi
    ```markdown
    **blocking · critical** `parse()` returns `None` on an empty header, so `auth()` admits the request. Return `Err(Invalid)` instead.
 
-   <sub>Source: code-review · claude-opus-5-5</sub>
+   <sub>Source: review-code · claude-opus-5-5</sub>
    ```
 
    Lead with `**blocking · <severity>**` or `**<severity>**`. At most three sentences, identifiers in backticks, no hedging, praise, or narration. A ```` ```suggestion ```` block only when the replacement is exact and complete; its content replaces exactly the commented lines, `start_line` through `line`. A reply uses the same format with only the addition — never restating, agreeing with, or crediting the existing comment.
@@ -47,8 +47,8 @@ With no review in the session and nothing pasted, ask whether to run a review fi
    ## Review attestation
 
    Reviewed `<reviewed short sha>` · posted from Claude Code · `claude-opus-5-5` · effort high
-   Sources: code-review · claude-opus-5-5; security agent · gpt-5.2-codex
-   Skills: `code-review`, `rust-security`
+   Sources: review-code · claude-opus-5-5; security agent · gpt-5.2-codex
+   Skills: `review-code`, `rust-security`
 
    **Blocking (1)**
    - `src/auth.rs:42` empty header admits the request

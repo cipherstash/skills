@@ -1,10 +1,10 @@
 ---
-name: code-review
+name: review-code
 description: Reviews a pull request, branch, commit range, or working diff by selecting and delegating test-gap, infrastructure, and language review skills, then verifies and combines their findings. Use when asked to review code or assess a change before merging. Produces findings for review-cross-check and review-post; existing feedback belongs to review-audit and fixing findings belongs to review-fix.
 argument-hint: "<PR URL, branch, base ref, or working diff> [focus]"
 ---
 
-# code-review
+# review-code
 
 Use this as the single entry point for a fresh review. Select specialists from the change's behavior and files, then return one evidence-backed review. Use the host's existing agents and tools; no agent installation or external review runner is required.
 

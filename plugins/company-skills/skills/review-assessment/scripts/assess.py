@@ -1,7 +1,23 @@
 #!/usr/bin/env python3
 """Map changed file paths to the review skills a change needs.
 
-Reads one changed path per line on stdin and prints a JSON review plan.
+Usage: git diff --name-only <base>...<head> | python3 assess.py
+
+Input: one changed path per line on stdin, relative to the repository root.
+Blank lines and duplicates are ignored. Deleted and renamed paths count as
+changed. Python 3 standard library only.
+
+Output (stdout, exit 0): a JSON object, identical bytes for the same set of
+paths in any order:
+
+    {"plan": [{"skill": "review-golang", "reason": "..."}],
+     "unmatched": ["README.md"]}
+
+`plan` rows follow the fixed order of RULES, then review-test-gaps. `unmatched`
+lists, sorted, the paths no language or infrastructure rule matched.
+
+Failure: no paths on stdin exits 2 with a message on stderr and prints no
+plan, so an unreadable diff never looks like a change needing no review.
 """
 
 from __future__ import annotations

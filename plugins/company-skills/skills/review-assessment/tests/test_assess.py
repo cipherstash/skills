@@ -70,6 +70,17 @@ class AssessTest(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertEqual(skills(plan([path])), ["review-infracode"])
 
+    def test_code_changed_without_test_change_selects_review_test_gaps(self) -> None:
+        cases = {
+            "pkg/server.go": ["review-golang", "review-test-gaps"],
+            "src/lib.rs": ["review-rust", "rust-security", "review-test-gaps"],
+            "src/app.ts": ["review-typescript", "review-test-gaps"],
+            "pkg/app.py": ["review-python", "review-test-gaps"],
+        }
+        for path, expected in cases.items():
+            with self.subTest(path=path):
+                self.assertEqual(skills(plan([path, "README.md"])), expected)
+
     def test_yaml_outside_workflows_is_not_infrastructure(self) -> None:
         self.assertEqual(skills(plan(["config/settings.yml"])), [])
 

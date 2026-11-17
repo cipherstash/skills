@@ -46,6 +46,15 @@ RULES = [
     ),
 ]
 
+CODE = ["*.go", "*.rs", "*.ts", "*.tsx", "*.mts", "*.cts", "*.js", "*.jsx", "*.mjs", "*.cjs", "*.py"]
+TEST_NAMES = ["*_test.go", "test_*.py", "*_test.py", "conftest.py", "*.test.*", "*.spec.*", "*_test.rs"]
+TEST_DIRS = {"test", "tests", "__tests__", "spec"}
+TEST_GAPS_REASON = "Code changed with no test file changed"
+
+
+def is_test(path: str) -> bool:
+    return matches(path, TEST_NAMES) or bool(TEST_DIRS.intersection(path.split("/")[:-1]))
+
 
 def matches(path: str, patterns: list[str]) -> bool:
     name = path.rsplit("/", 1)[-1]
@@ -58,6 +67,9 @@ def main() -> int:
     for skill, reason, patterns in RULES:
         if any(matches(p, patterns) for p in paths):
             plan.append({"skill": skill, "reason": reason})
+    code = [p for p in paths if matches(p, CODE)]
+    if code and not any(is_test(p) for p in code):
+        plan.append({"skill": "review-test-gaps", "reason": TEST_GAPS_REASON})
     json.dump({"plan": plan}, sys.stdout)
     return 0
 

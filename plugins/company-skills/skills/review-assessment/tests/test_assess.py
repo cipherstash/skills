@@ -118,6 +118,18 @@ class AssessTest(unittest.TestCase):
         self.assertEqual(proc.stdout, "")
         self.assertIn("no changed files", proc.stderr)
 
+    def test_manifest_only_change_selects_its_language_without_test_gaps(self) -> None:
+        cases = {
+            "go.mod": ["review-golang"],
+            "Cargo.lock": ["review-rust", "rust-security"],
+            "package.json": ["review-typescript"],
+            "tsconfig.build.json": ["review-typescript"],
+            "pyproject.toml": ["review-python"],
+        }
+        for path, expected in cases.items():
+            with self.subTest(path=path):
+                self.assertEqual(skills(plan([path])), expected)
+
     def test_yaml_outside_workflows_is_not_infrastructure(self) -> None:
         self.assertEqual(skills(plan(["config/settings.yml"])), [])
 

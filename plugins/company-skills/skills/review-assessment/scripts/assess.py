@@ -19,6 +19,11 @@ RULES = [
         "Every Rust change gets a secret-handling and cryptography pass",
         ["*.rs", "Cargo.toml", "Cargo.lock"],
     ),
+    (
+        "review-typescript",
+        "TypeScript or JavaScript files changed",
+        ["*.ts", "*.tsx", "*.mts", "*.cts", "*.js", "*.jsx", "*.mjs", "*.cjs"],
+    ),
 ]
 
 

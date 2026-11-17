@@ -45,6 +45,12 @@ class AssessTest(unittest.TestCase):
         result = plan(["Cargo.toml", "src/lib.rs", "tests/lib_test.rs"])
         self.assertEqual(skills(result), ["review-rust", "rust-security"])
 
+    def test_typescript_and_javascript_changes_select_review_typescript(self) -> None:
+        for path in ["src/app.ts", "src/view.tsx", "lib/index.js", "lib/esm.mjs", "lib/cjs.cjs", "src/x.jsx"]:
+            with self.subTest(path=path):
+                result = plan([path, "test/app.test.ts"])
+                self.assertEqual(skills(result), ["review-typescript"])
+
 
 if __name__ == "__main__":
     unittest.main()

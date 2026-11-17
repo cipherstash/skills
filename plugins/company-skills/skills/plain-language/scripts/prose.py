@@ -154,8 +154,6 @@ def prose_units(markdown):
             continue
         opening = line.find("<!--")
         if opening != -1 and line.find("-->", opening) == -1:
-            if ALLOW in line:
-                continue
             line = line[:opening]
             in_comment = True
         if ALLOW in line:

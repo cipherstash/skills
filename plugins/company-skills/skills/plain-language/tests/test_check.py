@@ -443,6 +443,20 @@ class TheCommandLine(unittest.TestCase):
         self.assertIn(missing, result.stderr)
         self.assertNotIn("Traceback", result.stderr)
 
+    # SKILL.md promises that a file with this marker on a line of its own is skipped.
+    def test_skips_a_file_with_the_check_off_marker_on_a_line_of_its_own(self):
+        page = os.path.join(temporary_folder(self), "banned.md")
+        write(page, "<!-- plain-language-check: off -->\nIn order to go, at the end of the day.\n")
+        result = run([CLI, "--json", page])
+        self.assertEqual(json.loads(result.stdout)["mustFix"], 0)
+        self.assertEqual(result.returncode, 0)
+
+    # An unclosed comment that contains plain-language-allow is still a comment: its
+    # body is not prose.
+    def test_does_not_check_the_body_of_an_unclosed_comment_that_says_plain_language_allow(self):
+        text = "<!-- plain-language-allow\nTODO: leverage the robust API, e.g. etc.\n-->\n"
+        self.assertEqual(blocking(text), [])
+
 
 
 GLOSSARY = "- **Fit for Role assessment** — one of the eight Fit for Role assessments.\n  They are Swim, Lift and Shift, Carry, Hike, Drag, Haul, Hold, and Ladder Climb and Lift.\n"
@@ -512,6 +526,19 @@ class ProjectNames(unittest.TestCase):
         os.mkdir(os.path.join(outer, "project"))
         write(os.path.join(outer, "project", ".git"), "gitdir: /elsewhere\n")
         self.assertEqual(names_for(os.path.join(outer, "project", "page.md")), ())
+
+    # Outside any git repository there is no project, so no settings file applies.
+    def test_does_not_use_a_settings_file_when_there_is_no_repository(self):
+        outer = temporary_folder(self)
+        write(os.path.join(outer, ".plain-language.json"), "{bad")
+        os.mkdir(os.path.join(outer, "inner"))
+        page = os.path.join(outer, "inner", "draft.md")
+        write(page, "Hello.\n")
+        self.assertEqual(run([CLI, page]).returncode, 0)
+        try:
+            self.assertEqual(names_for(page), ())
+        except SettingsError as error:
+            self.fail(f"read a settings file outside any repository: {error}")
 
     BROKEN = [
         ("not JSON", '{"names": ["aXcelerate"]', "cannot be read as JSON"),

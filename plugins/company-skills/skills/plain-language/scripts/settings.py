@@ -28,15 +28,17 @@ def find(start):
 
     The search stops at the top of the git repository, the folder that contains .git.
     That is a folder in a normal clone, and a file in a worktree. A settings file
-    outside the repository belongs to some other project.
+    outside the repository belongs to some other project. A path outside any git
+    repository has no settings file, even when there is one in a folder above it.
     """
     folder = os.path.abspath(start if os.path.isdir(start) else os.path.dirname(start) or ".")
+    found = None
     while True:
         candidate = os.path.join(folder, FILE_NAME)
-        if os.path.lexists(candidate):
-            return candidate
+        if found is None and os.path.lexists(candidate):
+            found = candidate
         if os.path.lexists(os.path.join(folder, ".git")):
-            return None
+            return found
         parent = os.path.dirname(folder)
         if parent == folder:
             return None

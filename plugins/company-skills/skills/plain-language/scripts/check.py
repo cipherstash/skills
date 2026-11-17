@@ -873,13 +873,21 @@ def source_findings(markdown, rules):
 WHITE_SPACE = str.maketrans({"﻿": " ", "\x85": "\x7f", "\x1c": "\x7f", "\x1d": "\x7f", "\x1e": "\x7f", "\x1f": "\x7f"})
 
 
+# A file with this marker on a line of its own is not checked at all. It is for a file
+# that lists banned phrases, which would otherwise fail on every one.
+CHECK_OFF = re.compile(r"^[ \t]*<!--[ \t]*plain-language-check:[ \t]*off[ \t]*-->[ \t]*$", re.MULTILINE)
+
+
 def findings(markdown, rules=None, mode="file", names=()):
     """Every finding for one Markdown text, in line order. `mode` is "file" or "chat"; a
     chat reply is too short for the rhythm check to mean anything. `names` are the
-    project's names, from its settings file."""
+    project's names, from its settings file. A text with the check-off marker on a line
+    of its own has no findings."""
     if rules is None:
         rules = load_rules()
     markdown = markdown.translate(WHITE_SPACE)
+    if CHECK_OFF.search(markdown):
+        return []
     pieces = prose_units(markdown)
     read_names(pieces, names)
     found = [

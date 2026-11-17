@@ -33,4 +33,12 @@ these changes:
   and the comment in scripts/rules.json no longer describe them;
 - SKILL.md's description, checker command, and checker notes were
   adapted for Codex and Claude Code;
-- tests/test_check.py keeps only the tests for the checker scripts.
+- scripts/check.py's comments no longer describe hooks, it exits 2 and
+  names a file it cannot read, and it skips a file with
+  <!-- plain-language-check: off --> on a line of its own;
+- scripts/settings.py uses no settings file for a path outside any git
+  repository;
+- scripts/prose.py skips the body of an unclosed HTML comment whose
+  first line contains plain-language-allow;
+- tests/test_check.py keeps only the tests for the checker scripts, and
+  adds tests for these changes.

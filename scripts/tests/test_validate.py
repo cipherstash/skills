@@ -117,6 +117,19 @@ class PackagingTests(unittest.TestCase):
                 self.change_json(".claude-plugin/marketplace.json", lambda data: data["plugins"].append(git_subdir(**changes)))
                 self.check_result(1, diagnostic)
 
+    def test_codex_git_subdir_entries_are_pinned(self):
+        policy = {"policy": {"installation": "AVAILABLE", "authentication": "ON_INSTALL"}, "category": "Productivity"}
+        for changes, diagnostic in (
+            ({"sha": PIN[:7]}, "sha must be a full 40-character lowercase commit SHA"),
+            ({"path": None}, "git-subdir source needs url and path"),
+        ):
+            with self.subTest(changes=changes):
+                self.change_json(
+                    ".agents/plugins/marketplace.json",
+                    lambda data: data["plugins"].append({**git_subdir(**changes), **policy}),
+                )
+                self.check_result(1, diagnostic)
+
     def test_publisher_required(self):
         for author in (None, {}, {"name": None}, {"name": ""}):
             with self.subTest(author=author):

@@ -149,6 +149,7 @@ def validate_manifests() -> None:
             fail(codex_market_path, "plugin policy must use AVAILABLE installation and ON_INSTALL authentication")
         if entry.get("category") != "Productivity":
             fail(codex_market_path, "plugin category must be Productivity")
+        validate_git_subdir(codex_market_path, entry)
     if not any(
         entry.get("name") == portable.get("name")
         and entry.get("source", {}).get("source") == "local"

@@ -22,7 +22,7 @@ Completion: target, comparison, tree or snapshot, requirements available, and ch
 
 ## 2. Route the review
 
-Read [references/findings.md](references/findings.md) for the shared evidence and output contract. Select every applicable row below; several may apply to one file. Locate each skill in the installed `company-skills` package and read its `SKILL.md`. Resolve its resources relative to that skill's directory. If a selected skill is unavailable, report that gap rather than claiming it ran.
+Read [references/findings.md](references/findings.md) for the shared evidence and output contract. Run the installed `review-assessment` skill first on the recorded changed-file inventory, and run every skill its plan lists; if it stops on an unreadable file list, stop the review too. Use the table below to explain and extend that plan: add any row whose signal the plan missed, with its reason, but never drop a planned skill. Several rows may apply to one file. Locate each skill in the installed `company-skills` package and read its `SKILL.md`. Resolve its resources relative to that skill's directory. If a selected skill is unavailable, report that gap rather than claiming it ran.
 
 | Change signal | Delegate skill | Assignment |
 | --- | --- | --- |
@@ -31,13 +31,14 @@ Read [references/findings.md](references/findings.md) for the shared evidence an
 | Go code or Go module/toolchain changes | `review-golang` | Go semantics, concurrency, API and error behavior |
 | TypeScript/JavaScript code, declarations, or related compiler/runtime changes | `review-typescript` | Runtime boundaries, types, async behavior and compatibility |
 | Rust code, Cargo features/dependencies, or toolchain changes | `review-rust` | Ownership, safety, async, public API and security conventions |
+| Any Rust change | `rust-security` | Secret handling, cryptography, and authentication rules, applied as a review lens |
 | Python code, dependencies, or interpreter/type configuration | `review-python` | Runtime behavior, typing, async and resource lifetime |
 
 Route on content and affected consumers as well as extensions: a YAML workflow running Python may need both Python and infrastructure review; a generator change may affect another language. Generated files and lockfiles require tracing their source or consumers, not blanket exclusion. Pure prose or comment edits need a requirements/accuracy pass, not all language reviewers. For unsupported languages, perform a general correctness pass and disclose that no language specialist was available.
 
 Keep the general review in the coordinator: compare the implementation with the stated requirement and repository rules, trace affected callers and contracts, and check cross-file interactions. Cite the rule for objective standards findings. If a specification is missing, state that limit rather than inventing requirements. Respect an explicitly narrower user focus and report excluded areas.
 
-Completion: each changed area has a general or specialist assignment, or an explicit exclusion with reason. State selected skills and why.
+Completion: each changed area has a general or specialist assignment, or an explicit exclusion with reason. State selected skills and why, marking each as from the assessment script or added by judgement.
 
 ## 3. Delegate
 

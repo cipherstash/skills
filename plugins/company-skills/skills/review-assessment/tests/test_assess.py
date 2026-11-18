@@ -1,0 +1,138 @@
+"""Tests for scripts/assess.py, driven through its command line.
+
+Run: python3 -m unittest discover -s <skill>/tests
+"""
+
+from __future__ import annotations
+
+import json
+import subprocess
+import sys
+import unittest
+from pathlib import Path
+
+SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "assess.py"
+
+
+def run(paths: list[str]) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, str(SCRIPT)],
+        input="".join(p + "\n" for p in paths),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def plan(paths: list[str]) -> dict:
+    proc = run(paths)
+    if proc.returncode != 0:
+        raise AssertionError(f"exit {proc.returncode}: {proc.stderr}")
+    return json.loads(proc.stdout)
+
+
+def skills(result: dict) -> list[str]:
+    return [row["skill"] for row in result["plan"]]
+
+
+class AssessTest(unittest.TestCase):
+    def test_go_change_selects_review_golang(self) -> None:
+        result = plan(["cmd/server/main.go", "cmd/server/main_test.go"])
+        self.assertEqual(skills(result), ["review-golang"])
+        self.assertTrue(result["plan"][0]["reason"])
+
+    def test_rust_change_selects_review_rust_and_rust_security(self) -> None:
+        result = plan(["Cargo.toml", "src/lib.rs", "tests/lib_test.rs"])
+        self.assertEqual(skills(result), ["review-rust", "rust-security"])
+
+    def test_typescript_and_javascript_changes_select_review_typescript(self) -> None:
+        for path in ["src/app.ts", "src/view.tsx", "lib/index.js", "lib/esm.mjs", "lib/cjs.cjs", "src/x.jsx"]:
+            with self.subTest(path=path):
+                result = plan([path, "test/app.test.ts"])
+                self.assertEqual(skills(result), ["review-typescript"])
+
+    def test_python_change_selects_review_python(self) -> None:
+        for path in ["pkg/app.py", "pyproject.toml", "requirements.txt", "stubs/app.pyi"]:
+            with self.subTest(path=path):
+                self.assertIn("review-python", skills(plan([path])))
+
+    def test_infrastructure_paths_select_review_infracode(self) -> None:
+        for path in [
+            ".github/workflows/ci.yml",
+            ".github/workflows/release.yaml",
+            "Dockerfile",
+            "docker/Dockerfile.prod",
+            "build/app.dockerfile",
+            "infra/main.tf",
+            "infra/prod.tfvars",
+            "infra/.terraform.lock.hcl",
+        ]:
+            with self.subTest(path=path):
+                self.assertEqual(skills(plan([path])), ["review-infracode"])
+
+    def test_code_changed_without_test_change_selects_review_test_gaps(self) -> None:
+        cases = {
+            "pkg/server.go": ["review-golang", "review-test-gaps"],
+            "src/lib.rs": ["review-rust", "rust-security", "review-test-gaps"],
+            "src/app.ts": ["review-typescript", "review-test-gaps"],
+            "pkg/app.py": ["review-python", "review-test-gaps"],
+        }
+        for path, expected in cases.items():
+            with self.subTest(path=path):
+                self.assertEqual(skills(plan([path, "README.md"])), expected)
+
+    def test_code_changed_with_test_change_does_not_select_review_test_gaps(self) -> None:
+        cases = {
+            ("pkg/server.go", "pkg/server_test.go"),
+            ("src/lib.rs", "crates/core/tests/integration.rs"),
+            ("src/app.ts", "src/__tests__/app.ts"),
+            ("src/app.ts", "spec/app.spec.js"),
+            ("pkg/app.py", "tests/test_app.py"),
+            ("pkg/app.py", "pkg/app_test.py"),
+        }
+        for code, test in sorted(cases):
+            with self.subTest(code=code, test=test):
+                self.assertNotIn("review-test-gaps", skills(plan([code, test])))
+
+    def test_docs_only_change_has_empty_plan_and_lists_files_unmatched(self) -> None:
+        result = plan(["README.md", "docs/guide.md"])
+        self.assertEqual(result["plan"], [])
+        self.assertEqual(result["unmatched"], ["README.md", "docs/guide.md"])
+
+    def test_mixed_change_lists_only_unmatched_files_once_and_sorted(self) -> None:
+        result = plan(["zeta.txt", "cmd/main.go", "cmd/main_test.go", "alpha.md", "zeta.txt"])
+        self.assertEqual(skills(result), ["review-golang"])
+        self.assertEqual(result["unmatched"], ["alpha.md", "zeta.txt"])
+
+    def test_same_change_gives_byte_identical_stable_output(self) -> None:
+        paths = ["infra/main.tf", "src/lib.rs", "README.md", "web/app.ts", "Dockerfile"]
+        first = run(paths)
+        second = run(list(reversed(paths)))
+        self.assertEqual(first.returncode, 0, first.stderr)
+        self.assertEqual(first.stdout, second.stdout)
+        self.assertEqual(first.stdout, json.dumps(json.loads(first.stdout), indent=2) + "\n")
+
+    def test_empty_input_exits_non_zero_without_a_plan(self) -> None:
+        proc = run([])
+        self.assertEqual(proc.returncode, 2)
+        self.assertEqual(proc.stdout, "")
+        self.assertIn("no changed files", proc.stderr)
+
+    def test_manifest_only_change_selects_its_language_without_test_gaps(self) -> None:
+        cases = {
+            "go.mod": ["review-golang"],
+            "Cargo.lock": ["review-rust", "rust-security"],
+            "package.json": ["review-typescript"],
+            "tsconfig.build.json": ["review-typescript"],
+            "pyproject.toml": ["review-python"],
+        }
+        for path, expected in cases.items():
+            with self.subTest(path=path):
+                self.assertEqual(skills(plan([path])), expected)
+
+    def test_yaml_outside_workflows_is_not_infrastructure(self) -> None:
+        self.assertEqual(skills(plan(["config/settings.yml"])), [])
+
+
+if __name__ == "__main__":
+    unittest.main()

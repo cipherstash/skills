@@ -15,6 +15,8 @@ claude plugin marketplace add cipherstash/skills
 claude plugin install company-skills@company
 ```
 
+Installing company-skills also installs and enables the Trail of Bits `differential-review` and `insecure-defaults` plugins as dependencies (see [Bundled Trail of Bits plugins](#bundled-trail-of-bits-plugins)).
+
 Inside a session, `/plugin marketplace add cipherstash/skills` and `/plugin install company-skills@company` do the same. Start a new session, then invoke a skill by its namespaced name, for example `/company-skills:review-fix`.
 
 To update to the latest published skills, refresh the marketplace, update the plugin, then start a new session:
@@ -29,10 +31,12 @@ claude plugin update company-skills@company
 ```sh
 codex plugin marketplace add cipherstash/skills --ref main
 codex plugin add company-skills@company
+codex plugin add differential-review@company
+codex plugin add insecure-defaults@company
 codex plugin list --marketplace company
 ```
 
-The command syntax was checked against `codex-cli 0.160.0`. Start a fresh session and use `/skills` or type `$` to select an installed skill, then supply its inputs. Skills can also match requests automatically.
+Codex does not install plugin dependencies, so add the two Trail of Bits plugins explicitly (see [Bundled Trail of Bits plugins](#bundled-trail-of-bits-plugins)). The command syntax was checked against `codex-cli 0.169.0`. Start a fresh session and use `/skills` or type `$` to select an installed skill, then supply its inputs. Skills can also match requests automatically.
 
 If your CLI does not provide `plugin add`, restart the desktop app, choose **Company** in the Plugins Directory, and install **Company Skills** there. See [OpenAI’s plugin packaging guide](https://developers.openai.com/plugins/build/plugins) for marketplace configuration.
 
@@ -43,6 +47,26 @@ codex plugin marketplace upgrade company
 codex plugin remove company-skills@company
 codex plugin add company-skills@company
 ```
+
+## Bundled Trail of Bits plugins
+
+The `company` marketplace also lists two plugins from [Trail of Bits' skills repository](https://github.com/trailofbits/skills), so accounts and routines that cannot add the Trail of Bits marketplace still get them:
+
+| Plugin | Provides |
+| --- | --- |
+| `differential-review` | The `differential-review` skill, the `/differential-review:diff-review` command, and the `adversarial-modeler` agent: a security-focused review of a PR, commit, or diff |
+| `insecure-defaults` | The `/insecure-defaults:audit` command and its `audit-pipeline` workflow: an audit for fallback secrets, default credentials, fail-open switches, weak crypto, permissive access, and debug leakage |
+
+Both entries are `git-subdir` sources pinned to one full upstream commit SHA. No upstream files are copied into this repository. They are published by Trail of Bits under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/), not this repository's MIT licence.
+
+- **Claude Code:** company-skills declares both as dependencies, so `claude plugin install company-skills@company` installs and enables them. Checked with Claude Code 2.1.327.
+- **Codex:** both plugins install from the same pinned entries, but Codex has no plugin dependencies, so install each with `codex plugin add` as shown under [Codex](#codex). `insecure-defaults` ships a Claude Code command and workflow and no `skills/` directory, so it may expose nothing in Codex. Checked with `codex-cli 0.169.0`.
+
+Nothing auto-updates them: a plugin with a pinned `sha` stays on that commit through marketplace refreshes and plugin updates. To move the pin, open a pull request that:
+
+1. Reviews the upstream changes to `plugins/differential-review` and `plugins/insecure-defaults` since the current SHA.
+2. Changes `sha` for both entries in `.claude-plugin/marketplace.json` and `.agents/plugins/marketplace.json` to the same new full 40-character commit SHA. The validator fails when the two catalogs differ or a SHA is not a full commit.
+3. Bumps the plugin version in all three manifests, as described in [Releases](CONTRIBUTING.md#releases).
 
 ## Develop locally
 

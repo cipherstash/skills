@@ -81,7 +81,7 @@ Each skill is authored once under `plugins/company-skills/skills/`. The portable
 | Skill | Purpose | Invocation |
 | --- | --- | --- |
 | `review-audit` | Audit existing PR feedback against the PR head | Explicit or automatic |
-| `review-cross-check` | Verify new findings and report which are new against existing PR feedback | Explicit or automatic |
+| `review-cross-check` | Verify new findings and report which are new against existing PR feedback; reports only, so run `review-post` to publish them | Explicit or automatic |
 | `review-post` | Post review findings to a PR with source-tagged inline comments and a review attestation | Explicit or automatic |
 | `review-fix` | Verify findings and fix confirmed defects | Explicit or automatic |
 | `run-report` | Log every problem an unattended run hits and publish a run report as a Claude artifact | Explicit or automatic |

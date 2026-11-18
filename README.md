@@ -113,6 +113,16 @@ The Vanta skills also need the Linear connector, read-only Vanta API credentials
 /company-skills:review-post
 ```
 
+## Renamed skills
+
+The code review skills were renamed in 0.8.0 and their deprecated aliases were removed in 0.10.0. This table is kept permanently so an old name always points to its replacement.
+
+| Old name | New name | Notes |
+| --- | --- | --- |
+| `address-code-review` | `review-fix` | |
+| `audit-pr-feedback` | `review-audit` | |
+| `cross-check-review-findings` | `review-cross-check` | Ends at a report; run `review-post` to publish the findings |
+
 ## Contribute
 
 Follow [CONTRIBUTING.md](CONTRIBUTING.md) to add or change a skill: naming, progressive disclosure, required behavior cases, releases, and the validation commands to run. Pull requests run `python3 scripts/validate.py`, `python3 -m unittest discover -s scripts/tests`, and each skill's `tests/` suite in GitHub Actions; the `claude plugin validate --strict` checks run locally only.

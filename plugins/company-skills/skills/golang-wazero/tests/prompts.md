@@ -29,4 +29,5 @@ This is a background convention skill: it is applied while the agent reviews or 
 - The agent does not invent a wazero version that contains a fix.
 - The agent gives the Go module path as `github.com/tetratelabs/wazero`, not `github.com/wazero/wazero`.
 - A deferred free of a host-staged buffer that runs after the allocator's `Exit` is reported. The agent states the consequence: guest code runs on unmapped memory, and the process dies with a fault that `recover` cannot catch.
-- The agent proposes freeing before `Exit`, a check of `IsClosed` before each call, and a comment or test that pins the defer order. It does not say that wazero rejects a call into a closed module.
+- The agent proposes freeing before `Exit`, and a comment or test that pins the defer order. It proposes an `IsClosed` check before `Enter` and before any call after `Exit`. It does not say that wazero rejects a call into a closed module.
+- The agent does not propose an `IsClosed` guard on a free inside the in-flight bracket. It states that the free's normal return releases the memory after a cancel followed by a trap.

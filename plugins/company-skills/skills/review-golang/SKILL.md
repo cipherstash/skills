@@ -15,7 +15,7 @@ Review `.go` changes and Go module, build, and test configuration that affects t
 
 ## Review
 
-1. **Establish the environment.** Read `go.mod`, relevant build tags, CI checks, and local guidance. Record the Go language version before applying version-sensitive rules, especially loop-variable capture. Identify affected packages and exported contracts.
+1. **Establish the environment.** Read `go.mod`, relevant build tags, CI checks, and local guidance. Record the Go language version before applying version-sensitive rules, especially loop-variable capture. Identify affected packages and exported contracts. Apply the available `golang-wazero` convention skill when the change imports `github.com/tetratelabs/wazero`. Record which convention skills apply. Report a missing convention skill as a limitation. Do not invent its rules.
 2. **Trace ownership and termination.** For changed goroutines, channels, and synchronization, identify who starts, cancels, waits, sends, and closes. Trace error and early-return paths as well as success. Check shared-memory access, copied synchronization values, wait-group ordering, bounded work, and sends or receives that remain blocked after a peer exits. A background task may intentionally outlive a request; judge its actual lifecycle contract.
 3. **Trace failures and resources.** Follow context deadlines through blocking calls, close resources on every exit, and verify errors reach the caller that must act. Check wrapping and matching together: changing error identity matters when callers depend on it. Examine typed-nil interface values and zero values at the boundaries changed by the diff.
 4. **Check compatibility.** Trace changed interfaces, generic constraints, receivers, and exports into consumers. Confirm named types, pointer/value method sets, wire formats, and build variants still meet the documented API. Check module replacements and dependency placement against how consumers build. Treat alternative interface layouts or configuration styles as preferences unless a concrete contract or repository rule is violated.
@@ -38,7 +38,7 @@ Use them under these rules:
 
 - Use the skill for its references. Its `SKILL.md` is a workflow for writing Go; its steps, MUST lists, and output templates are not review criteria.
 - A reference shows preferred practice. A departure from it is a finding only with the trigger and consequence, or the cited rule, that **Return** requires.
-- The steps in **Review** win where a reference disagrees. `references/testing.md` copies the loop variable (`tt := tt`) for parallel subtests; that is needed only before Go 1.22, so apply step 1's version check.
+- `golang-wazero` and the steps in **Review** win where a reference disagrees. `references/testing.md` copies the loop variable (`tt := tt`) for parallel subtests; that is needed only before Go 1.22, so apply step 1's version check.
 - Record the references read alongside the checks run. If the skill is not installed, record that as a coverage limit and continue from this skill alone.
 
 ## Return

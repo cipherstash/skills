@@ -66,6 +66,7 @@ References are `owner/repo#number`. Pull requests and issues share one number sp
 
 - spotify/confidence-resolver#455 (issue, closed). Interleaved large state updates and small log allocations fragment the guest's allocator, so pages are added and never returned. Two related fixes are merged. #469 flushes logs before a state update. #502 skips the update when the state is unchanged.
 - spotify/confidence-resolver#665 (issue, closed). In-place updates hold about 2.3 times the memory a state needs (85 MB, 140 MB, 195 MB for a 29 MB state). The issue proposes a fresh instance for each later state, with the old one closed. #666 makes that change and is open. #678 is merged. Its change keeps one copy of the state while the next loads.
+- spotify/confidence-resolver#665 and #666 also measure the fresh-instance change. Load time stayed at 170 to 200 ms per load. After the old instance was closed and collected, the live Go heap fell from 243 MB to 117 MB.
 - EasyTier/EasyTier#2782 (PR, merged). Guest memory moved off the Go heap with a reserved mapping that commits pages as the guest grows, plus one shared in-memory compilation cache. At 400 connections, resident memory fell from about 526 MB to about 265 MB.
 - grafana/gcx#1484 (PR, merged). The same off-heap approach on Linux. Peak fell from 3,902 MiB to 2,122 MiB. The PR also makes `Close` cancel the runs and wait for them. It gives each run its own allocator and frees it itself, because of the bug in section 9. It falls back to a heap buffer when the reservation is refused.
 - warpstreamlabs/bento#1087 (issue, open). A `sync.Pool` of module runners is cleared on every garbage collection. Nothing closes the runners. The patch is a bounded pool that closes what it drops. A maintainer comment lists other causes: one runtime per module, and no close on collection.
@@ -82,7 +83,7 @@ References are `owner/repo#number`. Pull requests and issues share one number sp
 
 ## 10. Call into a closed module after its memory is freed
 
-- wazero v1.12.0, `internal/engine/wazevo/call_engine.go`. `callEngine.Call` (lines 181 to 191) goes straight to `callWithStack`. `callWithStack` (lines 241 to 260) checks only whether the context is done.
+- wazero v1.12.0, `internal/engine/wazevo/call_engine.go`. `callEngine.Call` (lines 181 to 191) goes straight to `callWithStack`. `callWithStack` (lines 254 to 264) checks whether the context is done. It makes that check only when `WithCloseOnContextDone(true)` is set.
 - A test in the CipherStash Go SDK's module, run on 2026-11-19, confirmed the crash and the safe order. See `closed-module-order.md`.
 
 ## 11. Moving away from wazero
@@ -99,6 +100,6 @@ These statements come from the v1.12.0 documentation in `api/wasm.go` and `confi
 - `WithRandSource` defaults to a deterministic source. The wall clock, the monotonic clock, and sleep default to fakes.
 - `LinearMemory.Reallocate` may return nil on failure. `Free` releases the backing buffer.
 
-## References checked and not cited
+## Reference check
 
 All references given for this skill were confirmed to exist. None was dropped.

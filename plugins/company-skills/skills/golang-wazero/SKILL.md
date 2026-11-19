@@ -1,6 +1,6 @@
 ---
 name: golang-wazero
-description: Applies lessons from real bugs in Go programs that embed the wazero WebAssembly runtime, to review or write that code. Covers panics in host functions, concurrent calls and close during a call, context cancellation closing the module, slices from Memory().Read, guest free calls with the wrong arguments, deterministic random and clock defaults, memory that never shrinks, CompiledModule reuse across runtimes, and memory that is not released after a cancel followed by a trap, and calls into a closed module after its memory is freed. Use when reviewing or writing Go code that imports github.com/tetratelabs/wazero, such as wazero.NewRuntime, InstantiateModule, api.Function.Call, host function builders, WithCloseOnContextDone, or experimental.MemoryAllocator. Does not apply to other WebAssembly runtimes (wasmtime, Wasmer, Extism's non-Go hosts), to the guest side written in Rust or C, or to Go code that does not use wazero.
+description: Applies lessons from real bugs in Go programs that embed the wazero WebAssembly runtime, to review or write that code. Covers panics in host functions, concurrent calls and close during a call, context cancellation closing the module, slices from Memory().Read, guest free calls with the wrong arguments, deterministic random and clock defaults, memory that never shrinks, CompiledModule reuse across runtimes, memory that is not released after a cancel followed by a trap, and calls into a closed module after its memory is freed. Use when reviewing or writing Go code that imports github.com/tetratelabs/wazero, such as wazero.NewRuntime, InstantiateModule, api.Function.Call, host function builders, WithCloseOnContextDone, or experimental.MemoryAllocator. Does not apply to other WebAssembly runtimes (wasmtime, Wasmer, Extism's non-Go hosts), to the guest side written in Rust or C, or to Go code that does not use wazero.
 user-invocable: false
 ---
 
@@ -39,7 +39,7 @@ A finding needs a trigger and a consequence, not only a pattern. Name the input 
 
 ## 1. A panic in a host function breaks the instance
 
-**What goes wrong.** wazero recovers a panic in a host function. It returns the panic as an error from `Call`, and the error text ends with `(recovered by wazero)`. The guest's frames are abandoned in the middle of execution. The guest normally restores its shadow stack pointer before it returns. After a panic, the pointer stays lowered.
+**What goes wrong.** wazero recovers a panic in a host function. It returns the panic as an error from `Call`, and the error text contains `(recovered by wazero)`. The guest's frames are abandoned in the middle of execution. The guest normally restores its shadow stack pointer before it returns. After a panic, the pointer stays lowered.
 
 Each such call uses up a fixed amount of the guest's stack.
 
@@ -117,7 +117,7 @@ Closing a runtime while `CompileModule` runs is also unsafe in wazero v1.12.0. T
 - Give guest calls their own deadline, separate from the caller's context. Do this when a client that disconnects must not cancel work that is already running.
 
 Also do these:
-- Guard cleanup that runs after a failed call. Check for a closed or nil module, and return early.
+- Guard cleanup that runs after a failed call has ended. Check for a closed or nil module, and return early. Section 10 gives one exception: a free inside a custom allocator's in-flight bracket must still run.
 - Keep the runtime open until compile and instantiate return. Let a `Close` mark the run as closed. Let the code that is compiling release the runtime afterwards, once.
 
 References: goccy/go-graphviz#118, forkcloser/go-graphviz#139, chennqqi/zxing#4, netsec-ethz/debuglet#175 and #219.
@@ -186,7 +186,7 @@ References: extism/go-sdk#87, traefik/traefik#14107, crowdsecurity/crowdsec#4496
 
 **What goes wrong.** Guest linear memory can grow. It cannot shrink, because the WebAssembly specification does not allow it. When large and small allocations mix, the guest's allocator fragments its heap. New large blocks then force new pages, and the old pages stay.
 
-wazero's default allocator keeps linear memory in a Go `[]byte`. It copies the whole buffer on every `memory.grow`. The Go heap can reach about twice the guest's size.
+wazero's default allocator keeps linear memory in a Go `[]byte`. A `memory.grow` past the buffer's capacity may reallocate the buffer and copy it. The Go heap can reach about twice the guest's size.
 
 A pool that drops modules without closing them leaks a whole runtime each time. One project used a `sync.Pool`. Go clears that pool on every garbage collection, and each cleared entry kept its memory and its compiled code.
 
@@ -199,7 +199,7 @@ A pool that drops modules without closing them leaks a whole runtime each time. 
 **Fix.**
 - Close every instance and runtime that you stop using. For a pool, use a bounded pool that closes what it does not keep. Or run `Close` from a cleanup that fires when an entry is collected.
 - Share one runtime and one `CompiledModule`, or one `CompilationCache`, between instances. Instantiate for each use.
-- Replace a long-lived instance with a fresh one when its state is replaced. One measurement showed a cost of about 9 per cent on a 4.3 ms update. Memory stayed at one copy of the state.
+- Replace a long-lived instance with a fresh one when its state is replaced. In one project, load time stayed at 170 to 200 ms per load. The live Go heap fell from 243 MB to 117 MB.
 - Flush guest-side buffers before a large update. Skip updates when the state has not changed.
 - Set a limit with `WithMemoryLimitPages`.
 - If the Go heap is the problem, supply an `experimental.MemoryAllocator`. It reserves address space once and commits pages as the guest grows, so growth does not copy. Two projects did this with `mmap`.
@@ -252,7 +252,9 @@ References: wazero/wazero#2558, wazero/wazero#2561 (open), samyfodil/wazy#81.
 
 ## 10. A call into a closed module after its memory is freed
 
-**What goes wrong.** wazero v1.12.0 does not check for a closed module when a call starts. `callEngine.Call` goes straight to `callWithStack` (`internal/engine/wazevo/call_engine.go`, lines 181 to 191). `callWithStack` checks only whether the call's context is done (lines 241 to 260). A call with a context that cannot end, such as `context.Background()`, runs the guest even when the module is closed.
+**What goes wrong.** wazero v1.12.0 does not check for a closed module when a call starts. `callEngine.Call` goes straight to `callWithStack` (`internal/engine/wazevo/call_engine.go`, lines 181 to 191).
+
+`callWithStack` checks the call's context only when `WithCloseOnContextDone(true)` is set (lines 254 to 264). With that option off, it makes no check at all. So a call runs the guest on a closed module when the option is off. It also does so when the call's context cannot end, such as `context.Background()`.
 
 This is harmless while the memory is a Go slice. It is fatal when a custom allocator has unmapped the memory. The guest then runs on an address range that no longer exists. Go reports `unexpected fault address` and `fatal error: fault [signal SIGSEGV]`, or `fatal error: runtime: split stack overflow`. `recover` cannot catch either, and the process stops.
 
@@ -260,18 +262,19 @@ The usual trigger is a cleanup call. A cancel closes the module during a call. T
 
 **How to spot it.**
 - A custom allocator that unmaps in `Free`, and code that calls a guest export after the call that staged its buffers has ended.
-- A deferred `free` of a host-staged buffer that runs after the allocator's in-flight bracket has ended. In the stack SDK, the bracket is `Enter` and `Exit`.
-- A call into an export that does not first check `Module.IsClosed`.
+- A deferred `free` of a host-staged buffer that runs after the allocator's in-flight bracket has ended. The bracket is a pair of calls around each guest call. It lets the allocator hold back a `Free` until the call ends. For example, the stack SDK names the pair `Enter` and `Exit`.
+- A new call into an export that does not first check `Module.IsClosed`. A free inside the bracket is the exception, as **Fix** explains.
 - A `Close` or cancel path that frees memory without waiting for calls in progress.
 
 **Fix.**
 - Free host-staged buffers inside the allocator's in-flight bracket, before `Exit`. With `defer`, register the free after the `Exit` defer, because Go runs defers in reverse order.
-- Check `IsClosed` before every call into the module.
+- Check `IsClosed` before `Enter`, and before any call after `Exit`.
+- Run a free inside the bracket even when `IsClosed` is true. After a cancel, the module reports closed while its memory is still mapped, so the free is safe. Its normal return is also one of the section 9 checks that releases the memory. Without the free, memory can stay unreleased after a cancel followed by a trap.
 - Never call an export on a module whose memory is freed. Guest buffers are gone with that memory, so skip the free.
-- Hold back a `Free` that arrives during a call, and run it at the matching `Exit`. The stack SDK's allocator does this.
+- Hold back a `Free` that arrives during a call, and run it at the matching `Exit`. For example, the stack SDK's allocator does this.
 - Pin the order. Add a comment on the defers, and a regression test that runs the wrong order in a child process and expects a fault.
 
-In the stack SDK, `guest.Call` runs `mem.Enter()`, then `defer mem.Exit()`, then registers the deferred free of staged buffers. The buffers are freed before `Exit`. The SDK is safe today only because of this defer order. Nothing in the code enforces it, so a comment or a test should pin it.
+**Example: the stack SDK.** `guest.Call` runs `mem.Enter()`, then `defer mem.Exit()`, then registers the deferred free of staged buffers. Go runs defers in reverse order, so the buffers are freed before `Exit`.
 
 A real test confirmed both orders. A cancel closed the module during a call.
 
@@ -279,7 +282,9 @@ With the free after `Exit`, the child process died on every run. Most runs gave 
 
 With the free before `Exit`, the child never crashed. The module was closed. `Allocator.IsFreed()` was true after `Client.Close`. [references/closed-module-order.md](references/closed-module-order.md) has the details.
 
-References: wazero v1.12.0 `internal/engine/wazevo/call_engine.go` lines 181 to 191 and 241 to 260.
+A second test made the guest abort after a cancel. Without the free of the staged buffer, some runs left the memory unreleased. With the free inside the bracket, no run did. [references/release-on-cancel.md](references/release-on-cancel.md) has the details.
+
+References: wazero v1.12.0 `internal/engine/wazevo/call_engine.go` lines 181 to 191 and 254 to 264.
 
 ## 11. When wazero is the wrong tool
 
@@ -297,4 +302,4 @@ Those choices raise the questions in sections 2, 3, 4, 7, 9, and 10. Use it as a
 
 ## Limits
 
-This skill covers how the host uses wazero. It does not review the guest's source. For a general review of a Go change, use `review-code`. `review-code` passes Go concerns to `review-golang`. That skill can apply the cases here to a Go change that uses wazero.
+This skill covers how the host uses wazero. It does not review the guest's source. For a general review of a Go change, use `review-code`. `review-code` passes Go concerns to `review-golang`. That skill applies the cases here to a Go change that imports wazero.

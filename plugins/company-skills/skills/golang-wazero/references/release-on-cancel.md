@@ -27,6 +27,10 @@ On v1.12.0, with the compiler engine, both calls end with the module reported cl
 
 A real guest that returns normally does not show the bug, because a normal return reaches the closed-module check. Only a trap, `proc_exit`, or a stack overflow between the cancel and the next check shows it. Test with a synthetic trapping guest on your own allocator, as well as with your real guest.
 
+A later call on the closed module that returns normally also performs the release. Tests against the CipherStash Go SDK showed this. The guest aborted after a cancel. Without a free of the staged buffer, some runs left the memory unreleased. With that free inside the allocator's in-flight bracket, no run did.
+
+So an `IsClosed` guard on that free can bring the leak back. Section 10 of `SKILL.md` gives the rule.
+
 ## Why the interpreter is not affected
 
 The interpreter engine runs the closed-module check in its deferred function before it recovers from the panic. The compiler engine runs it only on the path where the call did not panic.

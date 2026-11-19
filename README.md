@@ -158,6 +158,7 @@ Each skill is authored once under `plugins/company-skills/skills/`. The portable
 | `rust-sdk-dx` | Conventions for public Rust APIs in libraries and SDKs | Automatic while writing Rust library code |
 | `rust-security` | Rules for Rust code that handles secrets, cryptography, and authentication | Automatic while writing Rust that touches secrets |
 | `rust-testing` | Conventions for Rust tests: nextest, scenario modules, fake data, mocktail, paused time | Automatic while writing Rust tests |
+| `golang-wazero` | Lessons from real bugs in Go programs that embed the wazero WebAssembly runtime, for review and writing | Automatic while reviewing or writing Go code that uses wazero |
 | `filing-github-issues` | Draft and file well-structured GitHub issues on CipherStash repos | Explicit or automatic |
 | `authoring-pull-requests` | Branch, commit, and open draft pull requests with a consistent structure | Explicit or automatic |
 | `plain-language` | Write, rewrite, and review prose in plain language (ISO 24495 and GOV.UK), with a bundled checker | Explicit or automatic |
@@ -174,7 +175,7 @@ The six specialist capabilities are independently authored adaptations informed 
 
 The four language specialists also read language practice references from Jeffallan's `golang-pro`, `python-pro`, `rust-engineer` and `typescript-pro` skills, which the `company` marketplace bundles as pinned plugins. Each specialist names the reference to read for each changed area and keeps its own review rules where a reference disagrees. Without the bundled skill installed, a specialist reviews from its own instructions and reports the missing references as a coverage limit.
 
-Rust convention skills (`rust-*`) carry coding rules rather than a workflow. Claude Code applies them automatically and hides them from the `/` menu; Codex selects them implicitly.
+Convention skills (`rust-*` and `golang-wazero`) carry coding rules rather than a workflow. Claude Code applies them automatically and hides them from the `/` menu; Codex selects them implicitly.
 
 `review-audit` and `review-cross-check` require Python 3, Git, and `gh` authenticated for the target repository; `review-post` requires `gh` and `python3` or `jq`. These are local CLI dependencies; the plugin does not bundle an MCP server.
 

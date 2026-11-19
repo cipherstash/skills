@@ -2,6 +2,8 @@
 
 Date: 2026-10-09. Baseline: `origin/main` at `4d9e829`.
 
+_Historical: this records the repository as of that date. The skills it names have since been renamed to `review-*`, so its commands no longer run as written._
+
 ## Verdict
 
 The checked-in package structure is configured correctly for Codex. No manifest relocation, duplicated skills, or release version change is needed. This audit supersedes the scaffold-only assessment from 2026-09-22.

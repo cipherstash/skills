@@ -142,7 +142,7 @@ Each skill is authored once under `plugins/company-skills/skills/`. The portable
 | Skill | Purpose | Invocation |
 | --- | --- | --- |
 | `review-audit` | Audit existing PR feedback against the PR head | Explicit or automatic |
-| `review-cross-check` | Verify new findings and report which are new against existing PR feedback | Explicit or automatic |
+| `review-cross-check` | Verify new findings and report which are new against existing PR feedback; reports only, so run `review-post` to publish them | Explicit or automatic |
 | `review-post` | Post review findings to a PR with source-tagged inline comments and a review attestation | Explicit or automatic |
 | `review-fix` | Verify findings and fix confirmed defects | Explicit or automatic |
 | `run-report` | Log every problem an unattended run hits and publish a run report as a Claude artifact | Explicit or automatic |
@@ -174,9 +174,15 @@ The Vanta skills also need the Linear connector, read-only Vanta API credentials
 /company-skills:review-post
 ```
 
-### Removed aliases
+## Renamed skills
 
-0.10.0 removes the explicit-only aliases left by the 0.8.0 rename of the code review skills. Invoke the new names instead: `review-fix` for `address-code-review`, `review-audit` for `audit-pr-feedback`, and `review-cross-check` for `cross-check-review-findings`. `review-cross-check` ends at a report; `review-post` publishes the findings.
+The code review skills were renamed in 0.8.0 and their deprecated aliases were removed in 0.10.0. This table is kept permanently so an old name always points to its replacement.
+
+| Old name | New name | Notes |
+| --- | --- | --- |
+| `address-code-review` | `review-fix` | |
+| `audit-pr-feedback` | `review-audit` | |
+| `cross-check-review-findings` | `review-cross-check` | Ends at a report; run `review-post` to publish the findings |
 
 ## Contribute
 

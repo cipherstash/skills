@@ -15,7 +15,7 @@ claude plugin marketplace add cipherstash/skills
 claude plugin install company-skills@company
 ```
 
-Installing company-skills also installs and enables the Trail of Bits `differential-review` and `insecure-defaults` plugins as dependencies (see [Bundled Trail of Bits plugins](#bundled-trail-of-bits-plugins)).
+Installing company-skills also installs and enables six plugins as dependencies: the Trail of Bits `differential-review` and `insecure-defaults` plugins (see [Bundled Trail of Bits plugins](#bundled-trail-of-bits-plugins)), and the `golang-pro`, `python-pro`, `rust-engineer` and `typescript-pro` language skills (see [Bundled language practice skills](#bundled-language-practice-skills)).
 
 Inside a session, `/plugin marketplace add cipherstash/skills` and `/plugin install company-skills@company` do the same. Start a new session, then invoke a skill by its namespaced name, for example `/company-skills:review-fix`.
 
@@ -24,6 +24,17 @@ To update to the latest published skills, refresh the marketplace, update the pl
 ```sh
 claude plugin marketplace update company
 claude plugin update company-skills@company
+```
+
+Updating company-skills does not update its dependencies. When a release moves the pinned commit of a bundled plugin, update that plugin by name as well:
+
+```sh
+claude plugin update differential-review@company
+claude plugin update insecure-defaults@company
+claude plugin update golang-pro@company
+claude plugin update python-pro@company
+claude plugin update rust-engineer@company
+claude plugin update typescript-pro@company
 ```
 
 ### Codex
@@ -67,6 +78,32 @@ Nothing auto-updates them: a plugin with a pinned `sha` stays on that commit thr
 1. Reviews the upstream changes to `plugins/differential-review` and `plugins/insecure-defaults` since the current SHA.
 2. Changes `sha` for both entries in `.claude-plugin/marketplace.json` and `.agents/plugins/marketplace.json` to the same new full 40-character commit SHA. The validator fails when the two catalogs differ or a SHA is not a full commit.
 3. Bumps the plugin version in all three manifests, as described in [Releases](CONTRIBUTING.md#releases).
+
+## Bundled language practice skills
+
+The `company` marketplace also lists four language skills from [Jeffallan's claude-skills repository](https://github.com/Jeffallan/claude-skills), each as its own plugin:
+
+| Plugin | Provides |
+| --- | --- |
+| `golang-pro` | The `golang-pro` skill, with references on concurrency, interfaces, generics, testing, and project structure |
+| `python-pro` | The `python-pro` skill, with references on async patterns, packaging, the standard library, testing, and the type system |
+| `rust-engineer` | The `rust-engineer` skill, with references on async, error handling, ownership, testing, and traits |
+| `typescript-pro` | The `typescript-pro` skill, with references on advanced types, configuration, patterns, type guards, and utility types |
+
+They are reference material on language practice. Upstream wrote them for writing code, not reviewing it, so their descriptions also match requests to write Go, Python, Rust, or TypeScript.
+
+Upstream publishes all 67 of its skills as one plugin. Each entry here installs one skill instead: a `git-subdir` source pointing at that skill's directory, `skills/<name>`, with `"strict": false` and `"skills": ["./"]` so the directory loads as a plugin holding a single skill. All four are pinned to the commit of the upstream v0.4.20 release. No upstream files are copied into this repository. They are published by Jeffallan under the MIT licence.
+
+- **Claude Code:** company-skills declares all four as dependencies, so `claude plugin install company-skills@company` installs and enables them. Invoke one by its namespaced name, for example `/golang-pro:golang-pro`. Checked with Claude Code 2.1.328.
+- **Codex:** the Codex catalog does not list them, and they have not been tested there.
+
+Nothing auto-updates them. To move the pin, open a pull request that:
+
+1. Reviews the upstream changes to the four skill directories since the current SHA.
+2. Changes `sha` for all four entries in `.claude-plugin/marketplace.json` to the same new full 40-character commit SHA.
+3. Bumps the plugin version in all three manifests, as described in [Releases](CONTRIBUTING.md#releases).
+
+Installed users receive the new commit only when they update each of the four plugins by name, as shown under [Claude Code](#claude-code).
 
 ## Develop locally
 

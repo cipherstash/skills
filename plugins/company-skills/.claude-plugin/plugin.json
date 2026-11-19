@@ -1,6 +1,6 @@
 {
   "name": "company-skills",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "description": "Shared company agent skills for Codex and Claude Code.",
   "author": {
     "name": "Company Skills contributors"
@@ -13,6 +13,10 @@
   ],
   "dependencies": [
     "differential-review",
-    "insecure-defaults"
+    "insecure-defaults",
+    "golang-pro",
+    "python-pro",
+    "rust-engineer",
+    "typescript-pro"
   ]
 }

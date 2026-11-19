@@ -25,7 +25,7 @@ Review Rust code and Cargo, feature, target, or test configuration affecting it.
 
 ## Language practice references
 
-The `rust-engineer` skill, bundled with company-skills as its own plugin, carries Rust practice references. Where it is installed, read the reference for each area the diff touches before judging that area. Resolve the files from that skill's directory.
+The `rust-engineer` skill, bundled with company-skills as its own plugin, carries Rust practice references. Where it is installed, invoke it by name and read the reference for each area the diff touches before judging that area. Invoking it loads the skill and gives its directory, which the `references/` paths below resolve from.
 
 | Changed area | Reference |
 | --- | --- |
@@ -37,7 +37,7 @@ The `rust-engineer` skill, bundled with company-skills as its own plugin, carrie
 
 Use them under these rules:
 
-- Read the references only. That skill's own `SKILL.md` is a workflow for writing Rust; its steps, MUST lists, and output templates are not review criteria.
+- Use the skill for its references. Its `SKILL.md` is a workflow for writing Rust; its steps, MUST lists, and output templates are not review criteria.
 - A reference shows preferred practice. A departure from it is a finding only with the trigger and consequence, or the cited rule, that **Return** requires.
 - The company convention skills named in step 1 and the steps in **Review** win where a reference disagrees. `references/error-handling.md` and `references/testing.md` prefer particular crates and test styles; steps 3 and 6 hold, so an `unwrap` behind a proven invariant or an absent fuzz test is not a defect by itself.
 - Record the references read alongside the checks run. If the skill is not installed, record that as a coverage limit and continue from this skill alone.

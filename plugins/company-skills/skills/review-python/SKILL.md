@@ -25,7 +25,7 @@ Review Python changes and packaging, typing, or test configuration affecting the
 
 ## Language practice references
 
-The `python-pro` skill, bundled with company-skills as its own plugin, carries Python practice references. Where it is installed, read the reference for each area the diff touches before judging that area. Resolve the files from that skill's directory.
+The `python-pro` skill, bundled with company-skills as its own plugin, carries Python practice references. Where it is installed, invoke it by name and read the reference for each area the diff touches before judging that area. Invoking it loads the skill and gives its directory, which the `references/` paths below resolve from.
 
 | Changed area | Reference |
 | --- | --- |
@@ -37,7 +37,7 @@ The `python-pro` skill, bundled with company-skills as its own plugin, carries P
 
 Use them under these rules:
 
-- Read the references only. That skill's own `SKILL.md` is a workflow for writing Python; its steps, MUST lists, and output templates are not review criteria.
+- Use the skill for its references. Its `SKILL.md` is a workflow for writing Python; its steps, MUST lists, and output templates are not review criteria.
 - A reference shows preferred practice. A departure from it is a finding only with the trigger and consequence, or the cited rule, that **Return** requires.
 - The steps in **Review** win where a reference disagrees. `references/standard-library.md` prefers `pathlib` and dataclasses, and `references/testing.md` sets coverage targets and property-based tests; step 5 holds, so `os.path` or a manual constructor is not a defect by itself, and step 6 sends an absent scenario to `review-test-gaps` rather than reporting a missing test style.
 - Record the references read alongside the checks run. If the skill is not installed, record that as a coverage limit and continue from this skill alone.

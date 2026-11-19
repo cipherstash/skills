@@ -24,7 +24,7 @@ Review `.go` changes and Go module, build, and test configuration that affects t
 
 ## Language practice references
 
-The `golang-pro` skill, bundled with company-skills as its own plugin, carries Go practice references. Where it is installed, read the reference for each area the diff touches before judging that area. Resolve the files from that skill's directory.
+The `golang-pro` skill, bundled with company-skills as its own plugin, carries Go practice references. Where it is installed, invoke it by name and read the reference for each area the diff touches before judging that area. Invoking it loads the skill and gives its directory, which the `references/` paths below resolve from.
 
 | Changed area | Reference |
 | --- | --- |
@@ -36,7 +36,7 @@ The `golang-pro` skill, bundled with company-skills as its own plugin, carries G
 
 Use them under these rules:
 
-- Read the references only. That skill's own `SKILL.md` is a workflow for writing Go; its steps, MUST lists, and output templates are not review criteria.
+- Use the skill for its references. Its `SKILL.md` is a workflow for writing Go; its steps, MUST lists, and output templates are not review criteria.
 - A reference shows preferred practice. A departure from it is a finding only with the trigger and consequence, or the cited rule, that **Return** requires.
 - The steps in **Review** win where a reference disagrees. `references/testing.md` copies the loop variable (`tt := tt`) for parallel subtests; that is needed only before Go 1.22, so apply step 1's version check.
 - Record the references read alongside the checks run. If the skill is not installed, record that as a coverage limit and continue from this skill alone.

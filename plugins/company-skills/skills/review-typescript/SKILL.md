@@ -24,7 +24,7 @@ Review TypeScript and JavaScript source, including TSX/JSX, declarations, and co
 
 ## Language practice references
 
-The `typescript-pro` skill, bundled with company-skills as its own plugin, carries TypeScript practice references. Where it is installed, read the reference for each area the diff touches before judging that area. Resolve the files from that skill's directory.
+The `typescript-pro` skill, bundled with company-skills as its own plugin, carries TypeScript practice references. Where it is installed, invoke it by name and read the reference for each area the diff touches before judging that area. Invoking it loads the skill and gives its directory, which the `references/` paths below resolve from.
 
 | Changed area | Reference |
 | --- | --- |
@@ -36,7 +36,7 @@ The `typescript-pro` skill, bundled with company-skills as its own plugin, carri
 
 Use them under these rules:
 
-- Read the references only. That skill's own `SKILL.md` is a workflow for writing TypeScript; its steps, MUST lists, and output templates are not review criteria.
+- Use the skill for its references. Its `SKILL.md` is a workflow for writing TypeScript; its steps, MUST lists, and output templates are not review criteria.
 - A reference shows preferred practice. A departure from it is a finding only with the trigger and consequence, or the cited rule, that **Return** requires.
 - The steps in **Review** win where a reference disagrees. `references/patterns.md` and `references/type-guards.md` prefer particular designs, such as branded types and state machines; steps 2 to 4 hold, so an enum, a type assertion, or a different state model is not a finding without the broken guarantee.
 - Record the references read alongside the checks run. If the skill is not installed, record that as a coverage limit and continue from this skill alone.

@@ -21,5 +21,5 @@
 - Check feature constraints before choosing test commands; do not run mutually exclusive features together merely because a generic checklist says all-features.
 - Route missing test scenarios to review-test-gaps; report an existing panic test that accepts the wrong failure as an assertion defect with evidence.
 - Do not turn unavailable Clippy, a missing cross target, or baseline failures into introduced defects. Return check limitations and accurate source/snapshot provenance.
-- With the bundled `rust-engineer` skill installed, read `references/async.md` before judging a changed task shutdown path, and list it among the references read. Do not follow that skill's authoring workflow, and do not report a departure from its examples without a trigger and consequence.
+- With the bundled `rust-engineer` skill installed, invoke it by name and read `references/async.md` before judging a changed task shutdown path, and list it among the references read. Do not follow that skill's authoring workflow, and do not report a departure from its examples without a trigger and consequence.
 - Without the `rust-engineer` skill installed, review from this skill alone and report the missing references as a coverage limit.

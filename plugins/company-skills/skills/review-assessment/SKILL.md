@@ -40,7 +40,7 @@ It prints JSON:
 
 Read the diff for each `unmatched` path and for content a path does not reveal: a YAML workflow that runs Python, a generator whose output another language consumes, a shell script in CI, a lockfile whose consumers changed, or tests that changed without the code they protect. Add a row for each skill those signals need, with its reason, and mark it `judgement`. Read review-code's routing table for which skill covers which signal.
 
-You may add rows. You may not drop or downgrade a row the script printed, even when it looks unnecessary — say why in the plan instead. If the user explicitly narrows the review, keep the row and mark it excluded by the user so the exclusion is reported. Documentation-only and other unmatched paths with no executable effect need no specialist: list them as needing an accuracy pass by the coordinator. For a language with no specialist, say that no specialist exists.
+You may add rows. You may not drop or downgrade a row the script printed, even when it looks unnecessary — say why in the plan instead. If the user explicitly narrows the review, keep the row and mark it excluded by the user so the exclusion is reported. Documentation-only and other unmatched paths with no executable effect need no specialist: list them as having no specialist. For a language with no specialist, say that no specialist exists.
 
 ## 4. Return the plan
 

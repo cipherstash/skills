@@ -64,7 +64,7 @@ Use the cases for forward testing; they are evaluation inputs, not exact-output 
 
 ## Codex compatibility
 
-Keep the shared workflow usable with the host's available tools. If a workflow delegates, describe a sequential fallback for hosts without subagents. Resolve bundled scripts and references from the installed skill directory, since the working directory is usually the user's project.
+Keep the shared workflow usable with the host's available tools. If a workflow delegates, describe a sequential fallback for hosts without subagents (`review-code` is the exception: it stops instead). Resolve bundled scripts and references from the installed skill directory, since the working directory is usually the user's project.
 
 Skills activate automatically by default: write a description precise enough to trigger implicitly rather than making a skill explicit-only. Explicit-only is reserved for deprecated aliases (see [Renaming a skill](#renaming-a-skill)), which would otherwise compete with the skill they point to. For those, set `policy.allow_implicit_invocation: false` in the skill's `agents/openai.yaml`, and keep Claude Code's `disable-model-invocation: true` in `SKILL.md` as well; it is not the Codex policy setting. Other skills may omit `agents/openai.yaml`. See [Codex optional metadata](https://learn.chatgpt.com/docs/build-skills#optional-metadata).
 

@@ -15,14 +15,16 @@
 
 ## Expected behavior
 
-- review-assessment runs first and every skill in its plan runs; judgement may add a skill with a reason but never drops a planned one.
-- A mixed Rust/Terraform diff selects review-rust, rust-security, review-infracode, and review-test-gaps; no Go/Python/TypeScript reviewer is launched without a relevant consumer. The coordinator checks requirements and interactions.
+- review-assessment runs first in its own agent, and every skill in its plan runs, each in its own agent; judgement may add a skill with a reason but never drops a planned one.
+- The orchestrator runs no review and adds no finding of its own. If it ran the assessment or a review itself, the run is reported as `Review failed` with the step named, and no findings are presented or handed on.
+- A Rust change to a public library API with its tests adds rust-sdk-dx and rust-testing by judgement, each in its own agent; review-rust does not apply them itself.
+- A mixed Rust/Terraform diff selects review-rust, rust-security, review-infracode, and review-test-gaps; no Go/Python/TypeScript reviewer is launched without a relevant consumer.
 - A TypeScript input-validation change with a happy-path-only test returns a supported defect or gap with the concrete trigger, expected assertion, actual code/test evidence, and preserved attribution.
-- A documentation-only diff receives accuracy/requirements review without all six specialists. An unsupported language gets general review with a disclosed specialist limit.
+- A documentation-only diff launches no specialist and is reported as not reviewed, as is an unsupported language.
 - PR scope uses its canonical repository and recorded head, including forks and Enterprise hosts. Dirty user work is preserved. A moved PR head is reported or re-verified, never silently adopted.
 - Explicit two-endpoint ranges are not silently changed to merge-base comparisons. Staged-only requests omit unstaged edits. All-working-change requests include relevant untracked files and identify the actual dirty snapshot, not HEAD alone.
 - Missing target/base prompts clarification; invalid refs or unreadable diffs stop review. An empty verified diff is reported as empty rather than generating findings. Missing specs or optional linked issues are disclosed without inventing requirements.
-- Delegates receive actual assignments, tree/snapshot paths, and the complete findings contract. A host with no subagents executes sequentially and reports that mode.
+- Delegates receive actual assignments, tree/snapshot paths, and the complete findings contract. A host with no subagents stops and reports that the review cannot run there.
 - Duplicate root causes retain all producing sources; distinct defects on the same line survive. Failed delegates get one bounded retry and remain visible as incomplete coverage. All failed assignments cannot produce a clean review.
 - A later open stacked PR fixing a defect does not erase the current-head risk. Existing reviewer dismissal is context, not automatic suppression.
 - For a PR with findings, cross-check receives complete evidence and provenance unless raw review alone was requested. Only New and Adds to existing are passed onward, with reply URLs and verified head retained.

@@ -101,7 +101,7 @@ Each skill is authored once under `plugins/company-skills/skills/`. The portable
 | `filing-github-issues` | Draft and file well-structured GitHub issues on CipherStash repos | Explicit or automatic |
 | `authoring-pull-requests` | Branch, commit, and open draft pull requests with a consistent structure | Explicit or automatic |
 
-Start a fresh review with `review-code`. It pins the diff or working snapshot, runs `review-assessment` to plan the applicable lower-level review skills from the changed file paths (judgement may add skills but never drop a planned one), delegates them through the host's agents, and combines supported findings with their evidence and sources. Hosts without subagents use the same skills sequentially. No separate agent setup, model matrix, or external review runner is needed.
+Start a fresh review with `review-code`. It pins the diff or working snapshot, delegates `review-assessment` to an agent to plan the applicable lower-level review skills from the changed file paths (judgement may add skills but never drop a planned one), delegates each to its own agent, and combines supported findings with their evidence and sources. The orchestrating session never reviews; a host without subagents cannot run it. No separate agent setup, model matrix, or external review runner is needed.
 
 In Claude Code, use `/company-skills:review-code <PR URL or comparison>`. In Codex, select the installed `company-skills` `review-code` skill from `/skills` or the `$` picker and provide the target.
 

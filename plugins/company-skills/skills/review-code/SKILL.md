@@ -6,7 +6,9 @@ argument-hint: "<PR URL, branch, base ref, or working diff> [focus]"
 
 # review-code
 
-Use this as the single entry point for a fresh review. Select specialists from the change's behavior and files, then return one evidence-backed review. Use the host's existing agents and tools; no agent installation or external review runner is required.
+Use this as the single entry point for a fresh review. You are the orchestrator: fix the scope, dispatch agents, then verify and combine what they return into one evidence-backed review.
+
+Every review runs in a delegated agent: one agent runs `review-assessment`, then one agent per review skill in its plan. Never run `review-assessment` or a review skill yourself, and never add a finding of your own. If you did, the run has failed: step 5 reports the failure instead of a review.
 
 ## 1. Fix the review scope
 
@@ -22,7 +24,7 @@ Completion: target, comparison, tree or snapshot, requirements available, and ch
 
 ## 2. Route the review
 
-Read [references/findings.md](references/findings.md) for the shared evidence and output contract. Run the installed `review-assessment` skill first on the recorded changed-file inventory, and run every skill its plan lists; if it stops on an unreadable file list, stop the review too. Use the table below to explain and extend that plan: add any row whose signal the plan missed, with its reason, but never drop a planned skill. Several rows may apply to one file. Locate each skill in the installed `company-skills` package and read its `SKILL.md`. Resolve its resources relative to that skill's directory. If a selected skill is unavailable, report that gap rather than claiming it ran.
+Read [references/findings.md](references/findings.md) for the shared evidence and output contract. Dispatch one agent to run `review-assessment` on the recorded comparison and changed-file inventory, passing any focus the user gave. It returns the plan; run every skill the plan lists. If it stops on an unreadable file list, stop the review too. Use the table below to explain and extend that plan: add any row whose signal the plan missed, with its reason, but never drop a planned skill. Several rows may apply to one file. If a planned skill is unavailable, report that gap rather than claiming it ran.
 
 | Change signal | Delegate skill | Assignment |
 | --- | --- | --- |
@@ -30,23 +32,25 @@ Read [references/findings.md](references/findings.md) for the shared evidence an
 | Resource lifecycle, IAM, deployment, CI permissions, task definitions, or observability configuration | `review-infracode` | Operational behavior and infrastructure risk |
 | Go code or Go module/toolchain changes | `review-golang` | Go semantics, concurrency, API and error behavior |
 | TypeScript/JavaScript code, declarations, or related compiler/runtime changes | `review-typescript` | Runtime boundaries, types, async behavior and compatibility |
-| Rust code, Cargo features/dependencies, or toolchain changes | `review-rust` | Ownership, safety, async, public API and security conventions |
+| Rust code, Cargo features/dependencies, or toolchain changes | `review-rust` | Ownership, safety, async and public API conventions |
 | Any Rust change | `rust-security` | Secret handling, cryptography, and authentication rules, applied as a review lens |
+| Public Rust library or SDK API changes | `rust-sdk-dx` | Public API conventions, applied as a review lens |
+| Rust test changes | `rust-testing` | Rust test conventions, applied as a review lens |
 | Python code, dependencies, or interpreter/type configuration | `review-python` | Runtime behavior, typing, async and resource lifetime |
 
-Route on content and affected consumers as well as extensions: a YAML workflow running Python may need both Python and infrastructure review; a generator change may affect another language. Generated files and lockfiles require tracing their source or consumers, not blanket exclusion. Pure prose or comment edits need a requirements/accuracy pass, not all language reviewers. For unsupported languages, perform a general correctness pass and disclose that no language specialist was available.
+Route on content and affected consumers as well as extensions: a YAML workflow running Python may need both Python and infrastructure review; a generator change may affect another language. Generated files and lockfiles require tracing their source or consumers, not blanket exclusion. Pure prose or comment edits and unsupported languages have no specialist: report them as not reviewed.
 
-Keep the general review in the coordinator: compare the implementation with the stated requirement and repository rules, trace affected callers and contracts, and check cross-file interactions. Cite the rule for objective standards findings. If a specification is missing, state that limit rather than inventing requirements. Respect an explicitly narrower user focus and report excluded areas.
+Respect an explicitly narrower user focus and report excluded areas.
 
-Completion: each changed area has a general or specialist assignment, or an explicit exclusion with reason. State selected skills and why, marking each as from the assessment script or added by judgement.
+Completion: each changed area has a specialist assignment, or an explicit exclusion with reason. State selected skills and why, marking each as from the assessment script or added by judgement.
 
 ## 3. Delegate
 
-Dispatch independent specialist assignments using available subagents, in batches within host capacity. In Claude Code use general-purpose agents; on hosts without subagents, run the same skills sequentially and record that mode. Inherit the session's model unless the user requested otherwise; do not configure a model matrix or fabricate model identities.
+Dispatch one agent per planned skill, in batches within host capacity. In Claude Code use general-purpose agents. On a host without subagents, stop and report that the review cannot run there. Inherit the session's model unless the user requested otherwise; do not configure a model matrix or fabricate model identities.
 
 Give each delegate the actual assignment, not just a skill name:
 
-- Skill location and instructions to read it.
+- The skill to run.
 - Target URL when present, exact comparison SHAs or snapshot identity, tree path, and assigned files/behaviors.
 - Requirements and repository rules relevant to the assignment, with source locations.
 - The contents of the findings contract, including evidence, provenance, and completion fields.
@@ -54,11 +58,11 @@ Give each delegate the actual assignment, not just a skill name:
 
 Read-only inspection is the default. Run focused existing checks when useful and safe under the current permissions. Repository scripts and build hooks can execute code: inspect unfamiliar commands before running them, use scratch storage for outputs, and do not install dependencies, apply infrastructure, or alter credentials just to finish a review. Record exact commands and actual results. Missing tooling and failed setup are coverage limits, not code defects by themselves.
 
-Completion: every assignment returns findings or an explicit no-findings result, coverage, checks, limitations, and source. Retry a failed or incomplete assignment once if recoverable; otherwise mark it incomplete and continue with the available results. If all assignments fail, report an incomplete review, never a clean result.
+Completion: every assignment returns findings or an explicit no-findings result, coverage, checks, limitations, and source. Retry a failed or incomplete assignment once, with a new agent, if recoverable; otherwise mark it incomplete and continue with the available results. If all assignments fail, report an incomplete review, never a clean result.
 
 ## 4. Verify and combine
 
-Inspect the cited code and evidence for each candidate, including coordinator findings. Confirm that the change introduces or exposes the defect; do not turn unrelated pre-existing problems into findings. For test gaps, verify the claimed missing protection against the relevant tests and harness, and describe a plausible regression those tests would miss. Distinguish a demonstrated implementation bug from a missing regression test.
+Inspect the cited code and evidence for each candidate. Verifying confirms or refutes a delegate's candidate; it never adds one. Confirm that the change introduces or exposes the defect; do not turn unrelated pre-existing problems into findings. For test gaps, verify the claimed missing protection against the relevant tests and harness, and describe a plausible regression those tests would miss. Distinguish a demonstrated implementation bug from a missing regression test.
 
 Merge only findings with the same root cause and failure, retaining all sources and the highest supported severity. Keep distinct defects even at the same line. Separate substantiated findings from unresolved questions; a vote among agents is not evidence. Preserve all substantiated findings without an arbitrary comment cap.
 
@@ -70,7 +74,7 @@ Completion: each candidate is substantiated, merged, refuted with reason, or unr
 
 ## 5. Report and hand off
 
-Return the review-run metadata and findings defined in the contract, most severe first, plus unresolved questions and coverage limits. Use plain wording: what fails, under which condition, why it matters, and what to change. With no findings, retain the run's source and reviewed SHA; distinguish completed review from incomplete coverage.
+If the assessment or any review ran in the orchestrator rather than a delegated agent, report `Review failed`, name the step, and stop: present no findings and hand nothing on. Otherwise return the review-run metadata and findings defined in the contract, most severe first, plus unresolved questions and coverage limits. Use plain wording: what fails, under which condition, why it matters, and what to change. With no findings, retain the run's source and reviewed SHA; distinguish completed review from incomplete coverage.
 
 For a PR with findings, use `review-cross-check` next unless the user explicitly requested only the raw review. Pass the complete findings and provenance. Its New and Adds to existing sections are the postable set. With zero findings, preserve the no-findings review and its source for `review-post`; do not invoke cross-check with an empty input and provoke a request for findings.
 

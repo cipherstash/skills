@@ -23,3 +23,5 @@
 - Identify a changed type test whose `any` cast hides the exact contract under test; route absent type-test scenarios to review-test-gaps.
 - Report missing node_modules or unavailable local tools as limitations; do not use a downloading runner or claim checks passed.
 - Return not applicable for a non-TypeScript diff, and retain snapshot identity for uncommitted changes.
+- With the bundled `typescript-pro` skill installed, read `references/type-guards.md` before judging a changed type predicate, and list it among the references read. Do not follow that skill's authoring workflow, and do not report a departure from its examples without a trigger and consequence.
+- Without the `typescript-pro` skill installed, review from this skill alone and report the missing references as a coverage limit.

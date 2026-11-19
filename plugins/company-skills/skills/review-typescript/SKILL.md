@@ -22,6 +22,25 @@ Review TypeScript and JavaScript source, including TSX/JSX, declarations, and co
 5. **Inspect type-test validity.** Check whether assertions or `any` in a test bypass the type relation it claims to test, and whether negative type tests actually compile under the test command. Identify a test that can pass despite the demonstrated bad implementation. Send missing type/runtime scenarios to `review-test-gaps` with their contracts and relevant files.
 6. **Check evidence.** Use the project's installed type-check, lint, and focused test commands when safe and available. Avoid package runners that download missing tools. Inspect scripts before execution; do not change code, loosen compiler options, install dependencies, or auto-fix diagnostics. Separate baseline errors and setup limitations from regressions introduced by the diff.
 
+## Language practice references
+
+The `typescript-pro` skill, bundled with company-skills as its own plugin, carries TypeScript practice references. Where it is installed, read the reference for each area the diff touches before judging that area. Resolve the files from that skill's directory.
+
+| Changed area | Reference |
+| --- | --- |
+| Generic constraints, conditional, mapped, template literal and recursive types, variance | `references/advanced-types.md` |
+| `tsconfig` strictness, project references, module resolution, declaration files | `references/configuration.md` |
+| Builders, factories, repositories, API clients, state machines, result types | `references/patterns.md` |
+| Type predicates, discriminated unions, assertion functions, narrowing, branded types | `references/type-guards.md` |
+| Built-in and custom utility types | `references/utility-types.md` |
+
+Use them under these rules:
+
+- Read the references only. That skill's own `SKILL.md` is a workflow for writing TypeScript; its steps, MUST lists, and output templates are not review criteria.
+- A reference shows preferred practice. A departure from it is a finding only with the trigger and consequence, or the cited rule, that **Return** requires.
+- The steps in **Review** win where a reference disagrees. `references/patterns.md` and `references/type-guards.md` prefer particular designs, such as branded types and state machines; steps 2 to 4 hold, so an enum, a type assertion, or a different state model is not a finding without the broken guarantee.
+- Record the references read alongside the checks run. If the skill is not installed, record that as a coverage limit and continue from this skill alone.
+
 ## Return
 
 Use the supplied findings contract. Each finding needs a reviewed-tree location, changed cause, concrete trigger and impact (or a cited objective rule), evidence, severity `critical`/`major`/`minor`, feasible correction, and source skill/agent/model. Use `unknown` for unavailable provenance. Record the reviewed commit or snapshot, applicable configurations, checks actually run, failures, and skipped checks even when no findings survive. Stop when every assigned change is examined or explicitly marked unreviewed with a reason.

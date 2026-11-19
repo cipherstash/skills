@@ -172,6 +172,8 @@ For PRs, `review-code` passes findings to `review-cross-check` unless raw review
 
 The six specialist capabilities are independently authored adaptations informed by an [audit of auxesis/junk pr-review](plugins/company-skills/skills/review-code/references/upstream-audit.md). The audit records the pinned source, omitted infrastructure, and corrected source assumptions.
 
+The four language specialists also read language practice references from Jeffallan's `golang-pro`, `python-pro`, `rust-engineer` and `typescript-pro` skills, which the `company` marketplace bundles as pinned plugins. Each specialist names the reference to read for each changed area and keeps its own review rules where a reference disagrees. Without the bundled skill installed, a specialist reviews from its own instructions and reports the missing references as a coverage limit.
+
 Rust convention skills (`rust-*`) carry coding rules rather than a workflow. Claude Code applies them automatically and hides them from the `/` menu; Codex selects them implicitly.
 
 `review-audit` and `review-cross-check` require Python 3, Git, and `gh` authenticated for the target repository; `review-post` requires `gh` and `python3` or `jq`. These are local CLI dependencies; the plugin does not bundle an MCP server.

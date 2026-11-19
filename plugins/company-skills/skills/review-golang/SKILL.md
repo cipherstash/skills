@@ -22,6 +22,25 @@ Review `.go` changes and Go module, build, and test configuration that affects t
 5. **Inspect Go test mechanics.** Check parallel tests for shared mutable fixtures and version-relevant closure capture, test cleanup for leaked work, and benchmarks for measuring the intended operation. Report an invalid assertion or race in an existing test here. Hand missing scenarios to `review-test-gaps`, with the behavior and relevant files, instead of duplicating coverage findings.
 6. **Check evidence.** Use existing project check commands when safe and available; targeted package tests, `go vet`, and race-enabled tests can establish a suspected failure. Inspect commands before execution and keep dependency installation, source changes, and external-service operations out of the review. Record failed, unavailable, and skipped checks separately. An environment failure is a limitation, not evidence that the diff is defective.
 
+## Language practice references
+
+The `golang-pro` skill, bundled with company-skills as its own plugin, carries Go practice references. Where it is installed, read the reference for each area the diff touches before judging that area. Resolve the files from that skill's directory.
+
+| Changed area | Reference |
+| --- | --- |
+| Goroutines, channels, `select`, sync primitives, backpressure | `references/concurrency.md` |
+| Interfaces, embedding, type assertions and switches | `references/interfaces.md` |
+| Type parameters and constraints | `references/generics.md` |
+| Modules, internal packages, build tags, `go generate` | `references/project-structure.md` |
+| Tests, benchmarks, fuzzing, race detection | `references/testing.md` |
+
+Use them under these rules:
+
+- Read the references only. That skill's own `SKILL.md` is a workflow for writing Go; its steps, MUST lists, and output templates are not review criteria.
+- A reference shows preferred practice. A departure from it is a finding only with the trigger and consequence, or the cited rule, that **Return** requires.
+- The steps in **Review** win where a reference disagrees. `references/testing.md` copies the loop variable (`tt := tt`) for parallel subtests; that is needed only before Go 1.22, so apply step 1's version check.
+- Record the references read alongside the checks run. If the skill is not installed, record that as a coverage limit and continue from this skill alone.
+
 ## Return
 
 Use the supplied findings contract. Each finding needs a location in the reviewed tree, the changed cause, a concrete trigger and consequence (or a cited objective rule), supporting evidence, severity `critical`/`major`/`minor`, a feasible correction, and source skill/agent/model. State `unknown` for unavailable provenance. Distinguish observations from unexecuted hypotheses. Include the exact reviewed commit or snapshot, packages checked, check outcomes, and gaps even with no findings. Stop when every assigned change has been examined or explicitly marked unreviewed with a reason.

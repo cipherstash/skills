@@ -23,6 +23,25 @@ Review Python changes and packaging, typing, or test configuration affecting the
 6. **Inspect test validity.** Verify mocks replace the name the code actually uses, assertions detect the intended wrong result, async tests execute under the configured runner, and fixtures restore mutable/global state. Send absent scenarios to `review-test-gaps` with the changed behavior and relevant files. Do not assume a missing async marker means a test is skipped without reading runner configuration.
 7. **Check evidence.** Use the configured lint/type-check and focused test commands when safe and already available, honoring their configuration. Inspect scripts before execution; avoid dependency installation, source fixes, and auto-fix options. Record checks actually run and distinguish setup or baseline errors from new failures. Continue a source-based review when execution is unavailable and state the resulting limits.
 
+## Language practice references
+
+The `python-pro` skill, bundled with company-skills as its own plugin, carries Python practice references. Where it is installed, read the reference for each area the diff touches before judging that area. Resolve the files from that skill's directory.
+
+| Changed area | Reference |
+| --- | --- |
+| Coroutines, tasks, task groups, async context managers and generators, timeouts, mixing sync and async | `references/async-patterns.md` |
+| Project layout, `pyproject.toml`, entry points, building and distribution, dependencies | `references/packaging.md` |
+| `pathlib`, dataclasses, `functools`, `itertools`, context managers, enums, logging | `references/standard-library.md` |
+| pytest fixtures, parametrisation, mocking and patching, async tests | `references/testing.md` |
+| Annotations, generics, protocols, narrowing, mypy configuration | `references/type-system.md` |
+
+Use them under these rules:
+
+- Read the references only. That skill's own `SKILL.md` is a workflow for writing Python; its steps, MUST lists, and output templates are not review criteria.
+- A reference shows preferred practice. A departure from it is a finding only with the trigger and consequence, or the cited rule, that **Return** requires.
+- The steps in **Review** win where a reference disagrees. `references/standard-library.md` prefers `pathlib` and dataclasses, and `references/testing.md` sets coverage targets and property-based tests; step 5 holds, so `os.path` or a manual constructor is not a defect by itself, and step 6 sends an absent scenario to `review-test-gaps` rather than reporting a missing test style.
+- Record the references read alongside the checks run. If the skill is not installed, record that as a coverage limit and continue from this skill alone.
+
 ## Return
 
 Use the supplied findings contract. Each finding needs a reviewed-tree location, changed cause, concrete trigger and impact (or a cited objective rule), evidence, severity `critical`/`major`/`minor`, feasible correction, and source skill/agent/model. Use `unknown` for unavailable provenance. Include the reviewed commit or snapshot, interpreter/configuration assumptions, check outcomes, and skipped work even with no findings. Stop when every assigned change is examined or explicitly marked unreviewed with a reason.

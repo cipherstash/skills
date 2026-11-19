@@ -27,4 +27,6 @@ Corrections made during adaptation:
 
 The audit found no root license covering the source project's original rubrics. Its vendor directory separately contains MIT-licensed Jeffallan/claude-skills material pinned at efebc44c90ae6eb3b36ff1c53802a765418481b9. No vendored source or rubric text is redistributed here. If future maintenance copies that material, carry its applicable license and notices with the copy.
 
+The language specialists read that upstream's `references/` files at review time from the `golang-pro`, `python-pro`, `rust-engineer` and `typescript-pro` plugins, which the `company` marketplace installs from Jeffallan/claude-skills at a pinned commit. That pin is the upstream v0.4.20 release, 36f3fe8052da7c57083783268c6ea3265d075265, which is later than the commit pr-review vendored. The files are installed from upstream, not copied here. Each specialist treats them as practice references under its own rules: the upstream `SKILL.md` files hold authoring rules, including the blanket `os.path` and loop-capture claims corrected above, and are not review criteria.
+
 Upstream tests mainly exercise prompt construction and orchestration mechanics. This port supplies behavior cases and requires observed host testing to establish runtime behavior; structural validation alone is not such evidence.

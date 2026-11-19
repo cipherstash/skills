@@ -21,3 +21,5 @@
 - Report a demonstrated ineffective test assertion here; pass missing scenarios to review-test-gaps without duplicate coverage findings.
 - Keep unavailable mypy, missing dependencies, and baseline import failures in limitations. Do not install dependencies, change source, or post feedback.
 - Return not applicable for a diff with no relevant Python changes; preserve working-tree snapshot identity rather than attributing dirty files to HEAD.
+- With the bundled `python-pro` skill installed, read `references/async-patterns.md` before judging a changed task group, and list it among the references read. Do not follow that skill's authoring workflow, and do not report a departure from its examples without a trigger and consequence.
+- Without the `python-pro` skill installed, review from this skill alone and report the missing references as a coverage limit.

@@ -23,6 +23,25 @@ Review Rust code and Cargo, feature, target, or test configuration affecting it.
 6. **Inspect test assertions.** Check panic expectations, async completion, isolation, and assertions against the failure they claim to detect. Read relevant doctests as consumer examples. Send missing unsafe/concurrency/parser/API scenarios to `review-test-gaps` with the affected invariant; do not demand fuzzing or a new test style without a specific risk or rule.
 7. **Check evidence.** Use existing project checks when safe and available, with the supported features and targets. Prefer the project's test runner and commands; focused tests, doctests, and Clippy can supply evidence. Inspect build/test scripts before execution. Do not install toolchains, change source, or apply formatter/linter fixes. List unavailable tools, baseline failures, and skipped checks separately from findings.
 
+## Language practice references
+
+The `rust-engineer` skill, bundled with company-skills as its own plugin, carries Rust practice references. Where it is installed, read the reference for each area the diff touches before judging that area. Resolve the files from that skill's directory.
+
+| Changed area | Reference |
+| --- | --- |
+| Futures, tasks, `select`, streams, channels, shared state, shutdown | `references/async.md` |
+| `Result` and `Option`, custom error types, conversion, context | `references/error-handling.md` |
+| Borrowing, lifetimes, smart pointers, interior mutability, `Pin`, `Drop` | `references/ownership.md` |
+| Unit, integration, async and doc tests, mocking, property tests, fuzzing | `references/testing.md` |
+| Trait definitions, bounds, trait objects, derives, conversion traits | `references/traits.md` |
+
+Use them under these rules:
+
+- Read the references only. That skill's own `SKILL.md` is a workflow for writing Rust; its steps, MUST lists, and output templates are not review criteria.
+- A reference shows preferred practice. A departure from it is a finding only with the trigger and consequence, or the cited rule, that **Return** requires.
+- The company convention skills named in step 1 and the steps in **Review** win where a reference disagrees. `references/error-handling.md` and `references/testing.md` prefer particular crates and test styles; steps 3 and 6 hold, so an `unwrap` behind a proven invariant or an absent fuzz test is not a defect by itself.
+- Record the references read alongside the checks run. If the skill is not installed, record that as a coverage limit and continue from this skill alone.
+
 ## Return
 
 Use the supplied findings contract. Each finding needs a reviewed-tree location, changed cause, concrete trigger and consequence (or a cited objective rule), evidence, severity `critical`/`major`/`minor`, feasible correction, and source skill/agent/model. Use `unknown` for unavailable provenance. Include the reviewed commit or snapshot, relevant feature/target coverage, conventions consulted, checks actually run, and limitations even with no findings. Stop when every assigned change has been examined or explicitly marked unreviewed with a reason.

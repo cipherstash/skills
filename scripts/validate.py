@@ -203,8 +203,10 @@ def validate_manifests() -> None:
 
     claude_pins = git_subdir_pins(claude_entries)
     codex_pins = git_subdir_pins(codex_entries)
-    for name in sorted(set(claude_pins) | set(codex_pins), key=str):
-        if claude_pins.get(name) != codex_pins.get(name):
+    # The Claude catalog may list plugins the Codex catalog does not; a plugin
+    # the Codex catalog lists must carry the Claude catalog's pin.
+    for name in sorted(codex_pins, key=str):
+        if claude_pins.get(name) != codex_pins[name]:
             fail(claude_market_path, f"{name}: git-subdir pin must match in both marketplace catalogs")
 
 

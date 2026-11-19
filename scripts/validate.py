@@ -14,7 +14,8 @@ PLUGIN = ROOT / "plugins" / "company-skills"
 SKILLS = PLUGIN / "skills"
 NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$")
-LINK_RE = re.compile(r"\[[^]]*]\(([^)]+)\)")
+SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+LINK_RE =re.compile(r"\[[^]]*]\(([^)]+)\)")
 REQUIRED_CASES = ("Should activate", "Should not activate", "Expected behavior")
 RESERVED_WORDS = ("anthropic", "claude")
 XML_TAG_RE = re.compile(r"<[^>]+>")
@@ -65,6 +66,31 @@ def parse_frontmatter(path: Path, text: str) -> dict[str, str]:
     if not "\n".join(lines[end + 1 :]).strip():
         fail(path, "instruction body must not be empty")
     return fields
+
+
+def validate_git_subdir(path: Path, entry: dict) -> None:
+    """A git-subdir entry must be pinned to a full commit so nothing auto-updates."""
+    source = entry.get("source")
+    if not isinstance(source, dict) or source.get("source") != "git-subdir":
+        return
+    name = entry.get("name")
+    if not all(isinstance(source.get(field), str) and source[field].strip() for field in ("url", "path")):
+        fail(path, f"{name}: git-subdir source needs url and path")
+    if not isinstance(source.get("sha"), str) or not SHA_RE.fullmatch(source["sha"]):
+        fail(path, f"{name}: sha must be a full 40-character lowercase commit SHA")
+
+
+def git_subdir_pins(entries: list) -> dict[str, tuple]:
+    """Map each git-subdir plugin name to its (url, path, sha) pin."""
+    pins = {}
+    for entry in entries:
+        source = entry.get("source") if isinstance(entry, dict) else None
+        if isinstance(source, dict) and source.get("source") == "git-subdir":
+            path = source.get("path")
+            if isinstance(path, str):
+                path = path.removeprefix("./")
+            pins[entry.get("name")] = (source.get("url"), path, source.get("sha"))
+    return pins
 
 
 def validate_manifests() -> None:
@@ -136,6 +162,7 @@ def validate_manifests() -> None:
             fail(codex_market_path, "plugin policy must use AVAILABLE installation and ON_INSTALL authentication")
         if entry.get("category") != "Productivity":
             fail(codex_market_path, "plugin category must be Productivity")
+        validate_git_subdir(codex_market_path, entry)
     if not any(
         entry.get("name") == portable.get("name")
         and entry.get("source", {}).get("source") == "local"
@@ -153,6 +180,9 @@ def validate_manifests() -> None:
     if not isinstance(claude_entries, list):
         fail(claude_market_path, "plugins must be an array")
         claude_entries = []
+    for entry in claude_entries:
+        if isinstance(entry, dict):
+            validate_git_subdir(claude_market_path, entry)
     if not any(
         entry.get("name") == portable.get("name")
         and entry.get("source") == "./plugins/company-skills"
@@ -160,6 +190,22 @@ def validate_manifests() -> None:
         if isinstance(entry, dict)
     ):
         fail(claude_market_path, "must publish ./plugins/company-skills")
+
+    # Same-marketplace dependencies by bare name: the git-subdir SHA is the pin,
+    # so version ranges and cross-marketplace names are not used here.
+    claude_manifest_path = PLUGIN / ".claude-plugin" / "plugin.json"
+    dependencies = load_json(claude_manifest_path).get("dependencies", [])
+    listed = {entry.get("name") for entry in claude_entries if isinstance(entry, dict)}
+    if not isinstance(dependencies, list) or not all(
+        isinstance(name, str) and name in listed and name != portable.get("name") for name in dependencies
+    ):
+        fail(claude_manifest_path, "dependencies must name plugins in the company marketplace")
+
+    claude_pins = git_subdir_pins(claude_entries)
+    codex_pins = git_subdir_pins(codex_entries)
+    for name in sorted(set(claude_pins) | set(codex_pins), key=str):
+        if claude_pins.get(name) != codex_pins.get(name):
+            fail(claude_market_path, f"{name}: git-subdir pin must match in both marketplace catalogs")
 
 
 def validate_cases(skill: Path) -> None:

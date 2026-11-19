@@ -9,6 +9,36 @@
       "name": "company-skills",
       "source": "./plugins/company-skills",
       "description": "Shared company agent skills for Codex and Claude Code."
+    },
+    {
+      "name": "differential-review",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/trailofbits/skills.git",
+        "path": "./plugins/differential-review",
+        "sha": "149d7b21f4067765b82e67029730b42d228ef4b4"
+      },
+      "description": "Trail of Bits security-focused differential review of code changes, pinned to a reviewed upstream commit.",
+      "license": "CC-BY-SA-4.0",
+      "author": {
+        "name": "Trail of Bits",
+        "url": "https://github.com/trailofbits"
+      }
+    },
+    {
+      "name": "insecure-defaults",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/trailofbits/skills.git",
+        "path": "./plugins/insecure-defaults",
+        "sha": "149d7b21f4067765b82e67029730b42d228ef4b4"
+      },
+      "description": "Trail of Bits audit for insecure default configuration, pinned to a reviewed upstream commit.",
+      "license": "CC-BY-SA-4.0",
+      "author": {
+        "name": "Trail of Bits",
+        "url": "https://github.com/trailofbits"
+      }
     }
   ]
 }

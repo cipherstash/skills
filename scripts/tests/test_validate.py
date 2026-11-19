@@ -12,6 +12,18 @@ from unittest.mock import patch
 
 
 REPO = Path(__file__).resolve().parents[2]
+PIN = "149d7b21f4067765b82e67029730b42d228ef4b4"
+
+
+def git_subdir(name="example-plugin", **changes):
+    source = {
+        "source": "git-subdir",
+        "url": "https://github.com/example/skills.git",
+        "path": f"./plugins/{name}",
+        "sha": PIN,
+    }
+    source.update(changes)
+    return {"name": name, "source": {key: value for key, value in source.items() if value is not None}}
 spec = importlib.util.spec_from_file_location("validate", REPO / "scripts/validate.py")
 validate = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(validate)
@@ -88,6 +100,70 @@ class PackagingTests(unittest.TestCase):
     def test_missing_skill_directory_reports_error(self):
         shutil.rmtree(validate.SKILLS)
         self.check_result(1, "shared skills directory is required")
+
+    def add_to_both_catalogs(self, claude_entry, codex_entry):
+        policy = {"policy": {"installation": "AVAILABLE", "authentication": "ON_INSTALL"}, "category": "Productivity"}
+        self.change_json(".claude-plugin/marketplace.json", lambda data: data["plugins"].extend([claude_entry] if claude_entry else []))
+        self.change_json(
+            ".agents/plugins/marketplace.json",
+            lambda data: data["plugins"].extend([{**codex_entry, **policy}] if codex_entry else []),
+        )
+
+    def test_pinned_git_subdir_entry_passes(self):
+        self.add_to_both_catalogs(git_subdir(), git_subdir())
+        self.check_result(0, "Validation passed")
+
+    def test_git_subdir_pins_match_across_catalogs(self):
+        other = "0" * 40
+        for claude_entry, codex_entry in (
+            (git_subdir(), git_subdir(sha=other)),
+            (git_subdir(), git_subdir(path="./plugins/other")),
+            (git_subdir(), None),
+            (None, git_subdir()),
+        ):
+            with self.subTest(claude=claude_entry, codex=codex_entry):
+                self.add_to_both_catalogs(claude_entry, codex_entry)
+                self.check_result(1, "example-plugin: git-subdir pin must match in both marketplace catalogs")
+
+    def test_claude_git_subdir_entries_are_pinned(self):
+        for changes, diagnostic in (
+            ({"sha": None}, "sha must be a full 40-character lowercase commit SHA"),
+            ({"sha": PIN[:7]}, "sha must be a full 40-character lowercase commit SHA"),
+            ({"sha": PIN.upper()}, "sha must be a full 40-character lowercase commit SHA"),
+            ({"path": None}, "git-subdir source needs url and path"),
+            ({"url": None}, "git-subdir source needs url and path"),
+        ):
+            with self.subTest(changes=changes):
+                self.change_json(".claude-plugin/marketplace.json", lambda data: data["plugins"].append(git_subdir(**changes)))
+                self.check_result(1, diagnostic)
+
+    def test_codex_git_subdir_entries_are_pinned(self):
+        policy = {"policy": {"installation": "AVAILABLE", "authentication": "ON_INSTALL"}, "category": "Productivity"}
+        for changes, diagnostic in (
+            ({"sha": PIN[:7]}, "sha must be a full 40-character lowercase commit SHA"),
+            ({"path": None}, "git-subdir source needs url and path"),
+        ):
+            with self.subTest(changes=changes):
+                self.change_json(
+                    ".agents/plugins/marketplace.json",
+                    lambda data: data["plugins"].append({**git_subdir(**changes), **policy}),
+                )
+                self.check_result(1, diagnostic)
+
+    def test_dependencies_name_listed_plugins(self):
+        self.add_to_both_catalogs(git_subdir(), git_subdir())
+        manifest = "plugins/company-skills/.claude-plugin/plugin.json"
+        self.change_json(manifest, lambda data: data.update(dependencies=["example-plugin"]))
+        self.check_result(0, "Validation passed")
+        for dependencies in (
+            ["unlisted-plugin"],
+            ["example-plugin@other"],
+            [{"name": "example-plugin", "version": "^1.0.0"}],
+            "example-plugin",
+        ):
+            with self.subTest(dependencies=dependencies):
+                self.change_json(manifest, lambda data: data.update(dependencies=dependencies))
+                self.check_result(1, "dependencies must name plugins in the company marketplace")
 
     def test_publisher_required(self):
         for author in (None, {}, {"name": None}, {"name": ""}):

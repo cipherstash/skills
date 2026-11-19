@@ -118,12 +118,15 @@ class PackagingTests(unittest.TestCase):
         for claude_entry, codex_entry in (
             (git_subdir(), git_subdir(sha=other)),
             (git_subdir(), git_subdir(path="./plugins/other")),
-            (git_subdir(), None),
             (None, git_subdir()),
         ):
             with self.subTest(claude=claude_entry, codex=codex_entry):
                 self.add_to_both_catalogs(claude_entry, codex_entry)
                 self.check_result(1, "example-plugin: git-subdir pin must match in both marketplace catalogs")
+
+    def test_claude_only_git_subdir_entry_passes(self):
+        self.add_to_both_catalogs(git_subdir(), None)
+        self.check_result(0, "Validation passed")
 
     def test_claude_git_subdir_entries_are_pinned(self):
         for changes, diagnostic in (

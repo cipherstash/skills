@@ -81,6 +81,7 @@ Each skill is authored once under `plugins/company-skills/skills/`. The portable
 | Skill | Purpose | Invocation |
 | --- | --- | --- |
 | `review-code` | Review a PR or diff through selected specialist agents, then hand findings to cross-check and posting | Explicit or automatic |
+| `review-assessment` | Report which review skills a change needs, one reason each, from a deterministic file-path check | Run by review-code, or explicit or automatic |
 | `review-test-gaps` | Find missing regression protection and ineffective test assertions | Selected by review-code, or focused request |
 | `review-infracode` | Review infrastructure lifecycle, permissions, deployment, CI, and observability risks | Selected by review-code, or focused request |
 | `review-golang` | Review Go semantics, concurrency, errors, and API compatibility | Selected by review-code, or a request naming a specific concern |
@@ -100,9 +101,11 @@ Each skill is authored once under `plugins/company-skills/skills/`. The portable
 | `filing-github-issues` | Draft and file well-structured GitHub issues on CipherStash repos | Explicit or automatic |
 | `authoring-pull-requests` | Branch, commit, and open draft pull requests with a consistent structure | Explicit or automatic |
 
-Start a fresh review with `review-code`. It pins the diff or working snapshot, selects the applicable lower-level review skills, delegates them through the host's agents, and combines supported findings with their evidence and sources. Hosts without subagents use the same skills sequentially. No separate agent setup, model matrix, or external review runner is needed.
+Start a fresh review with `review-code`. It pins the diff or working snapshot, runs `review-assessment` to plan the applicable lower-level review skills from the changed file paths (judgement may add skills but never drop a planned one), delegates them through the host's agents, and combines supported findings with their evidence and sources. Hosts without subagents use the same skills sequentially. No separate agent setup, model matrix, or external review runner is needed.
 
 In Claude Code, use `/company-skills:review-code <PR URL or comparison>`. In Codex, select the installed `company-skills` `review-code` skill from `/skills` or the `$` picker and provide the target.
+
+To see only which reviews a change needs, use `/company-skills:review-assessment <PR URL or comparison>` in Claude Code, or select `review-assessment` the same way in Codex. Its script, `scripts/assess.py`, reads changed paths on stdin and prints the plan as JSON; it needs only Python 3.
 
 A general request to review changes goes to `review-code`, whatever the language. Calling a language specialist directly reviews only that language: it skips `review-test-gaps`, `review-infracode` and the cross-check handoff.
 

@@ -15,7 +15,8 @@
 
 ## Expected behavior
 
-- A mixed Rust/Terraform diff selects review-rust, review-infracode, and review-test-gaps; no Go/Python/TypeScript reviewer is launched without a relevant consumer. The coordinator checks requirements and interactions.
+- review-assessment runs first and every skill in its plan runs; judgement may add a skill with a reason but never drops a planned one.
+- A mixed Rust/Terraform diff selects review-rust, rust-security, review-infracode, and review-test-gaps; no Go/Python/TypeScript reviewer is launched without a relevant consumer. The coordinator checks requirements and interactions.
 - A TypeScript input-validation change with a happy-path-only test returns a supported defect or gap with the concrete trigger, expected assertion, actual code/test evidence, and preserved attribution.
 - A documentation-only diff receives accuracy/requirements review without all six specialists. An unsupported language gets general review with a disclosed specialist limit.
 - PR scope uses its canonical repository and recorded head, including forks and Enterprise hosts. Dirty user work is preserved. A moved PR head is reported or re-verified, never silently adopted.

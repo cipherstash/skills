@@ -15,6 +15,22 @@ SKILL = Path(__file__).resolve().parents[1]
 EXAMPLES = SKILL / "examples"
 REFERENCES = SKILL / "references"
 
+# The areas the skill must cover (cipherstash/skills#56). Each has one reference.
+EXPECTED_REFERENCES = {
+    "concurrency.md",
+    "dependencies.md",
+    "error-handling.md",
+    "generics.md",
+    "interfaces.md",
+    "performance.md",
+    "project-structure.md",
+    "security.md",
+    "testing.md",
+}
+# Build tags that guard files in the examples module. Each is vetted and tested
+# too, so a file behind a tag cannot rot unseen.
+BUILD_TAGS = ("integration",)
+
 FENCE_RE = re.compile(r"(?ms)^```go\n(.*?)^```\s*$")
 SOURCE_RE = re.compile(r"\]\(\.\./examples/([^)#]+\.go)\)")
 GO_DIRECTIVE_RE = re.compile(r"(?m)^go (\d+\.\d+)(?:\.\d+)?\s*$")
@@ -70,8 +86,9 @@ class GoExamplesTest(unittest.TestCase):
                 self.fail("go is not on PATH; CI must install the Go toolchain")
             self.skipTest("go is not on PATH; install Go to run the examples checks")
 
-    def run_go(self, *args):
+    def run_go(self, *args, env_extra=None):
         env = dict(os.environ, GOTOOLCHAIN="local", GOWORK="off", GOFLAGS="-mod=readonly")
+        env.update(env_extra or {})
         return subprocess.run(
             [self.go, *args],
             cwd=EXAMPLES,
@@ -81,8 +98,8 @@ class GoExamplesTest(unittest.TestCase):
             timeout=600,
         )
 
-    def assertGoSucceeds(self, *args):
-        result = self.run_go(*args)
+    def assertGoSucceeds(self, *args, env_extra=None):
+        result = self.run_go(*args, env_extra=env_extra)
         self.assertEqual(
             result.returncode,
             0,
@@ -95,6 +112,22 @@ class GoExamplesTest(unittest.TestCase):
 
     def test_race(self):
         self.assertGoSucceeds("test", "-race", "-count=1", "./...")
+
+    def test_vet_and_test_with_build_tags(self):
+        for tag in BUILD_TAGS:
+            with self.subTest(tag=tag):
+                self.assertGoSucceeds("vet", "-tags", tag, "./...")
+                self.assertGoSucceeds("test", "-race", "-count=1", "-tags", tag, "./...")
+
+    def test_vet_for_another_platform(self):
+        # Files behind a platform build constraint, such as //go:build !unix,
+        # compile only for that platform; vetting for Windows checks them.
+        self.assertGoSucceeds("vet", "./...", env_extra={"GOOS": "windows", "GOARCH": "amd64"})
+
+    def test_benchmarks_run(self):
+        # go test runs no benchmarks by default; run each once so a quoted
+        # benchmark cannot break unseen.
+        self.assertGoSucceeds("test", "-run=^$", "-bench=.", "-benchtime=1x", "-count=1", "./...")
 
     def test_gofmt(self):
         gofmt = shutil.which("gofmt") or str(Path(self.go).with_name("gofmt"))
@@ -138,6 +171,18 @@ class QuotedSnippetsTest(unittest.TestCase):
                 with self.subTest(reference=path.name):
                     first_section = next((l for l in lines if l.startswith("## ")), "")
                     self.assertEqual(first_section, "## Contents")
+
+
+class ReferenceIndexTest(unittest.TestCase):
+    def test_every_area_has_a_reference(self):
+        found = {path.name for path in REFERENCES.glob("*.md")}
+        self.assertEqual(found, EXPECTED_REFERENCES)
+
+    def test_skill_md_links_every_reference(self):
+        text = (SKILL / "SKILL.md").read_text(encoding="utf-8")
+        for name in sorted(EXPECTED_REFERENCES):
+            with self.subTest(reference=name):
+                self.assertIn(f"](references/{name})", text)
 
 
 class QuotedBlocksParserTest(unittest.TestCase):

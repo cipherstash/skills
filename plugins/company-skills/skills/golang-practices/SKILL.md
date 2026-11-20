@@ -18,7 +18,7 @@ Rules for writing Go. Apply them to every Go change, and read the reference for 
 
 ### Errors
 
-- Check every returned error. Handle it or return it with context. Ignore one only on purpose: `_ =` with a comment saying why it cannot matter, or a deferred `Close` on something you only read.
+- Check every returned error. Handle it or return it with context. Ignore one only on purpose, with a comment saying why it cannot matter: `_ =` for most calls, or a deferred `Close` on something you only read.
 - Wrap with `fmt.Errorf("what this function was doing: %w", err)`, naming the key values. Leave out what the wrapped error already says.
 - Handle an error once: return it, or log it and carry on, not both.
 - Match with `errors.Is` and `errors.As`. A `==` comparison or a type assertion misses a wrapped error.

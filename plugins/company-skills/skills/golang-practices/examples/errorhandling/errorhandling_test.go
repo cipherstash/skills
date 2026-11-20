@@ -191,3 +191,18 @@ func TestRunSafelyTurnsAPanicIntoAnError(t *testing.T) {
 		t.Fatalf("RunSafely passed through %v, want %v", err, errPlain)
 	}
 }
+
+func TestWriteAllDoesNotRepeatWhatTheErrorSays(t *testing.T) {
+	// *fs.PathError already names the operation and the path.
+	f := &fakeFile{closeErr: &fs.PathError{Op: "close", Path: "out.txt", Err: fs.ErrClosed}}
+	err := errorhandling.WriteAll(f, []string{"a"})
+	if want := "close out.txt: file already closed"; err == nil || err.Error() != want {
+		t.Fatalf("WriteAll error = %v, want %q", err, want)
+	}
+
+	f = &fakeFile{writeErr: &fs.PathError{Op: "write", Path: "out.txt", Err: errors.New("no space left on device")}}
+	err = errorhandling.WriteAll(f, []string{"a", "b"})
+	if want := "write line 1: write out.txt: no space left on device"; err == nil || err.Error() != want {
+		t.Fatalf("WriteAll error = %v, want %q", err, want)
+	}
+}

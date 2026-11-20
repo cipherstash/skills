@@ -79,8 +79,12 @@ type Semaphore struct {
 	slots chan struct{}
 }
 
-// NewSemaphore returns a Semaphore with n slots.
+// NewSemaphore returns a Semaphore with n slots. It panics if n is less
+// than 1: a semaphore with no slots would block every Acquire.
 func NewSemaphore(n int) *Semaphore {
+	if n < 1 {
+		panic("concurrency: NewSemaphore needs at least 1 slot")
+	}
 	return &Semaphore{slots: make(chan struct{}, n)}
 }
 

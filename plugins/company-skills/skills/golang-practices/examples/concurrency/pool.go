@@ -19,8 +19,12 @@ type Pool struct {
 	cancel   context.CancelFunc // cancels the context running tasks receive
 }
 
-// NewPool starts a pool of n workers. Call Shutdown to stop them.
+// NewPool starts a pool of n workers. Call Shutdown to stop them. It panics
+// if n is less than 1: a pool with no workers would block every Submit.
 func NewPool(n int) *Pool {
+	if n < 1 {
+		panic("concurrency: NewPool needs at least 1 worker")
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	p := &Pool{
 		tasks:  make(chan func(context.Context)),

@@ -73,3 +73,22 @@ func TestRunJobsStopsWhenTheContextEnds(t *testing.T) {
 		t.Fatalf("RunJobs took %v after its deadline", elapsed)
 	}
 }
+
+func TestRunJobsRunsNothingWhenTheContextHasAlreadyEnded(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	// select picks at random among ready cases, so try many times.
+	for range 200 {
+		var processed atomic.Int64
+		err := concurrency.RunJobs(ctx, []concurrency.Job{{ID: 1}}, func(context.Context, concurrency.Job) error {
+			processed.Add(1)
+			return nil
+		})
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("RunJobs error = %v, want context.Canceled", err)
+		}
+		if got := processed.Load(); got != 0 {
+			t.Fatalf("processed %d jobs after the context ended, want 0", got)
+		}
+	}
+}

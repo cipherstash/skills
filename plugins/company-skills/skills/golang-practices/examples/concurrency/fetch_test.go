@@ -3,6 +3,7 @@ package concurrency_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -54,5 +55,22 @@ func TestFetchReportsAnUnexpectedStatus(t *testing.T) {
 	var statusErr *concurrency.StatusError
 	if !errors.As(err, &statusErr) || statusErr.Code != http.StatusNotFound {
 		t.Fatalf("Fetch error = %v, want a *StatusError with code 404", err)
+	}
+}
+
+func TestFetchErrorsDoNotRepeatTheURL(t *testing.T) {
+	// *url.Error already names the method and the URL, so Fetch adds nothing.
+	srv := httptest.NewServer(http.NotFoundHandler())
+	defer srv.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := concurrency.Fetch(ctx, srv.Client(), srv.URL)
+	if want := fmt.Sprintf("Get %q: context canceled", srv.URL); err == nil || err.Error() != want {
+		t.Fatalf("Fetch error = %v, want %q", err, want)
+	}
+
+	_, err = concurrency.Fetch(context.Background(), srv.Client(), "::")
+	if want := `build request: parse "::": missing protocol scheme`; err == nil || err.Error() != want {
+		t.Fatalf("Fetch error = %v, want %q", err, want)
 	}
 }

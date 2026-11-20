@@ -31,6 +31,8 @@ claude plugin marketplace update company
 claude plugin update company-skills@company
 ```
 
+Updating from a release before 0.14.0 leaves the removed `golang-pro` plugin installed but failing to load. Uninstall it as described in [Bundled language practice skills](#bundled-language-practice-skills).
+
 Updating company-skills does not update its dependencies. When a release moves the pinned commit of a bundled plugin, update that plugin by name as well:
 
 ```sh
@@ -108,13 +110,13 @@ Nothing auto-updates them. To move the pin, open a pull request that:
 
 Installed users receive the new commit only when they update each of the three plugins by name, as shown under [Claude Code](#claude-code).
 
-0.14.0 removes the bundled `golang-pro` plugin. company-skills' `golang-practices` and `golang-review` replace it. An install from an earlier release may still have `golang-pro` installed as a dependency that nothing needs now. Remove it so that two Go skills do not compete on Go work:
+0.14.0 removes the bundled `golang-pro` plugin. company-skills' `golang-practices` and `golang-review` replace it. Updating an install from an earlier release leaves `golang-pro` installed. It no longer loads, because the marketplace no longer lists it: `claude plugin list` reports it as failed to load, with `Plugin golang-pro not found in marketplace company`. While it is installed, `claude plugin prune` removes nothing and reports `cannot determine orphans`. Uninstall it by name:
 
 ```sh
 claude plugin uninstall golang-pro@company
 ```
 
-`claude plugin prune` also removes it, along with any other auto-installed dependency that nothing needs. Add `--dry-run` to list them first. Command syntax checked with Claude Code 2.1.329.
+`claude plugin prune` works again once `golang-pro` is gone. It removes any other auto-installed dependency that nothing needs; add `--dry-run` to list them first. Checked by updating 0.13.0 to 0.14.0 with Claude Code 2.1.329.
 
 ## Develop locally
 

@@ -68,6 +68,7 @@ A language pair often starts from an upstream skill. Take its material in like t
 - Copy it under its licence. Put the licence text in the skill's `LICENSE`. Put a `NOTICE` beside it that names the source repository, path, and commit, and lists every change. `plain-language` follows the same pattern.
 - Fix every defect the audit found before the copy merges. Rewrite or drop confused or dated rules.
 - Drop the upstream frontmatter metadata, persona line, and links to skills that do not exist here.
+- If the marketplace bundles the upstream plugin, remove it in the release that ships its replacement: drop it from both catalogs and from the company-skills dependencies. The validator rejects any catalog entry other than company-skills that is not a dependency.
 
 ## Behavior cases
 

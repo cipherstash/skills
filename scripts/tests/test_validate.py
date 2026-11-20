@@ -174,13 +174,31 @@ class PackagingTests(unittest.TestCase):
 
     def test_bundled_plugin_must_be_a_dependency(self):
         self.add_to_both_catalogs(git_subdir(), git_subdir(), declare=False)
-        self.check_result(1, "example-plugin: a git-subdir plugin in the catalog must be a company-skills dependency")
+        self.check_result(1, "example-plugin: a bundled plugin in the catalog must be a company-skills dependency")
+
+    def test_bundled_plugin_of_any_source_type_must_be_a_dependency(self):
+        for source in (
+            {"source": "github", "repo": "example/skills"},
+            {"source": "url", "url": "https://github.com/example/skills.git"},
+            "./plugins/example-plugin",
+        ):
+            with self.subTest(source=source):
+                shutil.copy(REPO / ".claude-plugin/marketplace.json", self.root / ".claude-plugin/marketplace.json")
+                self.change_json(
+                    ".claude-plugin/marketplace.json",
+                    lambda data: data["plugins"].append({"name": "example-plugin", "source": source}),
+                )
+                self.check_result(1, "example-plugin: a bundled plugin in the catalog must be a company-skills dependency")
 
     def test_removing_a_bundled_plugin_needs_both_catalogs_and_dependencies(self):
         manifest = "plugins/company-skills/.claude-plugin/plugin.json"
         claude_market = ".claude-plugin/marketplace.json"
         codex_market = ".agents/plugins/marketplace.json"
-        bundled = json.loads((REPO / manifest).read_text())["dependencies"][-1]
+        # A plugin both catalogs list, so every removal path is exercised.
+        bundled = "differential-review"
+        for relative in (claude_market, codex_market):
+            self.assertIn(bundled, [entry["name"] for entry in json.loads((REPO / relative).read_text())["plugins"]])
+        self.assertIn(bundled, json.loads((REPO / manifest).read_text())["dependencies"])
 
         def drop_dependency(data):
             data["dependencies"].remove(bundled)
@@ -190,7 +208,8 @@ class PackagingTests(unittest.TestCase):
 
         for removed, diagnostic in (
             ((claude_market, codex_market), "dependencies must name plugins in the company marketplace"),
-            ((manifest,), f"{bundled}: a git-subdir plugin in the catalog must be a company-skills dependency"),
+            ((manifest,), f"{bundled}: a bundled plugin in the catalog must be a company-skills dependency"),
+            ((manifest, claude_market), f"{bundled}: git-subdir pin must match in both marketplace catalogs"),
             ((manifest, claude_market, codex_market), "Validation passed"),
         ):
             with self.subTest(removed=removed):

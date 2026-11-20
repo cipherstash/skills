@@ -17,6 +17,11 @@ jobs:
         with:
           python-version: "3.13"
       - run: python3 -m pip install pyyaml==6.0.2
+      # golang-practices tests its Go examples with go vet and go test -race.
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.7"
+          cache: false
       - run: python3 scripts/validate.py
       - run: python3 -m unittest discover -s scripts/tests
       - name: Run skill script tests

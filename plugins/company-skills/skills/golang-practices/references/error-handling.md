@@ -16,7 +16,7 @@ The examples target Go 1.22, the `go` line in [`examples/go.mod`](../examples/go
 
 ## Rules
 
-- Check every returned error. Handle it, return it with context, or, rarely, ignore it explicitly with a comment that says why.
+- Check every returned error. Handle it, return it with context, or, rarely, ignore it on purpose with a comment that says why: `_ =` for most calls, or a deferred `Close` on something you only read.
 - Add context when you return an error: what this function was doing and the key values involved, followed by `%w` and the error.
 - Handle an error once. Either return it or deal with it (log it, retry, use a fallback). Logging and then returning it reports the same failure twice.
 - Match errors with `errors.Is` and `errors.As`. Both see through wrapping. Comparing with `==` or a type assertion on the error misses a wrapped error.
@@ -169,16 +169,18 @@ From [`examples/errorhandling/files.go`](../examples/errorhandling/files.go):
 ```go
 // WriteAll writes each line to w and then closes w. It reports a failed
 // Close as well as a failed write: for a file, Close can be where a write
-// error first shows up.
+// error first shows up. A file's errors are *fs.PathError values, which
+// already name the operation and the path, so WriteAll adds only the number
+// of the line that failed.
 func WriteAll(w io.WriteCloser, lines []string) (err error) {
 	defer func() {
 		if cerr := w.Close(); cerr != nil {
-			err = errors.Join(err, fmt.Errorf("close: %w", cerr))
+			err = errors.Join(err, cerr)
 		}
 	}()
-	for _, line := range lines {
+	for i, line := range lines {
 		if _, err = fmt.Fprintln(w, line); err != nil {
-			return fmt.Errorf("write line: %w", err)
+			return fmt.Errorf("write line %d: %w", i+1, err)
 		}
 	}
 	return nil
@@ -200,9 +202,9 @@ func WriteLines(path string, lines []string) error {
 }
 ```
 
-`defer resp.Body.Close()` on something you only read is accepted practice. The data has already arrived, so there is nothing useful to do with the error. The `Fetch` example in the concurrency reference does this, with a comment saying why.
+`defer resp.Body.Close()` on something you only read is accepted practice, with a comment saying why. The data has already arrived, so there is nothing useful to do with the error. The `Fetch` example in the concurrency reference does this.
 
-When ignoring an error is right, make it visible. Assign it to `_` and add a comment saying why it cannot matter, for example `_ = os.Remove(tmp) // best effort: tmp is in a directory cleared at start-up`. A bare call that drops the error looks like a mistake to the reader and to linters such as `errcheck`.
+When ignoring any other error is right, make it visible. Assign it to `_` and add a comment saying why it cannot matter, for example `_ = os.Remove(tmp) // best effort: tmp is in a directory cleared at start-up`. A bare call that drops the error looks like a mistake to the reader and to linters such as `errcheck`.
 
 ## Return a nil error as a literal nil
 

@@ -26,11 +26,11 @@ func (e *StatusError) Error() string {
 func Fetch(ctx context.Context, client *http.Client, url string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("build request for %s: %w", url, err)
+		return nil, fmt.Errorf("build request: %w", err) // the *url.Error names the URL
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("get %s: %w", url, err)
+		return nil, err // a *url.Error, which names the method and the URL
 	}
 	defer resp.Body.Close() // read-only: a close error cannot lose data
 	if resp.StatusCode != http.StatusOK {

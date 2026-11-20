@@ -29,7 +29,7 @@ func WriteLines(path string, lines []string) error {
 	// Errors from *os.File methods are *fs.PathError values, which already
 	// name the operation and the path, so the wrapping adds only what this
 	// function was doing.
-	f, err := os.Create(path)
+	f, err := os.Create(path) //nolint:gosec // G304: the caller chooses the path
 	if err != nil {
 		return fmt.Errorf("write lines: %w", err)
 	}

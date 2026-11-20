@@ -19,15 +19,14 @@ func NewClientWithCA(caPEM []byte) (*http.Client, error) {
 	if !pool.AppendCertsFromPEM(caPEM) {
 		return nil, errors.New("new client: no certificates found in CA PEM")
 	}
-	return &http.Client{
-		Timeout: 30 * time.Second,
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				RootCAs:    pool,
-				MinVersion: tls.VersionTLS12,
-				// InsecureSkipVerify stays false: certificates and host
-				// names are checked.
-			},
-		},
-	}, nil
+	// Clone the default transport to keep its proxy settings, HTTP/2, and
+	// timeouts. A bare &http.Transport{} has none of them.
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.TLSClientConfig = &tls.Config{
+		RootCAs:    pool,
+		MinVersion: tls.VersionTLS12,
+		// InsecureSkipVerify stays false: certificates and host names are
+		// checked.
+	}
+	return &http.Client{Timeout: 30 * time.Second, Transport: transport}, nil
 }

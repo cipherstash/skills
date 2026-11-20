@@ -42,6 +42,34 @@ func TestNewClientWithCATrustsThePrivateCA(t *testing.T) {
 	}
 }
 
+func TestNewClientWithCAKeepsDefaultTransportSettings(t *testing.T) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	defer srv.Close()
+	caPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: srv.Certificate().Raw})
+	client, err := security.NewClientWithCA(caPEM)
+	if err != nil {
+		t.Fatalf("NewClientWithCA: %v", err)
+	}
+	tr, ok := client.Transport.(*http.Transport)
+	if !ok {
+		t.Fatalf("Transport is %T, want *http.Transport", client.Transport)
+	}
+	// A bare &http.Transport{} ignores HTTPS_PROXY and NO_PROXY, and a custom
+	// TLSClientConfig turns HTTP/2 off unless ForceAttemptHTTP2 is set.
+	if tr.Proxy == nil {
+		t.Error("Transport.Proxy is nil: proxy environment variables are ignored")
+	}
+	if !tr.ForceAttemptHTTP2 {
+		t.Error("Transport.ForceAttemptHTTP2 is false: HTTP/2 is off")
+	}
+	if tr.TLSHandshakeTimeout == 0 || tr.IdleConnTimeout == 0 {
+		t.Errorf("Transport timeouts are unset: handshake %v, idle %v", tr.TLSHandshakeTimeout, tr.IdleConnTimeout)
+	}
+	if tr == http.DefaultTransport {
+		t.Error("NewClientWithCA changed http.DefaultTransport instead of a clone")
+	}
+}
+
 type recordingExecer struct {
 	query string
 	args  []any

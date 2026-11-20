@@ -23,7 +23,7 @@ The examples target Go 1.22, the `go` line in [`examples/go.mod`](../examples/go
 - Accept interfaces, return concrete types. A constructor returns `*T`, so callers see every method and the type can grow without breaking them. Return an interface only when the concrete type must stay hidden, as `errors.New` does.
 - Name a one-method interface after its method plus `-er`: `Reader`, `Closer`, `Flusher`. Do not prefix with `I` or suffix with `Interface`.
 - Use the two-value type assertion, `v, ok := x.(T)`, unless a failed assertion is a bug. The one-value form panics.
-- Wrap errors that an implementation returns from the calls it makes, as in any other function. See `error-handling.md`.
+- Wrap errors that an implementation returns from the calls it makes, as in any other function. See `error-handling.md`. The exception is an error the interface's contract names, such as `io.EOF` from a `Read`: return it unwrapped, because callers compare it with `==`.
 - Add a compile-time check, `var _ io.Reader = (*T)(nil)`, when a type is meant to satisfy an interface that nothing in its own package uses.
 
 ## Define small interfaces where they are used

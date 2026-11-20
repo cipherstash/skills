@@ -3,6 +3,7 @@ package concurrency_test
 import (
 	"context"
 	"errors"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -37,6 +38,26 @@ func TestServiceStopTwiceDoesNotPanic(t *testing.T) {
 	}
 }
 
+func TestServiceStopEndsATickThatIsRunning(t *testing.T) {
+	started := make(chan struct{})
+	var once sync.Once
+	s := concurrency.NewService(time.Millisecond, func(ctx context.Context) error {
+		once.Do(func() { close(started) })
+		<-ctx.Done()
+		return nil
+	})
+	errCh := runInBackground(context.Background(), s)
+	select {
+	case <-started:
+	case <-time.After(prompt):
+		t.Fatal("tick was never called")
+	}
+	s.Stop()
+	if err := waitFor(t, errCh); err != nil {
+		t.Fatalf("Run after Stop = %v, want nil", err)
+	}
+}
+
 func TestServiceStopsWhenItsContextIsCancelled(t *testing.T) {
 	var ticks atomic.Int64
 	s := concurrency.NewService(time.Millisecond, func(context.Context) error {
@@ -45,7 +66,11 @@ func TestServiceStopsWhenItsContextIsCancelled(t *testing.T) {
 	})
 	ctx, cancel := context.WithCancel(context.Background())
 	errCh := runInBackground(ctx, s)
+	deadline := time.Now().Add(prompt)
 	for ticks.Load() == 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("tick was never called")
+		}
 		time.Sleep(time.Millisecond)
 	}
 	cancel()

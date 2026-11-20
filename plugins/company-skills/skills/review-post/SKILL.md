@@ -14,6 +14,7 @@ Publish a review as an **attestation**: a durable record on the PR that a named 
 - The findings: this session's review, merged with any pasted. Each carries file:line or range (none for a design-level finding), claim, severity, and source — the skill or agent and the model that produced it. A source not stated is `unattributed`; never guess one. A finding may carry a **reply target** — an existing comment's URL — when it adds to feedback already on the PR (review-cross-check's Adds to existing); it then carries only the addition.
 - The **reviewed commit**: the commit the findings were checked against. Take review-cross-check's stated head commit verified; for this session's own review, the commit it read, as recorded when it ran — if it was not recorded, run `git rev-parse HEAD` and `git status --porcelain` now only when nothing in the session has committed, edited, or checked out since the review, and accept HEAD only with a clean tree; for pasted findings, the commit they name. Otherwise it is `unknown`.
 - The posting session's provenance: host (Claude Code, Codex), model ID, effort level when one was set. Any value the session does not reveal is `unknown`.
+- The review-run provenance and coverage: sources and skills that performed the review (including zero-findings assignments), checks actually run, and failed/skipped assignments or unresolved verification. Preserve these separately from the posting session and findings ledger; missing values remain unknown.
 
 With no review in the session and nothing pasted, ask whether to run a review first, or for the reviewed commit and source of a review done elsewhere. Post a no-findings attestation only with a stated reviewed commit and source.
 
@@ -35,7 +36,7 @@ With no review in the session and nothing pasted, ask whether to run a review fi
    ```markdown
    **blocking · critical** `parse()` returns `None` on an empty header, so `auth()` admits the request. Return `Err(Invalid)` instead.
 
-   <sub>Source: code-review · claude-opus-5-5</sub>
+   <sub>Source: review-code · claude-opus-5-5</sub>
    ```
 
    Lead with `**blocking · <severity>**` or `**<severity>**`. At most three sentences, identifiers in backticks, no hedging, praise, or narration. A ```` ```suggestion ```` block only when the replacement is exact and complete; its content replaces exactly the commented lines, `start_line` through `line`. A reply uses the same format with only the addition — never restating, agreeing with, or crediting the existing comment.
@@ -46,8 +47,8 @@ With no review in the session and nothing pasted, ask whether to run a review fi
    ## Review attestation
 
    Reviewed `<reviewed short sha>` · posted from Claude Code · `claude-opus-5-5` · effort high
-   Sources: code-review · claude-opus-5-5; security agent · gpt-5.2-codex
-   Skills: `code-review`, `rust-security`
+   Sources: review-code · claude-opus-5-5; security agent · gpt-5.2-codex
+   Skills: `review-code`, `rust-security`
 
    **Blocking (1)**
    - `src/auth.rs:42` empty header admits the request
@@ -57,7 +58,7 @@ With no review in the session and nothing pasted, ask whether to run a review fi
    - `src/lib.rs:7` (outside diff) **minor** `Config` derives `Debug` over `api_key`.
    ```
 
-   **Sources** lists every distinct source and model across the ledger; **Skills** is the union of the skills they used. The **Findings** line counts every entry and how it was placed — inline, below, or in reply. Omit **Blocking** when there are none. Summary entries follow as bullets in the inline comment's format, led by `path:line`, the file alone, or `general`, and link their reply target when they have one. A summary-only attestation adds `Head is now <head short sha>; findings were not re-checked against it.` With no findings, the body after the provenance lines is `No findings.` Completion: every entry appears once — reply, inline, or summary bullet — and every blocking entry is also listed under **Blocking**.
+   **Sources** lists every distinct source and model across the ledger and supplied review-run provenance; **Skills** is the union of the skills they used. The **Findings** line counts every entry and how it was placed — inline, below, or in reply. Omit **Blocking** when there are none. Summary entries follow as bullets in the inline comment's format, led by `path:line`, the file alone, or `general`, and link their reply target when they have one. A summary-only attestation adds `Head is now <head short sha>; findings were not re-checked against it.` Include a **Coverage limits** paragraph for supplied failed/skipped assignments or unresolved verification. With no findings, write `No findings.` after the provenance lines, retaining any coverage limits; an empty postable set does not mean every check completed. Completion: every entry appears once — reply, inline, or summary bullet — every blocking entry is also listed under **Blocking**, and supplied coverage limits remain visible.
 
 5. **Confirm.** Always show the target PR's URL, the reviewed commit, and the head above the full draft — summary, inline comments with their `path:line`, and replies with their target URL — in one fenced block whose fence is longer than any fence inside it (````` ```` ````` around suggestion blocks). Wait for approval, unless the request already said to post, in which case post right after showing it. An `APPROVE` request with blocking entries is flagged above the draft and always waits for approval. Completion: the draft was shown and posting is approved.
 

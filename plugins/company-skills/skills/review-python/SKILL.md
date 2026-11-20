@@ -1,0 +1,47 @@
+---
+name: review-python
+description: Reviews Python changes for shared state, exception and resource behavior, async lifecycles, packaging compatibility, and ineffective tests. Use for a Python-specific concern named directly, or a Python assignment from review-code; a general request to review Python changes goes to review-code. Does not implement fixes, post feedback, or assess general coverage gaps (review-test-gaps).
+---
+
+# review-python
+
+Review the Python portion of an identified change. Return findings to `review-code` or the user; preserve the reviewed source tree and leave publishing to `review-post`.
+
+## Inputs and scope
+
+Require a diff, its exact base and head commits (or an identified working-tree snapshot), the matching tree, and available requirements and repository guidance. When invoked directly, resolve the installed `review-code` skill and read its `references/findings.md` contract. A delegated assignment supplies that contract. If the target is missing or ambiguous, ask for it before reviewing; use `review-code` to prepare a PR target that has not yet been resolved.
+
+Review Python changes and packaging, typing, or test configuration affecting them. If there are no applicable changes, return `not applicable` with the reviewed scope.
+
+## Review
+
+1. **Establish runtime assumptions.** Read supported Python versions, package/build configuration, installed test plugins, typing settings, and repository guidance. Evaluate annotations, namespace packages, async tests, and standard-library behavior against that environment.
+2. **Follow state and inputs.** Check mutable defaults and class attributes, closure binding, iterator consumption, mutation during iteration, import side effects, and identity/value comparisons. Demonstrate cross-call contamination or a concrete wrong result rather than flagging syntax alone. Follow untrusted data through parsing, coercion, and validation into consumers.
+3. **Trace exceptions and resources.** Follow cleanup through success, exception, early return, and cancellation. Check broad handlers for swallowed failures, exception translation for lost information, and `finally` for suppressed results or errors. Ordinary exception chaining can retain context without an explicit `from`; inspect actual semantics before alleging a lost cause.
+4. **Trace async execution.** Determine whether coroutines run, who retains and awaits tasks, and how task failures and cancellation reach the owner. Inspect blocking operations inside event-loop work and the lifetime of async clients/generators. Distinguish `gather`, task groups, and caller-driven cancellation under the project's Python version; do not infer sibling cancellation from every exception.
+5. **Check interfaces and packaging.** Follow changed return shapes, optional values, protocols, serialization, imports, entry points, dependency groups, and distribution contents into callers. An annotation cannot validate external data. Require a broken contract or cited rule for missing annotations or API-style findings; `os.path`, manual constructors, and namespace packages are not defects by themselves.
+6. **Inspect test validity.** Verify mocks replace the name the code actually uses, assertions detect the intended wrong result, async tests execute under the configured runner, and fixtures restore mutable/global state. Send absent scenarios to `review-test-gaps` with the changed behavior and relevant files. Do not assume a missing async marker means a test is skipped without reading runner configuration.
+7. **Check evidence.** Use the configured lint/type-check and focused test commands when safe and already available, honoring their configuration. Inspect scripts before execution; avoid dependency installation, source fixes, and auto-fix options. Record checks actually run and distinguish setup or baseline errors from new failures. Continue a source-based review when execution is unavailable and state the resulting limits.
+
+## Language practice references
+
+The `python-pro` skill, bundled with company-skills as its own plugin, carries Python practice references. Where it is installed, invoke it by name and read the reference for each area the diff touches before judging that area. Invoking it loads the skill and gives its directory, which the `references/` paths below resolve from.
+
+| Changed area | Reference |
+| --- | --- |
+| Coroutines, tasks, task groups, async context managers and generators, timeouts, mixing sync and async | `references/async-patterns.md` |
+| Project layout, `pyproject.toml`, entry points, building and distribution, dependencies | `references/packaging.md` |
+| `pathlib`, dataclasses, `functools`, `itertools`, context managers, enums, logging | `references/standard-library.md` |
+| pytest fixtures, parametrisation, mocking and patching, async tests | `references/testing.md` |
+| Annotations, generics, protocols, narrowing, mypy configuration | `references/type-system.md` |
+
+Use them under these rules:
+
+- Use the skill for its references. Its `SKILL.md` is a workflow for writing Python; its steps, MUST lists, and output templates are not review criteria.
+- A reference shows preferred practice. A departure from it is a finding only with the trigger and consequence, or the cited rule, that **Return** requires.
+- The steps in **Review** win where a reference disagrees. `references/standard-library.md` prefers `pathlib` and dataclasses, and `references/testing.md` sets coverage targets and property-based tests; step 5 holds, so `os.path` or a manual constructor is not a defect by itself, and step 6 sends an absent scenario to `review-test-gaps` rather than reporting a missing test style.
+- Record the references read alongside the checks run. If the skill is not installed, record that as a coverage limit and continue from this skill alone.
+
+## Return
+
+Use the supplied findings contract. Each finding needs a reviewed-tree location, changed cause, concrete trigger and impact (or a cited objective rule), evidence, severity `critical`/`major`/`minor`, feasible correction, and source skill/agent/model. Use `unknown` for unavailable provenance. Include the reviewed commit or snapshot, interpreter/configuration assumptions, check outcomes, and skipped work even with no findings. Stop when every assigned change is examined or explicitly marked unreviewed with a reason.

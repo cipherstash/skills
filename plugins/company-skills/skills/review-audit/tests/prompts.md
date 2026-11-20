@@ -37,3 +37,6 @@
 - The viewer's own unsubmitted review is never counted as feedback.
 - The worktree is removed on every exit, including an early stop.
 - In a Claude Code cloud session or scheduled task, where GitHub refuses GraphQL, the fetch falls back to REST (`api: rest`), threads are resolved through the CCR `ccr/comments/<id>/resolve` route, and a thread with null `resolved` is audited as unresolved.
+- A posted test-gap finding is `unresolved` when the cited required case remains unasserted; a new test that exercises and asserts the case makes it `addressed`. Both verdicts cite the contract and relevant head tests, without inventing a production failure.
+- A convention finding is verified against the applicable documented rule and code. A subjective preference without an applicable requirement is `needs-decision`; behavioural findings still require a reproduction or concrete trace.
+- A test-gap claim already covered when posted is `refuted` with evidence from the reviewed version where available and head. A later change to the requirement does not make an originally valid finding retroactively false; partial test coverage remains `unresolved` with the missing cases named.

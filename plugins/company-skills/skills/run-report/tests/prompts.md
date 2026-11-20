@@ -2,7 +2,7 @@
 
 ## Should activate
 
-- A scheduled task prompt that lists `/company-skills:run-report` alongside `/code-review medium`, `/company-skills:review-cross-check`, and `/company-skills:review-post`.
+- A scheduled task prompt that lists `/company-skills:run-report` alongside `/company-skills:review-code <PR URL>` and `/company-skills:review-post`.
 - "Write up everything that went wrong in this run and publish it" at the end of an unattended session.
 - "Report the problems" with no run named — the skill derives the run name from the session's prompt and target, or uses `Unnamed run <date>` when the prompt names no task or target, without asking.
 

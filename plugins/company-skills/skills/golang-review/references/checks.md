@@ -22,6 +22,7 @@ Run every `go` command from the root of the module that holds the packages, insi
 | `GOFLAGS=-mod=readonly` | `go.mod` and `go.sum` are never rewritten. If the module has `vendor/modules.txt`, use `GOFLAGS=-mod=vendor` instead, so the vendored copies are used. |
 | `GOTOOLCHAIN=local` | The go command never downloads a toolchain to match a `go` or `toolchain` line. |
 | `GOPROXY=off` | No module is downloaded. A module missing from the local module cache fails the command, which is a limit. |
+| `GOSUMDB=off` | The checksum database is never asked. Without it, `go mod tidy -diff` asks `sum.golang.org` about each cached module that `go.sum` has no hash for, even with `GOPROXY=off`, which sends the module's path out. Hashes already in `go.sum` are still checked. A missing one shows in tidy's diff; checking it against the database is the job of the build that adds it, not of the review. |
 
 Leave `GOWORK` as the repository has it: a committed `go.work` is part of how the code builds. The go command still writes to its build cache, which lives outside the repository (`go env GOCACHE`). That is not a change to the tree.
 
@@ -56,7 +57,7 @@ Read the repository's `Makefile`, task runner file, or CI configuration only to 
 
 `-race` needs cgo and a supported platform. If it fails with `-race requires cgo` or an unsupported-platform error, record the race check as not run, then run `go test -count=1 -timeout 5m -coverprofile=<tmp>/cover.out <packages>` without it and record that as a separate check. The coverage profile is written even when tests fail, so its figure is still reported, beside the failure.
 
-`go mod tidy -diff` runs with the settings above and writes nothing; a non-zero exit with a diff is the evidence. A failure that names a module missing from the cache, or a download, is a limit.
+`go mod tidy -diff` runs with the settings above, `GOSUMDB=off` included, and writes nothing; a non-zero exit with a diff is the evidence. A failure that names a module missing from the cache, or a download, is a limit.
 
 To show a suspected race, leak, edge case, or allocation that no existing test reaches, you may add a test file in the temporary worktree, run it there, and quote its output as evidence. Say in the finding that the test was written for the review. It goes away with the worktree.
 
@@ -68,11 +69,11 @@ Each of these runs only when it is already installed: check with `command -v <to
 | --- | --- | --- |
 | `staticcheck` | `staticcheck <packages>` | Error handling, correctness, concurrency, performance |
 | `gosec` | `gosec <packages>` | Security |
-| `golangci-lint` | `golangci-lint run <packages>`, only where the repository has a config for it | Any its config enables |
+| `golangci-lint` | `golangci-lint run --config <the repository's config> <packages>`, only where the repository has a config for it | Any its config enables |
 | `govulncheck` | `govulncheck <packages>`, only as [Network](#network) allows | Dependencies |
 | `apidiff` | As its `-help` gives, comparing the base and head worktrees | Breaking changes |
 
-These read source and run none of it, but read each one's configuration before running it. Do not run `golangci-lint` if its config loads plugins (`custom` linters or `.custom-gcl.yml`), which run code, and never pass `--fix` or any flag that writes files. They run under the same environment settings as the go command.
+These read source and run none of it, but read each one's configuration before running it. Do not run `golangci-lint` if its config loads plugins (`custom` linters or `.custom-gcl.yml`), which run code, or turns on fixing (`issues.fix: true`), which rewrites files in the worktree before the later checks read them. Pass the repository's config with `--config`, so that no config from a directory above the repository is loaded. Never pass `--fix` or any flag that writes files. They run under the same environment settings as the go command.
 
 ## Network
 
@@ -81,7 +82,7 @@ The review fetches nothing from the network unless the user allows it, with one 
 - the user's request allows network access for the review, such as "check for vulnerabilities too"; or
 - a local copy of the database exists: pass it as `govulncheck -db file:///<path> <packages>`.
 
-Otherwise record `govulncheck` as `not run: needs the vulnerability database over the network`, and give the command the user can run. Reading a pull request through the host's GitHub tools, and the `git fetch` that `target.md` describes, are part of resolving the target, not checks.
+Otherwise record `govulncheck` as `not run: needs the vulnerability database over the network`, and give the command the user can run. Reading a pull request through the host's GitHub tools, the `git fetch` that `target.md` describes, and the `git ls-remote --tags` that `step-breaking-changes.md` uses to find the module's version read the target's own repository. They are not checks.
 
 ## Commands the review never runs
 

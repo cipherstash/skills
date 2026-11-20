@@ -28,7 +28,7 @@ For each finding that depends on input, trace where the value comes from: a requ
 
 Most findings here come from reading. Tools add evidence when they are installed, as `checks.md` describes:
 
-- `gosec ./<packages>`, or `golangci-lint run` with `gosec` enabled when the repository configures it. Its rule IDs map to this area: G402 TLS, G101 credentials, G201 and G202 SQL, G304 file paths, G404 weak random, G112 server timeouts. Quote the rule ID with the finding. A `#nosec` or `//nolint:gosec` comment with a reason that holds is not a finding.
+- `gosec ./<packages>`, or `golangci-lint run` with `gosec` enabled when the repository configures it. Its rule IDs map to this area: G402 TLS, G101 credentials, G201 and G202 SQL, G304 file paths, G404 weak random, G112 server timeouts. G201 and G202 look only at the query argument of a `database/sql` call such as `Query` or `Exec`, so they miss a function that builds the query and returns it; reading finds those. Quote the rule ID with the finding. A `#nosec` or `//nolint:gosec` comment with a reason that holds is not a finding.
 - `go vet` finds none of these. A clean vet says nothing about security.
 
 If no security linter is installed, record it under checks as not run and review by reading.

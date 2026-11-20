@@ -59,6 +59,16 @@ func TestLoadConfigReportsEveryProblem(t *testing.T) {
 	}
 }
 
+func TestLoadConfigErrorsLeaveValuesOut(t *testing.T) {
+	_, err := project.LoadConfig(env(map[string]string{"READ_TIMEOUT": "s3cr3t", "DATABASE_URL": "postgres://db"}))
+	if err == nil {
+		t.Fatal("LoadConfig accepted READ_TIMEOUT=s3cr3t")
+	}
+	if strings.Contains(err.Error(), "s3cr3t") {
+		t.Fatalf("error %q contains the variable's value", err)
+	}
+}
+
 func TestRevisionAndVersion(t *testing.T) {
 	if project.Version != "dev" {
 		t.Errorf("Version = %q, want the default dev without -ldflags", project.Version)

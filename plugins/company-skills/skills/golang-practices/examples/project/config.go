@@ -26,7 +26,9 @@ func LoadConfig(lookup func(string) (string, bool)) (Config, error) {
 	if v, ok := lookup("READ_TIMEOUT"); ok {
 		d, err := time.ParseDuration(v)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("READ_TIMEOUT: %w", err))
+			// time.ParseDuration's error quotes the value. Leave it out, as
+			// for any setting that might hold a secret.
+			errs = append(errs, errors.New("READ_TIMEOUT is not a duration such as 30s"))
 		}
 		cfg.ReadTimeout = d
 	}

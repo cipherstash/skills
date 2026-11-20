@@ -28,7 +28,7 @@ Each Go example is quoted from the examples module. The `go.mod`, layout, and Do
 - Name packages for what they provide, in short lower-case words. See [Naming packages and identifiers](#naming-packages-and-identifiers).
 - A function returns a usable value or an error, not both: on error, return the zero value or `nil` with it.
 - Read configuration once, at start-up, and pass it down. Report every missing or invalid setting together, and never put a secret in a log line or an error.
-- Give each file at most one `//go:build` line, as its first line.
+- Give each file at most one `//go:build` line, above the `package` clause and followed by a blank line.
 - Commit `go.mod` and `go.sum`. Do not commit a `replace` that points at a local path.
 - Build container images that run as a non-root user, from a current base image that matches the module's Go version.
 
@@ -156,7 +156,7 @@ Create it with `go work init ./services/api ./services/worker` and add modules w
 
 A build constraint chooses the files compiled for a target.
 
-Each file has at most one `//go:build` line. It is the first line of the file, followed by a blank line. It combines conditions with `&&`, `||`, `!`, and parentheses. Two `//go:build` lines in one file is an error. The old `// +build` lines are not needed from Go 1.17.
+Each file has at most one `//go:build` line. It comes before the `package` clause, with only blank lines and other `//` comments, such as a licence header, above it, and it is followed by a blank line. It combines conditions with `&&`, `||`, `!`, and parentheses. Two `//go:build` lines in one file is an error. The old `// +build` lines are not needed from Go 1.17.
 
 Split code that differs by platform into files whose constraints cover every target exactly once. Here `unix` (Go 1.19) and `!unix` do that:
 
@@ -224,7 +224,9 @@ func LoadConfig(lookup func(string) (string, bool)) (Config, error) {
 	if v, ok := lookup("READ_TIMEOUT"); ok {
 		d, err := time.ParseDuration(v)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("READ_TIMEOUT: %w", err))
+			// time.ParseDuration's error quotes the value. Leave it out, as
+			// for any setting that might hold a secret.
+			errs = append(errs, errors.New("READ_TIMEOUT is not a duration such as 30s"))
 		}
 		cfg.ReadTimeout = d
 	}
@@ -241,7 +243,7 @@ func LoadConfig(lookup func(string) (string, bool)) (Config, error) {
 }
 ```
 
-`LoadConfig` reports every problem together with `errors.Join`, and its errors name the variable, not its value, so a secret cannot leak into a log. Call it as `project.LoadConfig(os.LookupEnv)`.
+`LoadConfig` reports every problem together with `errors.Join`, and its errors name the variable, not its value, so a secret cannot leak into a log. That is why it does not wrap `time.ParseDuration`'s error, which quotes the value. Call it as `project.LoadConfig(os.LookupEnv)`.
 
 ## Build information
 
@@ -288,8 +290,10 @@ For mocks, see "Fakes instead of mocking libraries" in `testing.md`. `github.com
 Build in one stage and copy the binary into a small runtime image that runs as a non-root user:
 
 ```dockerfile
-# Use a Go version at least as new as the go line in go.mod. Pin images by digest in production.
-FROM golang:1.24-bookworm AS build
+# GO_VERSION: the latest supported Go release, and at least the go line in go.mod.
+# Pin images by digest in production.
+ARG GO_VERSION
+FROM golang:${GO_VERSION}-bookworm AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
@@ -305,7 +309,7 @@ ENTRYPOINT ["/myservice"]
 ```
 
 - Do not run as root. If the runtime image has no non-root user, create one and switch to it with `USER`.
-- Do not use `latest` for base images. Use a tag that names the Go version, and update it when `go.mod` moves.
+- Do not use `latest` for base images, and do not hard-code an old Go version. Build with the latest supported Go release, passed as `--build-arg GO_VERSION=<version>` or set as the `ARG` default. Go supports only the two newest major releases, and each minor release carries security fixes for the standard library, which is compiled into the binary. Update the version when a new Go release comes out, not only when `go.mod` moves.
 - `CGO_ENABLED=0` builds a static binary that needs no C library. A program that uses cgo needs a runtime image with the matching C library, such as `distroless/base`.
 - `-trimpath` removes local file paths from the binary.
 - Copy only the binary and the files it reads, never the source tree, `.git`, or secrets. Add a `.dockerignore`.

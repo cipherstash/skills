@@ -2,6 +2,7 @@ package generics_test
 
 import (
 	"context"
+	"runtime"
 	"slices"
 	"strconv"
 	"testing"
@@ -104,5 +105,38 @@ func TestStageAndMergeStopOnCancelWhenInputsStayOpen(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("output channel was not closed after cancel")
+	}
+}
+
+func TestMergeClosesOnCancelWhenInputsStayOpen(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	never := make(chan int) // never closed, never sent on
+	out := generics.Merge(ctx, never)
+	cancel()
+	select {
+	case _, ok := <-out:
+		if ok {
+			t.Fatal("received a value after cancel")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Merge did not close its output after cancel")
+	}
+}
+
+func TestMergeStopsOnCancelWhenNobodyReads(t *testing.T) {
+	before := runtime.NumGoroutine()
+	ctx, cancel := context.WithCancel(context.Background())
+	in := make(chan int)
+	_ = generics.Merge(ctx, in) // nobody reads the output
+	in <- 1                     // Merge has the value and now blocks sending it
+	cancel()
+
+	// Merge's goroutines must exit even though the send never completes.
+	deadline := time.Now().Add(5 * time.Second)
+	for runtime.NumGoroutine() > before {
+		if time.Now().After(deadline) {
+			t.Fatalf("%d goroutines still running after cancel, want at most %d", runtime.NumGoroutine(), before)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }

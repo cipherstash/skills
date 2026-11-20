@@ -13,7 +13,7 @@ Area 3, high priority. Read this, and golang-practices' `references/testing.md`,
 
 ## New code without tests
 
-Report each function, method, or branch the change adds or alters that no test runs, when a plausible regression there would go unnoticed: a calculation, a parser, an error path, a boundary. Name the function and the regression a test would catch, for example "a `Merge` that dropped `TotalCents` would pass every test".
+Report each function, method, or branch the change adds or alters that no test runs, when a plausible regression there would go unnoticed: a calculation, a parser, an error path, a boundary. Name the function and the regression a test would catch, for example "a `Backoff` that stopped capping the delay would pass every test".
 
 Report a test the change deletes or weakens, such as a removed case or a loosened assertion, when the behaviour it covered still exists. If the deleted test caught a defect the change introduces, fold this into that defect's finding as part of its cause.
 

@@ -8,7 +8,7 @@ Use this shape. Keep every section, even when it is empty, so a reader can see w
 # Go review: <target as given>
 
 Reviewed `<base short SHA>`..`<head short SHA>` (full: `<base SHA>`..`<head SHA>`) in `<repository path or PR URL>`
-Go version: 1.22 (`go.mod`)
+Go version: 1.23 (`go.mod`)
 Source: golang-review · <model ID, or unknown> · host <Claude Code, Codex, or unknown>
 Skills: `golang-review`, `golang-practices`
 
@@ -16,20 +16,20 @@ Skills: `golang-review`, `golang-practices`
 
 | Check | Scope | Outcome |
 | --- | --- | --- |
-| `go vet` | `./orders` | passed |
-| `go test -race -count=1 -timeout 5m -coverprofile=<tmp>/cover.out` | `./orders` | failed: `WARNING: DATA RACE`, write at `orders/orders.go:43` reached through `orders/orders.go:35` |
-| `go tool cover -func` | `./orders` | 95.8% of statements; untested: `Merge` (`orders/report.go:13`) |
-| `gofmt -l` | changed `.go` files | failed: `orders/units.go` |
-| `go mod tidy -diff` | `.` | failed: removes `require example.com/pricing v0.0.0` |
-| `go doc -all` at base and head | `./orders` | 1 removed, 6 added; see API changes |
+| `go vet` | `./mailer` | passed |
+| `go test -race -count=1 -timeout 5m -coverprofile=<tmp>/cover.out` | `./mailer` | failed: `WARNING: DATA RACE`, write at `mailer/queue.go:58` reached through `mailer/queue.go:71` |
+| `go tool cover -func` | `./mailer` | 81.3% of statements; untested: `Backoff` (`mailer/retry.go:22`) |
+| `gofmt -l` | changed `.go` files | passed |
+| `go mod tidy -diff` | `.` | failed: marks `golang.org/x/sync v0.7.0` as `// indirect` |
+| `go doc -all` at base and head | `./mailer` | 1 changed, 3 added; see API changes |
 | `staticcheck`, `gosec`, `apidiff` | | not run: not installed |
 | `govulncheck` | `./...` | not run: needs the vulnerability database over the network |
 
 ## API changes
 
-- Removed: `func (s Summary) Empty() bool` (`orders/orders.go:44` at the base).
-- Added: `DefaultCurrency`, `Summary.AverageCents`, `Summary.Merge`, `SKUs`, `LinesQuery`, `Summary.UnitsPerLine`.
-- Version: v0 (no module path suffix, no tags). Name the removal in the release notes and bump the minor version. At v1 or later it would need a new major version.
+- Changed: `func NewClient(addr string) *Client` is now `func NewClient(addr string, opts ...Option) (*Client, error)` (`mailer/client.go:31`). It now returns two values, so every existing caller stops compiling.
+- Added: `Option`, `WithTimeout`, `Client.Close`.
+- Version: v1 (latest tag `v1.4.0`, no module path suffix). The change needs a new major version: keep `NewClient` as it was and add a second constructor, or release it under a `/v2` module path.
 
 ## Coverage and limits
 
@@ -40,24 +40,23 @@ Skills: `golang-review`, `golang-practices`
 
 ## Findings
 
-### G1 · critical · `orders/query.go:6` · SQL built from customer input
+### G1 · critical · `mailer/template.go:27` · display name placed in HTML unescaped
 
 - Area: security
-- Cause: `LinesQuery` concatenates `sku`, which its doc comment says the customer typed, into the SQL text.
-- Trigger and consequence: the SKU `x' OR '1'='1` selects every order line, and other input can change the statement further.
-- Rule: golang-practices security, "Build SQL with placeholders and pass values as arguments."
-- Evidence: read at `orders/query.go:6`. `gosec` not installed.
-- Fix: return the query with a placeholder and pass `sku` to `QueryContext` as an argument.
+- Cause: the change adds the recipient's display name, which users set on their own profile, to the HTML body that `renderBody` builds with `text/template`. `text/template` does not escape HTML.
+- Trigger and consequence: a display name such as `<a href="https://attacker.example/reset">Reset your password</a>` arrives as a working link in an email sent from the service's own address.
+- Rule: golang-practices security, "Check every value from outside the process before use: paths, sizes, and anything placed in HTML, SQL, a shell, or a URL."
+- Evidence: read at `mailer/template.go:27`. `gosec` not installed.
+- Fix: parse the body template with `html/template`, which escapes the name for where it appears.
 - Source: golang-review · <model ID>
 
-### G2 · major · `orders/orders.go:34` · decode error dropped
+### G2 · major · `mailer/queue.go:64` · send error logged and dropped
 
 - Area: error handling
-- Cause: the change calls `json.Unmarshal` as a statement, dropping its error. The base returned it.
-- Trigger and consequence: a record that does not decode, such as `{"sku":"B2","quantity":"one"}`, is still counted as a line, with zero quantity and price, and `Summarise` returns a nil error.
-- Rule: golang-practices error handling, "Check every returned error."
-- Evidence: read at `orders/orders.go:34`. `go vet` does not report it.
-- Fix: return each goroutine's error to `Summarise` and wrap it with the record's index.
+- Cause: the change replaces `return fmt.Errorf("send %s: %w", m.ID, err)` with a log line and `continue`, so `Flush` returns nil after a failed send. The base returned the error.
+- Trigger and consequence: when the mail server refuses one message, `Flush` returns nil and `Worker.run` deletes the whole batch from the queue, so the refused message is never retried.
+- Evidence: read at `mailer/queue.go:64` and its caller at `mailer/worker.go:40`. `go vet` does not report it.
+- Fix: collect each failed send with `errors.Join`, return the result from `Flush`, and keep a message in the queue until its send succeeds.
 - Source: golang-review · <model ID>
 
 <further findings, most severe first>

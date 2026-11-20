@@ -337,6 +337,65 @@ class ExpectedFindingsTest(unittest.TestCase):
         self.assertIn('+ sku +', finding("Security")["quoted"])
 
 
+# Words the fixture declares that are also ordinary English or Go words, so
+# they may appear in the skill text for their own sake.
+COMMON_WORDS = {"Empty", "Line", "Lines", "Merge", "Quantity", "SKU", "Units", "add", "orders"}
+
+# Values from the fixture's code and expected results that are not declared
+# names but would still give its answers away.
+FIXTURE_LITERALS = ["B2", "AUD", "price_cents", "order_lines", "1299", "2400", "433", "95.8%"]
+
+
+def fixture_terms():
+    """Return the names, paths, and values that identify the fixture.
+
+    Taken from its Go files: every declared function, method, type, constant,
+    variable, and exported struct field, each module path, and each file's path
+    in its module, plus FIXTURE_LITERALS, less COMMON_WORDS.
+    """
+    terms = set(FIXTURE_LITERALS)
+    for root in (BASE, HEAD):
+        for path in root.rglob("*.go"):
+            text = path.read_text(encoding="utf-8")
+            terms.update(re.findall(r"(?m)^func (?:\([^)]*\) )?(\w+)", text))
+            terms.update(re.findall(r"(?m)^(?:type|const|var) (\w+)", text))
+            terms.update(re.findall(r"(?m)^\t([A-Z]\w*) +\S", text))
+            terms.add(path.relative_to(root).as_posix())
+            terms.add("./" + path.parent.relative_to(root).as_posix())
+        for path in root.rglob("go.mod"):
+            terms.update(re.findall(r"(?m)^module (\S+)", path.read_text(encoding="utf-8")))
+            if path.parent != root:
+                terms.add("./" + path.parent.relative_to(root).as_posix())
+    return terms - COMMON_WORDS
+
+
+class AnswerKeyTest(unittest.TestCase):
+    """The skill text must not contain the fixture's answers.
+
+    A run of the skill against the fixture shows that the skill finds the
+    planted defects only if nothing it reads names them. Examples in SKILL.md
+    and references/ use a different domain.
+    """
+
+    def test_derives_the_fixture_terms(self):
+        terms = fixture_terms()
+        for term in ("Summarise", "LinesQuery", "TotalCents", "orders/query.go", "./orders", "example.com/pricing"):
+            self.assertIn(term, terms)
+        self.assertNotIn("Merge", terms)
+
+    def test_skill_text_does_not_name_the_fixture(self):
+        pattern = re.compile(
+            r"(?<![\w/-])(" + "|".join(re.escape(t) for t in sorted(fixture_terms(), key=len, reverse=True)) + r")(?![\w-])"
+        )
+        pages = [SKILL / "SKILL.md", *sorted((SKILL / "references").glob("*.md"))]
+        pages += [PRACTICES / "SKILL.md", *sorted((PRACTICES / "references").glob("*.md"))]
+        found = []
+        for page in pages:
+            for number, line in enumerate(page.read_text(encoding="utf-8").splitlines(), 1):
+                found += [f"{page.relative_to(SKILL.parent)}:{number}: {m.group(1)}" for m in pattern.finditer(line)]
+        self.assertEqual(found, [], "fixture terms in the skill text:\n" + "\n".join(found))
+
+
 class GoFixtureTest(unittest.TestCase):
     def setUp(self):
         self.go = shutil.which("go")

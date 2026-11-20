@@ -75,6 +75,8 @@ Every finding has:
   - `critical`: the review traces a realistic trigger to severe harm outside the function's result: a crash in a common path, a security exposure, or wrong data that is stored or sent outside the program.
   - `major`: wrong behaviour under a concrete trigger. A dropped error, a data race, a deadlock, or a goroutine leak that grows with use is major, even when it yields a wrong result, unless the review shows it reaching critical harm.
   - `minor`: a bounded defect, or a broken rule with no demonstrated runtime consequence.
+
+  A step reference's severity rules refine these for its area, and win where they are more specific.
 - **Fix**: a short, concrete correction. Name only APIs that exist in the module's Go version and packages it already uses.
 - **Source**: `golang-review` and the model that ran it, or `unknown`.
 

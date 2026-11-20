@@ -53,6 +53,10 @@ LOCATION_RE = re.compile(r"(?m)^- Location: `(head|base)/([^`:]+):(\d+)`( \(dele
 LINE_RE = re.compile(r"(?m)^- Line: `(.+)`$")
 GO_VERSION_RE = re.compile(r"go1\.(\d+)")
 
+# The read-only settings from the table in checks.md, which every go command
+# here runs with. SettingsTableTest keeps the two the same.
+READ_ONLY_ENV = {"GOFLAGS": "-mod=readonly", "GOTOOLCHAIN": "local", "GOPROXY": "off", "GOSUMDB": "off"}
+
 
 def expected_findings():
     """Return {area: dict(id, severity, side, path, line, deleted, quoted)} from expected-findings.md."""
@@ -81,6 +85,123 @@ def expected_findings():
 
 def finding(area):
     return expected_findings()[area.lower()]
+
+
+# The exported API as checks.md compares it: every declaration go doc -all
+# prints, including each name inside a grouped `const (` or `var (` block and
+# each struct field and interface method, with runs of spaces collapsed (gofmt
+# realigns a group when a longer name joins it) and parameter, result, and
+# receiver names dropped, since renaming one changes no importer.
+
+def _close(text, start):
+    """Return the index of the bracket that closes the one at text[start]."""
+    depth = 0
+    for index in range(start, len(text)):
+        if text[index] in "([{":
+            depth += 1
+        elif text[index] in ")]}":
+            depth -= 1
+            if depth == 0:
+                return index
+    raise ValueError(f"unbalanced brackets in {text!r}")
+
+
+def _split_top(text):
+    """Split text on the commas that are not inside brackets."""
+    parts, depth, last = [], 0, 0
+    for index, char in enumerate(text):
+        if char in "([{":
+            depth += 1
+        elif char in ")]}":
+            depth -= 1
+        elif char == "," and depth == 0:
+            parts.append(text[last:index])
+            last = index + 1
+    parts.append(text[last:])
+    return [part.strip() for part in parts if part.strip()]
+
+
+def _param_types(params):
+    """Return the types of a parameter list, without its names."""
+    parts = _split_top(params)
+    named = [re.match(r"([A-Za-z_]\w*) (\S.*)$", part) for part in parts]
+    if not any(m and m.group(1) not in ("chan", "func", "interface", "map", "struct") for m in named):
+        return [_strip_func_types(part) for part in parts]
+    types, waiting = [], 0
+    for m in named:
+        if m is None:
+            waiting += 1  # `a` in `a, b int` takes the type that follows
+        else:
+            types += [_strip_func_types(m.group(2))] * (waiting + 1)
+            waiting = 0
+    return types
+
+
+def _params(text, start):
+    """Rewrite the parameter list at text[start] and any parenthesised results."""
+    end = _close(text, start)
+    out = "(" + ", ".join(_param_types(text[start + 1 : end])) + ")"
+    if text.startswith(" (", end + 1):
+        results_end = _close(text, end + 2)
+        results = _param_types(text[end + 3 : results_end])
+        out += " " + (results[0] if len(results) == 1 else "(" + ", ".join(results) + ")")
+        end = results_end
+    return out, end + 1
+
+
+def _strip_func_types(text):
+    """Drop the parameter names from every func type in text."""
+    out, index = [], 0
+    for m in re.finditer(r"\bfunc\(", text):
+        if m.start() < index:
+            continue
+        rewritten, index_after = _params(text, m.end() - 1)
+        out += [text[index : m.end() - 1], rewritten]
+        index = index_after
+    return "".join(out) + text[index:]
+
+
+def _signature(line):
+    """Drop the receiver, parameter, and result names from a func or method line."""
+    head, index = "", 0
+    if line.startswith("func ("):
+        end = _close(line, 5)
+        head, index = "func (" + ", ".join(_param_types(line[6:end])) + ")", end + 1
+    name = re.compile(r"[^(\[]*").match(line, index).end()
+    if name < len(line) and line[name] == "[":
+        name = _close(line, name) + 1
+    head += line[index:name]
+    if name < len(line) and line[name] == "(":
+        rewritten, index = _params(line, name)
+        return head + rewritten + _strip_func_types(line[index:])
+    return head + _strip_func_types(line[name:])
+
+
+def api_declarations(doc):
+    """Return the exported declarations in `go doc -all` output, normalised."""
+    declarations, block = set(), None
+    for raw in doc.splitlines():
+        line = " ".join(raw.split())
+        if block:
+            if raw in (")", "}"):
+                block = None
+            elif raw.startswith("\t") and not line.startswith("//"):
+                kind, owner = block
+                member = _signature(line) if kind == "interface" else _strip_func_types(line)
+                declarations.add(f"{owner} {member}")
+            continue
+        group = re.match(r"(const|var) \($", raw)
+        compound = re.match(r"type (\w+)\S* (struct|interface) \{$", raw)
+        if group:
+            block = (group.group(1), group.group(1))
+        elif compound:
+            declarations.add(line.removesuffix(" {"))
+            block = (compound.group(2), compound.group(1))
+        elif raw.startswith("func "):
+            declarations.add(_signature(line))
+        elif re.match(r"(type|const|var) ", raw):
+            declarations.add(_strip_func_types(line))
+    return declarations
 
 
 def changed_files():
@@ -134,6 +255,21 @@ class AreasTableTest(unittest.TestCase):
                 for name in names:
                     self.assertTrue((PRACTICES / name).is_file(), f"{area}: golang-practices has no {name}")
                     self.assertIn(f"`{name}`", body, f"{link.group(1)} does not name {name}")
+
+
+class SettingsTableTest(unittest.TestCase):
+    def settings(self):
+        text = (SKILL / "references" / "checks.md").read_text(encoding="utf-8")
+        section = text.split("\n## Settings for every go command\n", 1)[1].split("\n## ", 1)[0]
+        return dict(re.findall(r"(?m)^\| `([A-Z]+)=([^`]+)` \|", section))
+
+    def test_tests_run_go_with_the_skill_settings(self):
+        self.assertEqual(self.settings(), READ_ONLY_ENV)
+
+    def test_checksum_database_is_off(self):
+        # With GOPROXY=off, go mod tidy -diff still asks sum.golang.org for a
+        # cached module that go.sum has no hash for.
+        self.assertEqual(self.settings().get("GOSUMDB"), "off")
 
 
 class ExpectedFindingsTest(unittest.TestCase):
@@ -211,11 +347,11 @@ class GoFixtureTest(unittest.TestCase):
 
     def run_go(self, module, *args, cwd=None):
         # The skill's read-only settings (no toolchain download, no go.mod or
-        # go.sum edits, no module download), plus GOWORK=off: the fixture
-        # modules sit inside this repository, so a go.work above them must not
-        # change how they build. The skill itself leaves GOWORK as the repository
-        # has it.
-        env = dict(os.environ, GOTOOLCHAIN="local", GOWORK="off", GOFLAGS="-mod=readonly", GOPROXY="off")
+        # go.sum edits, no module download, no checksum database), plus
+        # GOWORK=off: the fixture modules sit inside this repository, so a
+        # go.work above them must not change how they build. The skill itself
+        # leaves GOWORK as the repository has it.
+        env = dict(os.environ, **READ_ONLY_ENV, GOWORK="off")
         return subprocess.run(
             [self.go, *args], cwd=cwd or module, env=env, capture_output=True, text=True, timeout=600
         )
@@ -380,14 +516,88 @@ func TestAllocsProbe(t *testing.T) {
 
     # Breaking changes.
 
-    def exported_api(self, module):
-        output = self.assertGo(module, "doc", "-all", "./orders")
-        return {line.strip() for line in output.splitlines() if re.match(r"^(?:    )?(?:func|type|const|var) ", line)}
+    def exported_api(self, module, package="./orders"):
+        return api_declarations(self.assertGo(module, "doc", "-all", package))
+
+    API_GROUPS = """// Package api is a probe.
+package api
+
+import "errors"
+
+// Kind is a kind.
+type Kind int
+
+// Kinds.
+const (
+	KindA Kind = iota
+{kind})
+
+// Errors.
+var (
+	ErrA = errors.New("a")
+{err})
+
+// Pair is a pair.
+type Pair struct {{
+	A int
+{field}}}
+"""
+
+    API_NAMES = """// Package api is a probe.
+package api
+
+// T is a type.
+type T struct{{}}
+
+// M is a method.
+func ({recv} T) M({a} int) ({n} int, {err} error) {{ return 0, nil }}
+
+// F is a function.
+func F({x}, {y} int, f func({v} int) bool) error {{ return nil }}
+
+// Doer does.
+type Doer interface {{
+	Do({c} int) error
+}}
+"""
+
+    def api_change(self, base_source, head_source):
+        """Return (removed, added) exported declarations between two versions of a package."""
+        apis = []
+        with tempfile.TemporaryDirectory() as tmp:
+            for name, source in (("base", base_source), ("head", head_source)):
+                module = Path(tmp) / name
+                (module / "api").mkdir(parents=True)
+                (module / "go.mod").write_text("module example.com/api\n\ngo 1.22\n", encoding="utf-8")
+                (module / "api" / "api.go").write_text(source, encoding="utf-8")
+                apis.append(self.exported_api(module, "./api"))
+        return apis[0] - apis[1], apis[1] - apis[0]
+
+    def test_api_comparison_sees_names_removed_from_groups(self):
+        base = self.API_GROUPS.format(kind="\tKindB\n", err='\tErrB = errors.New("b")\n', field="\tLonger string\n")
+        head = self.API_GROUPS.format(kind="", err="", field="")
+        removed, added = self.api_change(base, head)
+        self.assertEqual(added, set())
+        self.assertEqual(len(removed), 3, removed)
+        for name in ("KindB", "ErrB", "Longer"):
+            self.assertTrue(any(name in declaration for declaration in removed), f"{name} not in {removed}")
+
+    def test_api_comparison_ignores_renamed_parameters_and_receivers(self):
+        base = self.API_NAMES.format(recv="this", a="a", n="n", err="err", x="x", y="y", v="v", c="ctx")
+        head = self.API_NAMES.format(recv="t", a="b", n="m", err="e", x="p", y="q", v="w", c="c")
+        self.assertEqual(self.api_change(base, head), (set(), set()))
+
+    def test_api_comparison_sees_a_retyped_parameter(self):
+        base = self.API_NAMES.format(recv="t", a="a", n="n", err="err", x="x", y="y", v="v", c="c")
+        head = base.replace("M(a int)", "M(a int64)")
+        removed, added = self.api_change(base, head)
+        self.assertEqual(len(removed), 1, removed)
+        self.assertEqual(len(added), 1, added)
 
     def test_one_exported_declaration_is_removed(self):
         f = finding("Breaking changes")
         removed = self.exported_api(BASE) - self.exported_api(HEAD)
-        self.assertEqual(removed, {f["quoted"].removesuffix(" {")})
+        self.assertEqual(removed, {_signature(f["quoted"].removesuffix(" {"))})
 
 
 if __name__ == "__main__":

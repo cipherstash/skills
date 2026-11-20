@@ -31,7 +31,13 @@ EXPECTED_REFERENCES = {
 # too, so a file behind a tag cannot rot unseen.
 BUILD_TAGS = ("integration",)
 
-FENCE_RE = re.compile(r"(?ms)^```go\n(.*?)^```\s*$")
+# A Go fence opener: up to three spaces of indent, three or more backticks or
+# tildes, then go or golang in any case, optionally followed by more info. The
+# closer uses the same indent and fence characters.
+FENCE_RE = re.compile(
+    r"(?ms)^(?P<indent> {0,3})(?P<fence>`{3,}|~{3,})[ \t]*(?i:go|golang)(?:[ \t][^\n]*)?\n"
+    r"(?P<code>.*?)^(?P=indent)(?P=fence)[ \t]*$"
+)
 SOURCE_RE = re.compile(r"\]\(\.\./examples/([^)#]+\.go)\)")
 GO_DIRECTIVE_RE = re.compile(r"(?m)^go (\d+\.\d+)(?:\.\d+)?\s*$")
 
@@ -50,7 +56,12 @@ def quoted_blocks(text):
         lead = before[-1] if before else ""
         source = SOURCE_RE.search(lead)
         line = text.count("\n", 0, match.start()) + 1
-        yield line, source.group(1) if source else None, match.group(1)
+        indent = match.group("indent")
+        code = "".join(
+            l[len(indent) :] if l.startswith(indent) else l
+            for l in match.group("code").splitlines(keepends=True)
+        )
+        yield line, source.group(1) if source else None, code
 
 
 def excerpt_problem(code, source_text):
@@ -214,6 +225,18 @@ class QuotedBlocksParserTest(unittest.TestCase):
             excerpt_problem("func C() {}\n", "func A() {}\n"),
             "block is not a verbatim excerpt",
         )
+
+    def test_reads_every_kind_of_go_fence(self):
+        link = "From [`a.go`](../examples/pkg/a.go):\n\n"
+        for fence in ("```go", "```golang", "```Go", "~~~go", "```go title", "````go"):
+            close = fence.split("go")[0].split("Go")[0].rstrip(" ")
+            with self.subTest(fence=fence):
+                text = f"{link}{fence}\nfunc A() {{}}\n{close}\n"
+                self.assertEqual(list(quoted_blocks(text)), [(3, "pkg/a.go", "func A() {}\n")])
+
+    def test_reads_an_indented_fence(self):
+        text = "1. From [`a.go`](../examples/pkg/a.go):\n\n   ```go\n   func A() {}\n   ```\n"
+        self.assertEqual(list(quoted_blocks(text)), [(3, "pkg/a.go", "func A() {}\n")])
 
     def test_ignores_other_languages(self):
         text = "```sh\ngo test ./...\n```\n"

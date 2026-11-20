@@ -65,6 +65,11 @@ func RunJobs(ctx context.Context, jobs []Job, process func(context.Context, Job)
 // worker processes jobs until jobs is closed, a job fails, or ctx ends.
 func worker(ctx context.Context, jobs <-chan Job, process func(context.Context, Job) error) error {
 	for {
+		// select picks at random among ready cases, so check ctx first: a
+		// context that has already ended must not start another job.
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("worker stopped: %w", err)
+		}
 		select {
 		case <-ctx.Done():
 			return fmt.Errorf("worker stopped: %w", ctx.Err())
@@ -127,8 +132,12 @@ type Pool struct {
 	cancel   context.CancelFunc // cancels the context running tasks receive
 }
 
-// NewPool starts a pool of n workers. Call Shutdown to stop them.
+// NewPool starts a pool of n workers. Call Shutdown to stop them. It panics
+// if n is less than 1: a pool with no workers would block every Submit.
 func NewPool(n int) *Pool {
+	if n < 1 {
+		panic("concurrency: NewPool needs at least 1 worker")
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	p := &Pool{
 		tasks:  make(chan func(context.Context)),
@@ -339,7 +348,7 @@ Use a pipeline for a stream of values where each stage can run at its own pace. 
 
 ## Blocking calls take a context
 
-Pass the context to the call that blocks. `http.NewRequestWithContext` ties the request to `ctx`, so `client.Do` returns when the deadline passes. There is no need for a goroutine, a result channel, or `time.After`.
+Pass the context to the call that blocks. `http.NewRequestWithContext` ties the request to `ctx`, so `client.Do` returns when the deadline passes. There is no need for a goroutine, a result channel, or `time.After`. `client.Do` returns a `*url.Error`, which already names the method and the URL, so `Fetch` returns it as it is.
 
 From [`examples/concurrency/fetch.go`](../examples/concurrency/fetch.go):
 
@@ -363,11 +372,11 @@ func (e *StatusError) Error() string {
 func Fetch(ctx context.Context, client *http.Client, url string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("build request for %s: %w", url, err)
+		return nil, fmt.Errorf("build request: %w", err) // the *url.Error names the URL
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("get %s: %w", url, err)
+		return nil, err // a *url.Error, which names the method and the URL
 	}
 	defer resp.Body.Close() // read-only: a close error cannot lose data
 	if resp.StatusCode != http.StatusOK {
@@ -387,7 +396,7 @@ Do not wrap a blocking call that ignores `ctx` in a goroutine and race it agains
 
 ## Stopping a long-running loop
 
-`Run` loops until its context ends or `Stop` is called. `Stop` closes the channel inside a `sync.Once`, so calling it twice, or from two goroutines, is safe. `Run` passes `tick` a context derived from its own and cancels it when `Stop` is called, so a tick that is blocked when `Stop` is called also returns.
+`Run` loops until its context ends or `Stop` is called. `Stop` closes the channel inside a `sync.Once`, so calling it twice, or from two goroutines, is safe. `Run` passes `tick` a context derived from its own and cancels it when `Stop` is called, so a tick that is blocked when `Stop` is called also returns. A tick error after `Stop` counts as the stop only when it is `context.Canceled`; any other tick error, such as a failed write, is still returned. `Run` waits for the goroutine that watches `Stop` to exit before it returns.
 
 From [`examples/concurrency/service.go`](../examples/concurrency/service.go):
 
@@ -408,11 +417,17 @@ func NewService(interval time.Duration, tick func(context.Context) error) *Servi
 // Run calls tick every interval. It returns nil after Stop, ctx's error when
 // ctx ends, or the first error from tick. Stop also cancels the context that a
 // running tick receives, so a tick that blocks until its context ends does not
-// keep Run from returning.
+// keep Run from returning. A tick error caused by that cancellation counts as
+// the Stop, and Run returns nil; any other tick error is returned.
 func (s *Service) Run(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	done := make(chan struct{})
+	defer func() {
+		cancel()
+		<-done // the goroutine below has exited
+	}()
 	go func() {
+		defer close(done)
 		select {
 		case <-s.stop:
 			cancel()
@@ -432,7 +447,7 @@ func (s *Service) Run(ctx context.Context) error {
 			return fmt.Errorf("service stopped: %w", ctx.Err())
 		case <-ticker.C:
 			if err := s.tick(ctx); err != nil {
-				if s.stopped() {
+				if s.stopped() && errors.Is(err, context.Canceled) {
 					return nil
 				}
 				return fmt.Errorf("tick: %w", err)
@@ -557,8 +572,12 @@ type Semaphore struct {
 	slots chan struct{}
 }
 
-// NewSemaphore returns a Semaphore with n slots.
+// NewSemaphore returns a Semaphore with n slots. It panics if n is less
+// than 1: a semaphore with no slots would block every Acquire.
 func NewSemaphore(n int) *Semaphore {
+	if n < 1 {
+		panic("concurrency: NewSemaphore needs at least 1 slot")
+	}
 	return &Semaphore{slots: make(chan struct{}, n)}
 }
 

@@ -93,3 +93,20 @@ func TestPoolShutdownCancelsTasksWhenItsContextEnds(t *testing.T) {
 		t.Fatal("the running task was not cancelled after Shutdown gave up waiting")
 	}
 }
+
+func wantPanic(t *testing.T, want string, f func()) {
+	t.Helper()
+	defer func() {
+		if got := recover(); got != want {
+			t.Fatalf("panic = %v, want %q", got, want)
+		}
+	}()
+	f()
+}
+
+func TestConstructorsRejectFewerThanOneSlot(t *testing.T) {
+	for _, n := range []int{0, -1} {
+		wantPanic(t, "concurrency: NewPool needs at least 1 worker", func() { concurrency.NewPool(n) })
+		wantPanic(t, "concurrency: NewSemaphore needs at least 1 slot", func() { concurrency.NewSemaphore(n) })
+	}
+}

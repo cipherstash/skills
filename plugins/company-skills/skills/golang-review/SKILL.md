@@ -1,6 +1,6 @@
 ---
 name: golang-review
-description: Reviews a Go change — a diff, branch, commit range, or pull request — and reports findings with file and line, the checks it ran and could not run, and an APPROVE or REQUEST_CHANGES verdict. Covers error handling and concurrency safety, using go vet and race-enabled tests as evidence and golang-practices' references as the rules. Use when asked to review Go code, a Go pull request or branch, or to check a Go change for bugs before merge. Read-only. Does not write Go (golang-practices), fix findings (review-fix), or post to a pull request (review-post).
+description: Reviews a Go change — a diff, branch, commit range, or pull request — against a ten-area checklist (error handling, correctness, tests and coverage, concurrency, naming, security, performance, dependencies, documentation, breaking changes) and reports findings with file and line, the checks it ran and could not run, and an APPROVE or REQUEST_CHANGES verdict. Uses go vet, race-enabled tests with coverage, gofmt, go mod tidy -diff, and an exported-API comparison as evidence, and golang-practices' references as the rules. Use when asked to review Go code, a Go pull request or branch, or to check a Go change for bugs before merge. Read-only. Does not write Go (golang-practices), fix findings (review-fix), or post to a pull request (review-post).
 argument-hint: "[PR number or URL, branch, commit range, or diff]"
 ---
 
@@ -13,14 +13,15 @@ The steps run in order in one session. They need no subagents, so the skill work
 ## Inputs
 
 - **The target**: a pull request (number or URL), a branch, a commit range, or a diff (the uncommitted changes, a patch file, or a pasted diff). A request with no target named, such as "review my Go changes", resolves to the uncommitted changes or the current branch, as [references/target.md](references/target.md) describes.
-- **Areas** (optional): a request that names areas, such as "just check the concurrency", reviews those areas only. The others are listed as not reviewed at the user's request.
+- **Areas** (optional): a request that names areas, such as "just check the concurrency", reviews those areas only, and runs only the checks they need. The others are listed as not reviewed at the user's request.
 
 ## Read-only
 
 The review leaves the user's repository as it found it. Checks run in a temporary worktree, which is removed on every exit, including a stop. The review:
 
 - does not edit, stage, stash, check out, or reset anything in the user's working tree;
-- does not install anything: no `go get`, `go mod download`, `go mod tidy`, `go install`, or toolchain download;
+- does not install anything: no `go get`, `go mod download`, `go mod tidy` (only `go mod tidy -diff`, which writes nothing), `go install`, toolchain download, or linter. A tool that is not installed is a limit;
+- runs no check that uses the network, except `govulncheck` reading the vulnerability database when the user allows it, as [references/checks.md](references/checks.md) describes;
 - does not post to a pull request, reply to or resolve a thread, or submit a review on GitHub. The verdict lives in the report only.
 
 Read every command before running it, and run only what [references/checks.md](references/checks.md) allows. Running `go test` runs the change's own code on this machine, so that reference says what to read first and when to leave the tests unrun.
@@ -35,32 +36,32 @@ Read every command before running it, and run only what [references/checks.md](r
 
 4. **Load golang-practices.** Invoke the `golang-practices` skill by name: the Skill tool in Claude Code, where it may be namespaced as `company-skills:golang-practices`, or `$golang-practices` in Codex. Loading it gives its directory, and the practices references in the table below resolve from there. Use it for its rules and references only. It is written for writing Go, and the review's own steps decide what is a finding. If it cannot be loaded, continue with this skill's step references alone, and record each practices reference not read as a coverage limit. Completion: golang-practices is loaded and its directory known, or the limit is recorded.
 
-5. **Run the checks.** Follow [references/checks.md](references/checks.md): read the changed code the tests will run, then run `go vet` and race-enabled `go test` over the changed packages in the worktree, with the read-only settings it lists. Record each check as passed, failed with its output, or not run with the reason. Completion: every check in that reference has one of those three outcomes.
+5. **Run the checks.** Follow [references/checks.md](references/checks.md): read the changed code the tests will run, then run the checks the areas in scope need, in the worktree, with the read-only settings it lists: `go vet`, race-enabled `go test` with a coverage profile, `gofmt -l`, `go mod tidy -diff`, the exported-API comparison, and the linters that are already installed. Record each check as passed, failed with its output, or not run with the reason. Completion: every check in that reference has one of those three outcomes.
 
-6. **Review each area.** Work through the areas in the table below in priority order. For each area this skill covers, read its step reference and the practices reference it names, then examine every changed hunk for that area, following calls into unchanged code where that is needed to show a consequence. List candidate findings with their evidence. An area this skill does not yet cover is listed in the report as not reviewed. Completion: every changed Go hunk has been examined for every covered area in scope.
+6. **Review each area.** Work through the areas in the table below in order. For each area in scope, read its step reference and the practices references it names, then examine every changed hunk for that area, following calls into unchanged code where that is needed to show a consequence. Use the check outcomes from step 5 as evidence. List candidate findings with their evidence. Completion: every changed Go hunk has been examined for every area in scope, and each area has its outcome: reviewed, or not reviewed with the reason.
 
 7. **Test each finding.** Keep a candidate only if it meets the finding contract below, and give it a severity. Drop a departure from preferred practice that has no consequence and breaks no cited rule. Merge candidates that share one root cause into one finding that lists every location. Completion: every remaining finding meets the contract.
 
-8. **Report.** Remove the worktree. Compare `git status --porcelain` with the record from step 2, and report any difference. Then write the report in the format of [references/output.md](references/output.md): the reviewed state, the checks and their outcomes, coverage and limits, the findings most severe first, and last the verdict with a short summary. Completion: the worktree is gone and the report ends with its verdict.
+8. **Report.** Remove the worktree. Compare `git status --porcelain` with the record from step 2, and report any difference. Then write the report in the format of [references/output.md](references/output.md): the reviewed state, the checks and their outcomes with the coverage figure, the exported API changes, coverage and limits, the findings most severe first, and last the verdict with a short summary. Completion: the worktree is gone and the report ends with its verdict.
 
 ## Areas
 
-The ten areas of the Go review checklist, in priority order. Priority sets the order of work and what to cut first when the request or the context is narrow. It is not the severity of a finding.
+The ten areas of the Go review checklist. The order is the order of work: high-priority areas first, then medium, then low. When a request or the context is narrow, cut from the bottom. Priority is not the severity of a finding: a low-priority area can hold a critical finding, and its severity follows the finding contract below.
 
-| Order | Area | Priority | Step reference | Practices reference |
+| Order | Area | Priority | Step reference | Practices references |
 | --- | --- | --- | --- | --- |
 | 1 | Error handling | High | [references/step-error-handling.md](references/step-error-handling.md) | `references/error-handling.md` |
-| 2 | Correctness and edge cases | High | Not yet covered | |
-| 3 | Testing and coverage | High | Not yet covered | |
+| 2 | Correctness and edge cases | High | [references/step-correctness.md](references/step-correctness.md) | `references/error-handling.md`, `references/interfaces.md` |
+| 3 | Testing and coverage | High | [references/step-testing.md](references/step-testing.md) | `references/testing.md` |
 | 4 | Concurrency safety | Medium | [references/step-concurrency.md](references/step-concurrency.md) | `references/concurrency.md` |
-| 5 | Naming and style | Medium | Not yet covered | |
-| 6 | Security | Medium | Not yet covered | |
-| 7 | Performance | Medium | Not yet covered | |
-| 8 | Dependency management | Medium | Not yet covered | |
-| 9 | Documentation | Low | Not yet covered | |
-| 10 | Breaking changes | Low | Not yet covered | |
+| 5 | Naming and style | Medium | [references/step-naming.md](references/step-naming.md) | `references/project-structure.md`, `references/interfaces.md` |
+| 6 | Security | Medium | [references/step-security.md](references/step-security.md) | `references/security.md` |
+| 7 | Performance | Medium | [references/step-performance.md](references/step-performance.md) | `references/performance.md` |
+| 8 | Dependency management | Medium | [references/step-dependencies.md](references/step-dependencies.md) | `references/dependencies.md`, `references/project-structure.md` |
+| 9 | Documentation | Low | [references/step-documentation.md](references/step-documentation.md) | `references/project-structure.md`, `references/testing.md` |
+| 10 | Breaking changes | Low | [references/step-breaking-changes.md](references/step-breaking-changes.md) | `references/dependencies.md`, `references/project-structure.md` |
 
-An area marked "Not yet covered" is reported under coverage as not reviewed by this version of the skill. A defect you notice in one of those areas while working on another is still reported if it meets the finding contract, under the area it belongs to.
+Each step reference names the evidence to gather and the tool that can establish it, where one exists. A defect you notice outside the areas in scope is still reported if it meets the finding contract, under the area it belongs to.
 
 ## Finding contract
 

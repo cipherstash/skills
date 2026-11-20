@@ -35,7 +35,7 @@ Read every command before running it, and run only what [references/checks.md](r
 
 4. **Load golang-practices.** Invoke the `golang-practices` skill by name: the Skill tool in Claude Code, where it may be namespaced as `company-skills:golang-practices`, or `$golang-practices` in Codex. Loading it gives its directory, and the practices references in the table below resolve from there. Use it for its rules and references only. It is written for writing Go, and the review's own steps decide what is a finding. If it cannot be loaded, continue with this skill's step references alone, and record each practices reference not read as a coverage limit. Completion: golang-practices is loaded and its directory known, or the limit is recorded.
 
-5. **Run the checks.** Follow [references/checks.md](references/checks.md): inspect the test code that will run, then run `go vet` and race-enabled `go test` over the changed packages in the worktree, with the read-only settings it lists. Record each check as passed, failed with its output, or not run with the reason. Completion: every check in that reference has one of those three outcomes.
+5. **Run the checks.** Follow [references/checks.md](references/checks.md): read the changed code the tests will run, then run `go vet` and race-enabled `go test` over the changed packages in the worktree, with the read-only settings it lists. Record each check as passed, failed with its output, or not run with the reason. Completion: every check in that reference has one of those three outcomes.
 
 6. **Review each area.** Work through the areas in the table below in priority order. For each area this skill covers, read its step reference and the practices reference it names, then examine every changed hunk for that area, following calls into unchanged code where that is needed to show a consequence. List candidate findings with their evidence. An area this skill does not yet cover is listed in the report as not reviewed. Completion: every changed Go hunk has been examined for every covered area in scope.
 
@@ -71,8 +71,8 @@ Every finding has:
 - **Trigger and consequence**, or **rule**: the input, state, or timing that makes it fail and what goes wrong then; or the golang-practices rule it breaks, quoted or named with its reference. Without either, it is not a finding.
 - **Evidence**: the lines read, and the output of any check that shows it, such as a race report. Say which parts are observed and which are inferred.
 - **Severity**: one of `critical`, `major`, or `minor`, the vocabulary `review-cross-check`, `review-post`, and `review-fix` take unchanged.
-  - `critical`: demonstrated severe harm under a realistic trigger, such as data loss or corruption, a security exposure, or a crash in a common path.
-  - `major`: wrong behaviour under a concrete trigger, such as a silently dropped error, a data race, a deadlock, or a goroutine leak that grows with use.
+  - `critical`: the review traces a realistic trigger to severe harm outside the function's result: a crash in a common path, a security exposure, or wrong data that is stored or sent outside the program.
+  - `major`: wrong behaviour under a concrete trigger. A dropped error, a data race, a deadlock, or a goroutine leak that grows with use is major, even when it yields a wrong result, unless the review shows it reaching critical harm.
   - `minor`: a bounded defect, or a broken rule with no demonstrated runtime consequence.
 - **Fix**: a short, concrete correction. Name only APIs that exist in the module's Go version and packages it already uses.
 - **Source**: `golang-review` and the model that ran it, or `unknown`.

@@ -35,7 +35,7 @@ Then, in a session started in `$work`, ask for a review of the last commit, for 
 - Location: `head/orders/orders.go:34`
 - Line: `json.Unmarshal(raw, &l)`
 - Cause: the change drops the error from `json.Unmarshal`. The base returned `decode record <i>: <cause>`.
-- Trigger and consequence: a record that does not decode, such as `{"sku":"B2","quantity":"one"}`, is counted as a zero-valued line. `Summarise` returns a `Summary` with `Lines` one too high and a `nil` error, so the caller cannot tell that the totals are wrong. The change also deleted `TestSummariseRejectsABadRecord`, the test that caught this.
+- Trigger and consequence: a record that does not decode, such as `{"sku":"B2","quantity":"one"}`, is still counted as a line. `json.Unmarshal` keeps decoding after the type error, so the line has SKU `B2` and a zero quantity and price. `Summarise` returns a `Summary` with `Lines` one too high and a `nil` error, so the caller cannot tell that the totals are wrong. The change also deleted `TestSummariseRejectsABadRecord`, the test that caught this.
 - Rule: golang-practices, error handling: check every returned error.
 - Evidence: reading the diff. `go vet` passes, so tools do not show it.
 - A correct fix sends each goroutine's error back to `Summarise`, which returns it with the record's index, and restores the deleted test.
@@ -45,10 +45,17 @@ Then, in a session started in `$work`, ask for a review of the last commit, for 
 - Location: `head/orders/orders.go:35`
 - Line: `s.add(l)`
 - Cause: every goroutine calls `s.add` on the shared `Summary` with no lock, so the `+=` and `++` in `add` race.
-- Trigger and consequence: any call with two or more records. Updates are lost, so `Lines`, `Units`, and `TotalCents` can come back too low, with no error.
+- Trigger and consequence: any call with two or more records. Updates are lost, so `Lines`, `Units`, and `TotalCents` can come back too low, with no error. It is major, not critical: the wrong totals are `Summarise`'s result, and nothing in the change stores or sends them.
 - Rule: golang-practices, concurrency: a data race is a bug even when the test passes.
 - Evidence: `go test -race ./...` reports `WARNING: DATA RACE` at `orders.go:43` through `orders.go:35`.
 - A correct fix guards the totals with a mutex, or has each goroutine send its line to one goroutine that adds them.
+
+## May report
+
+Findings outside the two covered areas are allowed, because the skill reports a defect it notices in an area it does not cover yet. They neither count for nor against the review. For example:
+
+- Testing and coverage: the change deleted `TestSummariseRejectsABadRecord`. This may also be folded into G1, as above.
+- Performance: one goroutine per record has no bound, so a very large batch starts that many goroutines.
 
 ## Must not report
 

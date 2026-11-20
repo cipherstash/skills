@@ -32,7 +32,7 @@ Skills: `golang-review`, `golang-practices`
 
 - Area: error handling
 - Cause: the change calls `json.Unmarshal` as a statement, dropping its error. The base returned it.
-- Trigger and consequence: a record that does not decode is counted as a zero-valued line, and `Summarise` returns a nil error.
+- Trigger and consequence: a record that does not decode, such as `{"sku":"B2","quantity":"one"}`, is still counted as a line, with zero quantity and price, and `Summarise` returns a nil error.
 - Rule: golang-practices error handling, "Check every returned error."
 - Evidence: read at `orders/orders.go:34`. `go vet` does not report it.
 - Fix: return each goroutine's error to `Summarise` and wrap it with the record's index.

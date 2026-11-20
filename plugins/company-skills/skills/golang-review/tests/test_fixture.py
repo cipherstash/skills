@@ -5,8 +5,9 @@
 # with a planted error-handling defect and a planted data race.
 # expected-findings.md lists what a correct review must report. These tests keep
 # the fixture honest: the base is clean, the defects come from the change,
-# go vet passes on the head while go test -race catches the race, and every
-# location in expected-findings.md points at the line it quotes.
+# go vet passes on the head while go test -race catches the race, the head
+# counts a bad record with no error while the base rejects it, and every
+# location in expected-findings.md is exactly the line it quotes.
 #
 # The Go checks need the go command on PATH. Without it they are skipped locally
 # with a message, and they fail when the CI environment variable is set, so a CI
@@ -16,6 +17,7 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -24,6 +26,23 @@ FIXTURE = SKILL / "tests" / "fixtures" / "seeded-change"
 BASE = FIXTURE / "base"
 HEAD = FIXTURE / "head"
 EXPECTED = FIXTURE / "expected-findings.md"
+
+# Added to a temporary copy of a fixture module by GoFixtureTest: it prints
+# whether Summarise returned an error for G1's bad record, and how many lines
+# it counted.
+BAD_RECORD_PROBE = """package orders
+
+import "testing"
+
+func TestBadRecordProbe(t *testing.T) {
+	got, err := Summarise([][]byte{[]byte(`{"sku":"B2","quantity":"one"}`)})
+	result := "nil"
+	if err != nil {
+		result = "error"
+	}
+	t.Logf("PROBE err=%s lines=%d", result, got.Lines)
+}
+"""
 
 # One expected finding: "## G1 · major · error handling" and, below it,
 # "- Location: `head/<path>:<line>`" and "- Line: `<text quoted from that line>`".
@@ -83,7 +102,11 @@ class ExpectedFindingsTest(unittest.TestCase):
                 self.assertIsNotNone(quoted, f"{finding_id}: no '- Line: `<text>`'")
                 lines = (HEAD / path).read_text(encoding="utf-8").splitlines()
                 self.assertLessEqual(line, len(lines), f"{finding_id}: {path} has {len(lines)} lines")
-                self.assertIn(quoted, lines[line - 1], f"{finding_id}: {path}:{line} is {lines[line - 1]!r}")
+                # The whole line, not a substring: a fix that keeps the call on the
+                # same line (`errs[i] = json.Unmarshal(raw, &l)`) must fail here.
+                self.assertEqual(
+                    lines[line - 1].strip(), quoted, f"{finding_id}: {path}:{line} is {lines[line - 1]!r}"
+                )
 
     def test_findings_point_at_changed_files(self):
         changed = changed_files()
@@ -104,8 +127,11 @@ class GoFixtureTest(unittest.TestCase):
             self.skipTest("go is not on PATH; install Go to run the fixture checks")
 
     def run_go(self, module, *args):
-        # The same read-only settings the skill uses: no toolchain download, no
-        # go.mod or go.sum edits, no workspace file.
+        # The skill's read-only settings (no toolchain download, no go.mod or
+        # go.sum edits, no module download), plus GOWORK=off: the fixture
+        # modules sit inside this repository, so a go.work above them must not
+        # change how they build. The skill itself leaves GOWORK as the repository
+        # has it.
         env = dict(os.environ, GOTOOLCHAIN="local", GOWORK="off", GOFLAGS="-mod=readonly", GOPROXY="off")
         return subprocess.run(
             [self.go, *args], cwd=module, env=env, capture_output=True, text=True, timeout=600
@@ -135,6 +161,30 @@ class GoFixtureTest(unittest.TestCase):
         self.assertEqual(len(race), 1)
         _, _, _, path, line, _ = race[0]
         self.assertIn(f"{Path(path).name}:{line}", output, "the race report does not name the finding's line")
+
+    def run_bad_record_probe(self, module):
+        # Run a probe test against a temporary copy of the module: Summarise on a
+        # record whose quantity is a string. The copy keeps the probe out of the
+        # fixture.
+        with tempfile.TemporaryDirectory() as tmp:
+            copy = Path(tmp) / module.name
+            shutil.copytree(module, copy)
+            (copy / "orders" / "probe_test.go").write_text(BAD_RECORD_PROBE, encoding="utf-8")
+            result = self.run_go(copy, "test", "-count=1", "-run", "^TestBadRecordProbe$", "-v", "./orders")
+        output = result.stdout + result.stderr
+        self.assertEqual(result.returncode, 0, f"probe in {module.name}/ did not run\n{output}")
+        probe = re.search(r"PROBE err=(\w+) lines=(\d+)", output)
+        self.assertIsNotNone(probe, output)
+        return probe.group(1), int(probe.group(2))
+
+    def test_base_rejects_a_bad_record(self):
+        self.assertEqual(self.run_bad_record_probe(BASE), ("error", 0))
+
+    def test_head_counts_a_bad_record_with_no_error(self):
+        # G1's consequence, observed: the bad record becomes a line and the
+        # error is nil. A change that fixes G1 fails this test, so the fixture
+        # cannot drift away from its expected findings unnoticed.
+        self.assertEqual(self.run_bad_record_probe(HEAD), ("nil", 1))
 
     def test_gofmt(self):
         gofmt = shutil.which("gofmt") or str(Path(self.go).with_name("gofmt"))

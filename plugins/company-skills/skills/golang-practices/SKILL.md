@@ -8,12 +8,13 @@ user-invocable: false
 
 Rules for writing Go. Apply them to every Go change, and read the reference for each area the change touches before writing code in it.
 
-## Before you start
-
-- Read the `go` line in the module's `go.mod`. Some rules depend on it, and the references say which. If the repository's own guidance differs from these rules, follow the repository. Say that you did.
-- Format with `gofmt`, run `go vet ./...`, and run the tests with `go test -race ./...` before calling a change done.
-
 ## Rules
+
+### General
+
+- Read the `go` line in the module's `go.mod` before applying a version-sensitive rule. The references say which rules depend on it.
+- If the repository's own guidance differs from these rules, follow the repository. Say that you did.
+- Format with `gofmt`, run `go vet ./...`, and run the tests with `go test -race ./...` before calling a change done.
 
 ### Errors
 

@@ -19,7 +19,7 @@ Write the instructions the agent should follow.
 
 - Give each skill one recognizable user goal. Split workflows with different triggers, inputs, or success criteria.
 - Name the directory and frontmatter `name` identically. Use 1–64 lowercase ASCII letters, digits, and single hyphens, with no leading or trailing hyphen. Do not use the reserved words `anthropic` or `claude`. Prefer a specific gerund or noun phrase (`processing-pdfs`, `pdf-processing`) over vague names such as `helper` or `utils`.
-- Group related skills under a shared domain prefix followed by a verb or topic: `rust-testing`, `vanta-triage`, `review-fix`. Group by what the skills are about, not where they run — the `review-` skills are about a code review's findings, and one of them works without a pull request, so they are not `pr-`. Choose verbs for what the skill actually does: `review-fix` fixes findings, and does not reply to or resolve threads, so it is not "address".
+- Group related skills under a shared domain prefix followed by a verb or topic: `rust-testing`, `vanta-triage`, `review-fix`. Group by what the skills are about, not where they run — the `review-` skills are about a code review's findings, and one of them works without a pull request, so they are not `pr-`. A review skill for one language is about that language, so it takes the language prefix, such as `golang-review` (see [Language skills](#language-skills)). Choose verbs for what the skill actually does: `review-fix` fixes findings, and does not reply to or resolve threads, so it is not "address".
 - Write a non-empty `description` of at most 1,024 characters, in the third person and without XML tags, that says what the skill does and when it should activate. Include a boundary when a nearby request should not activate it.
 - Write imperative steps with explicit inputs, outputs, decision points, and stopping conditions. Preserve explicit user instructions and authorization boundaries.
 - Keep `SKILL.md` concise—preferably below 500 lines—and move branch-specific detail into focused files under `references/`. Link each reference directly from `SKILL.md`, keep references one level deep, and state when to read each one. Start any reference longer than 100 lines with a table of contents. Use forward-slash relative paths.
@@ -37,6 +37,38 @@ Most skills here are workflows: a user asks for a result and the skill runs a pr
 - When two convention skills touch the same topic, one owns it and the other links to it by name instead of restating it.
 - Name the library versions an API example targets, so a reader on another version knows the advice may not compile.
 - Behavior cases still apply. "Should activate" lists change requests the rules govern rather than requests that name the skill, and the incomplete case covers a vague request in a matching codebase.
+
+## Language skills
+
+A programming language gets a pair of skills with the language as the shared prefix: `<lang>-practices` and `<lang>-review`. Copy the layout of the Go pair, `golang-practices` with `golang-review`, for the next language. The Go pair is the worked example.
+
+Rust already has convention skills: `rust-sdk-dx`, `rust-security`, and `rust-testing`. Rust's review skill may read those in place of a new `rust-practices` skill. Decide that before you build a pair for a language like this.
+
+- Name the review skill `<lang>-review`, not `review-<lang>`. This guide groups skills by what they are about. A language review is about the language. The `review-` prefix stays reserved for skills that work on a review's findings, such as `review-fix` and `review-post`.
+- Put all knowledge about the language in the practices skill. The practices skill is a convention skill, so the rules above apply to it.
+- Put only the review procedure in the review skill: its steps, the tools it runs, what counts as a finding, and the report format. Where both skills cover a topic, the practices skill states the rule. The review skill names the practices reference to read. The review skill may restate a rule that decides what is a finding, such as a minimum language version. Keep that copy the same as the practices reference.
+- In the review skill, invoke the practices skill by name to read its references. Loading it gives its directory, and its reference paths resolve from there. Do not link to `../<lang>-practices/` from any file. A reference path may not leave its own skill directory. The validator checks this in `SKILL.md` only. Follow it in the other files too.
+- If the practices skill cannot be loaded, the review carries on with its own steps. The report lists each reference it could not read as a limit of the review.
+- Keep the practices skill's `SKILL.md` safe to load during a review. Give it a short rule list and a table saying when to read each reference. Leave out any authoring workflow, output template, or persona.
+- Keep reference examples as real source that CI builds and tests. Put them in a small module under the practices skill's `examples/`, with tests. Quote each code block in a reference word for word from that source, with a link to the file on the line before it.
+- Add a script test to the practices skill that runs the language's checks over the examples. For Go, these are `go vet`, `gofmt`, and `go test -race`. The test also checks that every quoted block matches its source. CI runs it with the other skill script tests, so install the language's toolchain in the validate workflow.
+- State in each reference the language version its examples target.
+- Include a seeded-defect fixture in the review skill, under `tests/fixtures/`. The fixture is a small change, as a `base/` tree and a `head/` tree, with one planted defect for each area the skill covers. The fixture's `expected-findings.md` lists the findings a correct review must report.
+- Add a script test to the review skill that checks the fixture. The test checks that the base is clean, that each defect comes from the change, and that the tools catch what they should. Where no tool shows a defect, add a probe test to a temporary copy of the module. The fixture stays unchanged. The test also checks that each expected location quotes its line. Nothing in CI runs an agent, so run the review against the fixture by hand.
+- Report each finding with a severity of `critical`, `major`, or `minor`. Those are the values `review-cross-check`, `review-post`, and `review-fix` take unchanged. Use the meanings the Go review uses. A finding is `critical` only when the review traces it to a crash, a security exposure, or wrong data stored or sent outside the program. A race or a dropped error that falls short of that is `major`.
+- End the review report with a verdict of `APPROVE` or `REQUEST_CHANGES`. The verdict stays in the report: the review skill never submits an approving or blocking review on GitHub.
+- Keep the review skill read-only. `review-fix` fixes findings and `review-post` posts them, so the review skill does neither. Write the review steps to run in sequence, so the skill works on hosts without subagents.
+- Run the checks in a temporary worktree. Check it out with git hooks and Git Large File Storage (LFS) downloads turned off, so the checkout runs none of the change. Remove it with `git worktree remove`. Never run `git worktree prune`: it deletes the records of the user's other worktrees. Before you run the tests, read all the changed code they will run, not only the test code. If that code does more than the change needs, leave the tests unrun.
+
+### Taking in upstream material
+
+A language pair often starts from an upstream skill. Take its material in like this:
+
+- Audit it first: read it against the language's review checklist, and build and run its examples where you can. Record each defect you find. The checklist is the areas table in the review skill. For a new language, write that table first. Model it on the ten areas in `golang-review`.
+- Copy it under its licence. Put the licence text in the skill's `LICENSE`. Put a `NOTICE` beside it that names the source repository, path, and commit, and lists every change. `plain-language` follows the same pattern.
+- Fix every defect the audit found before the copy merges. Rewrite or drop confused or dated rules.
+- Drop the upstream frontmatter metadata, persona line, and links to skills that do not exist here.
+- If the marketplace bundles the upstream plugin, remove it in the release that adds its replacement. Drop it from both catalogs and from the company-skills dependencies. The validator rejects any catalog entry other than company-skills that is not a dependency.
 
 ## Behavior cases
 

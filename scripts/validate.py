@@ -200,6 +200,13 @@ def validate_manifests() -> None:
         isinstance(name, str) and name in listed and name != portable.get("name") for name in dependencies
     ):
         fail(claude_manifest_path, "dependencies must name plugins in the company marketplace")
+    # The catalog bundles other plugins only so company-skills can install them.
+    # Any other entry that is not a dependency, whatever its source type, is a
+    # half-finished removal.
+    declared = {name for name in dependencies if isinstance(name, str)} if isinstance(dependencies, list) else set()
+    for entry in claude_entries:
+        if isinstance(entry, dict) and entry.get("name") not in declared | {portable.get("name")}:
+            fail(claude_market_path, f"{entry.get('name')}: a bundled plugin in the catalog must be a company-skills dependency")
 
     claude_pins = git_subdir_pins(claude_entries)
     codex_pins = git_subdir_pins(codex_entries)

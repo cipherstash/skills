@@ -15,7 +15,12 @@ claude plugin marketplace add cipherstash/skills
 claude plugin install company-skills@company
 ```
 
-Installing company-skills also installs and enables six plugins as dependencies: the Trail of Bits `differential-review` and `insecure-defaults` plugins (see [Bundled Trail of Bits plugins](#bundled-trail-of-bits-plugins)), and the `golang-pro`, `python-pro`, `rust-engineer` and `typescript-pro` language skills (see [Bundled language practice skills](#bundled-language-practice-skills)).
+Installing company-skills also installs and enables five plugins as dependencies:
+
+- the Trail of Bits `differential-review` and `insecure-defaults` plugins (see [Bundled Trail of Bits plugins](#bundled-trail-of-bits-plugins))
+- the `python-pro`, `rust-engineer`, and `typescript-pro` language skills (see [Bundled language practice skills](#bundled-language-practice-skills))
+
+Go practice and review come from company-skills' own `golang-practices` and `golang-review` skills.
 
 Inside a session, `/plugin marketplace add cipherstash/skills` and `/plugin install company-skills@company` do the same. Start a new session, then invoke a skill by its namespaced name, for example `/company-skills:review-fix`.
 
@@ -26,12 +31,13 @@ claude plugin marketplace update company
 claude plugin update company-skills@company
 ```
 
+Updating from a release before 0.14.0 leaves the removed `golang-pro` plugin installed but failing to load. Uninstall it as described in [Bundled language practice skills](#bundled-language-practice-skills).
+
 Updating company-skills does not update its dependencies. When a release moves the pinned commit of a bundled plugin, update that plugin by name as well:
 
 ```sh
 claude plugin update differential-review@company
 claude plugin update insecure-defaults@company
-claude plugin update golang-pro@company
 claude plugin update python-pro@company
 claude plugin update rust-engineer@company
 claude plugin update typescript-pro@company
@@ -81,29 +87,36 @@ Nothing auto-updates them: a plugin with a pinned `sha` stays on that commit thr
 
 ## Bundled language practice skills
 
-The `company` marketplace also lists four language skills from [Jeffallan's claude-skills repository](https://github.com/Jeffallan/claude-skills), each as its own plugin:
+The `company` marketplace also lists three language skills from [Jeffallan's claude-skills repository](https://github.com/Jeffallan/claude-skills), each as its own plugin:
 
 | Plugin | Provides |
 | --- | --- |
-| `golang-pro` | The `golang-pro` skill, with references on concurrency, interfaces, generics, testing, and project structure |
 | `python-pro` | The `python-pro` skill, with references on async patterns, packaging, the standard library, testing, and the type system |
 | `rust-engineer` | The `rust-engineer` skill, with references on async, error handling, ownership, testing, and traits |
 | `typescript-pro` | The `typescript-pro` skill, with references on advanced types, configuration, patterns, type guards, and utility types |
 
-They are reference material on language practice. Upstream wrote them for writing code, not reviewing it, so their descriptions also match requests to write Go, Python, Rust, or TypeScript.
+They are reference material on language practice. Upstream wrote them for writing code, not reviewing it, so their descriptions also match requests to write Python, Rust, or TypeScript.
 
-Upstream publishes all 67 of its skills as one plugin. Each entry here installs one skill instead: a `git-subdir` source pointing at that skill's directory, `skills/<name>`, with `"strict": false` and `"skills": ["./"]` so the directory loads as a plugin holding a single skill. All four are pinned to the commit of the upstream v0.4.20 release. No upstream files are copied into this repository. They are published by Jeffallan under the MIT licence.
+Upstream publishes all 67 of its skills as one plugin. Each entry here installs one skill instead: a `git-subdir` source pointing at that skill's directory, `skills/<name>`, with `"strict": false` and `"skills": ["./"]` so the directory loads as a plugin holding a single skill. All three are pinned to the commit of the upstream v0.4.20 release. No upstream files are copied into this repository. They are published by Jeffallan under the MIT licence.
 
-- **Claude Code:** company-skills declares all four as dependencies, so `claude plugin install company-skills@company` installs and enables them. Invoke one by its namespaced name, for example `/golang-pro:golang-pro`. Checked with Claude Code 2.1.328.
+- **Claude Code:** company-skills declares all three as dependencies, so `claude plugin install company-skills@company` installs and enables them. Invoke one by its namespaced name, for example `/python-pro:python-pro`. Checked with Claude Code 2.1.328.
 - **Codex:** the Codex catalog does not list them, and they have not been tested there.
 
 Nothing auto-updates them. To move the pin, open a pull request that:
 
-1. Reviews the upstream changes to the four skill directories since the current SHA.
-2. Changes `sha` for all four entries in `.claude-plugin/marketplace.json` to the same new full 40-character commit SHA.
+1. Reviews the upstream changes to the three skill directories since the current SHA.
+2. Changes `sha` for all three entries in `.claude-plugin/marketplace.json` to the same new full 40-character commit SHA.
 3. Bumps the plugin version in all three manifests, as described in [Releases](CONTRIBUTING.md#releases).
 
-Installed users receive the new commit only when they update each of the four plugins by name, as shown under [Claude Code](#claude-code).
+Installed users receive the new commit only when they update each of the three plugins by name, as shown under [Claude Code](#claude-code).
+
+0.14.0 removes the bundled `golang-pro` plugin. company-skills' `golang-practices` and `golang-review` replace it. Updating an install from an earlier release leaves `golang-pro` installed. It no longer loads, because the marketplace no longer lists it: `claude plugin list` reports it as failed to load, with `Plugin golang-pro not found in marketplace company`. While it is installed, `claude plugin prune` removes nothing and reports `cannot determine orphans`. Uninstall it by name:
+
+```sh
+claude plugin uninstall golang-pro@company
+```
+
+`claude plugin prune` works again once `golang-pro` is gone. It removes any other auto-installed dependency that nothing needs. Add `--dry-run` to list them first. Checked by updating 0.13.0 to 0.14.0 with Claude Code 2.1.329.
 
 ## Develop locally
 
@@ -182,7 +195,9 @@ The Vanta skills also need the Linear connector, read-only Vanta API credentials
 
 ## Contribute
 
-Follow [CONTRIBUTING.md](CONTRIBUTING.md) to add or change a skill: naming, progressive disclosure, required behavior cases, releases, and the validation commands to run. Pull requests run `python3 scripts/validate.py`, `python3 -m unittest discover -s scripts/tests`, and each skill's `tests/` suite in GitHub Actions; the `claude plugin validate --strict` checks run locally only. The `golang-practices` suite runs `go vet` and `go test -race` over the skill's examples module. The `golang-review` suite runs them over its seeded-defect fixture and expects the race detector to report the planted race. Without Go both suites are skipped locally, and they fail in CI.
+Follow [CONTRIBUTING.md](CONTRIBUTING.md) to add or change a skill: naming, progressive disclosure, required behavior cases, releases, and the validation commands to run. Pull requests run `python3 scripts/validate.py`, `python3 -m unittest discover -s scripts/tests`, and each skill's `tests/` suite in GitHub Actions; the `claude plugin validate --strict` checks run locally only.
+
+The `golang-practices` suite runs `go vet` and `go test -race` over the skill's examples module. The `golang-review` suite checks its seeded-defect fixture, a sample change with one planted defect in each of the ten checklist areas. It checks that every expected finding quotes the line it names, and that the base vets and passes with the race detector. It also reproduces each planted defect that a tool or a short probe can show, such as the race and a panic on empty input. Without Go, the Go checks in both suites are skipped locally with a message, and they fail in CI.
 
 See the official [Codex skills documentation](https://developers.openai.com/codex/skills/) and [Claude Code plugin marketplace documentation](https://code.claude.com/docs/en/plugin-marketplaces) for current publishing and installation options.
 

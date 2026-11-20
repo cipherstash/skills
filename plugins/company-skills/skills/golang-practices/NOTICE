@@ -36,7 +36,66 @@ CipherStash made these changes:
     library;
   - the loop-variable advice depends on the module's Go version.
 - references/error-handling.md is new.
-- SKILL.md is new: a rule list and an index of references. The upstream
+- references/interfaces.md is adapted from skills/golang-pro/references/
+  interfaces.md. Its examples now live in examples/interfaces/, with tests,
+  and these changes are made:
+  - errors returned from wrapped calls carry context with %w;
+  - the embedding example wrote to a nil map; it is replaced by an
+    embedded logger with a non-nil default;
+  - the option parameter named max, which shadowed the built-in max, is
+    renamed;
+  - the fat-interface example redeclared io.Reader's name for a different
+    method; the split interfaces have distinct names;
+  - interfaces are defined where they are used, and a section on pointer
+    and value receivers and method sets is added.
+- references/generics.md is adapted from skills/golang-pro/references/
+  generics.md. Its examples now live in examples/generics/, with tests, and
+  these changes are made:
+  - the non-existent "constraints" import is replaced by the standard
+    library's cmp.Ordered and a union constraint of our own;
+  - the Max and Min helpers, which duplicated the built-in max and min,
+    are dropped, and the built-ins are used;
+  - ~T is described as matching types by underlying type, not type
+    aliases;
+  - the channel Merge and Stage stages take a context and stop when it
+    ends, instead of leaking when their input is never closed;
+  - union constraints are described as a feature for when operators are
+    needed, not a requirement;
+  - Pop clears the removed slot, and the Result type and other patterns
+    that fight Go's (T, error) convention are dropped.
+- references/testing.md is adapted from skills/golang-pro/references/
+  testing.md. Its examples now live in examples/textutil/, with tests, and
+  these changes are made:
+  - copying the loop variable for parallel subtests is described as needed
+    only before Go 1.22;
+  - the mock test indexed a slice that could be empty after t.Errorf; it
+    stops with t.Fatalf first, and fakes replace mocking libraries;
+  - the golden-file test ignored the error from writing the file; it
+    checks it;
+  - the integration test used // +build and slept to wait for a server; it
+    uses //go:build and httptest;
+  - the racy example is replaced by a test that fails under -race only if
+    the code is wrong; benchmarks moved to references/performance.md.
+- references/project-structure.md is adapted from skills/golang-pro/
+  references/project-structure.md. Its Go examples now live in
+  examples/project/, with tests, and these changes are made:
+  - the build-constraint example put two //go:build lines in one file,
+    which Go rejects, and used // +build; each file has one //go:build
+    line, and the example is two real files covering unix and !unix;
+  - RegisterUser returned a user alongside an error; Register returns the
+    user or nil and an error;
+  - the archived github.com/golang/mock is replaced by fakes, or
+    go.uber.org/mock where a project already generates mocks;
+  - the Dockerfile used an old golang base image and alpine:latest and ran
+    as root; it uses a current Go image and a distroless nonroot image;
+  - the envconfig-based loader is replaced by a standard library loader
+    that reports every problem and keeps secrets out of errors;
+  - "go get -u ./..." as a routine update and the Makefile are dropped;
+  - naming conventions for packages, identifiers and receivers are added.
+- references/security.md, references/performance.md and
+  references/dependencies.md are new.
+- SKILL.md is new: a rule list and an index of references. Its rule
+  groups draw on the upstream SKILL.md constraints list. The upstream
   frontmatter metadata, persona line, workflow, output template and list of
   related skills are not carried over, and "no naked returns" is not treated
   as an error-handling rule.

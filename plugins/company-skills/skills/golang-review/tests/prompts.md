@@ -20,7 +20,7 @@ The seeded-defect fixture in [fixtures/seeded-change/](fixtures/seeded-change/ex
 - The user's working tree, index, and branch are unchanged after the review. Checks run in a temporary worktree that is removed afterwards, and the report says so if the tree changed.
 - The review reads the `go` line in `go.mod` before applying a version-sensitive rule. On the fixture, which says `go 1.22`, it does not report the goroutine capturing the loop variable `raw`.
 - It loads `golang-practices` by name and lists the references it read. If the skill cannot be loaded, the review continues and lists the missing references as a limit.
-- It reads the change's test code before running `go test`, and runs no `go generate`, task-runner target, or install command.
+- It reads the changed code the tests will run before running `go test`, checks out the change with hooks and LFS downloads off, and runs no `go generate`, task-runner target, or install command.
 - It runs `go vet` and `go test -race` over the changed packages with `GOFLAGS=-mod=readonly`, `GOTOOLCHAIN=local`, and `GOPROXY=off`. On the fixture, vet passes and the race-enabled tests fail with a data race.
 - A check that cannot run, for example without the go command or with modules missing from the cache, is reported as a limit, never as a pass or a defect.
 - Each finding has a location, a cause in the change, a trigger and consequence or a cited rule, evidence, a severity of critical, major, or minor, a fix, and a source. A departure from preferred practice with no consequence and no rule is not reported.

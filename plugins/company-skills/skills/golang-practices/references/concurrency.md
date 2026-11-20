@@ -387,7 +387,7 @@ Do not wrap a blocking call that ignores `ctx` in a goroutine and race it agains
 
 ## Stopping a long-running loop
 
-`Run` loops until its context ends or `Stop` is called. `Stop` closes the channel inside a `sync.Once`, so calling it twice, or from two goroutines, is safe.
+`Run` loops until its context ends or `Stop` is called. `Stop` closes the channel inside a `sync.Once`, so calling it twice, or from two goroutines, is safe. `Run` passes `tick` a context derived from its own and cancels it when `Stop` is called, so a tick that is blocked when `Stop` is called also returns.
 
 From [`examples/concurrency/service.go`](../examples/concurrency/service.go):
 
@@ -406,8 +406,19 @@ func NewService(interval time.Duration, tick func(context.Context) error) *Servi
 }
 
 // Run calls tick every interval. It returns nil after Stop, ctx's error when
-// ctx ends, or the first error from tick.
+// ctx ends, or the first error from tick. Stop also cancels the context that a
+// running tick receives, so a tick that blocks until its context ends does not
+// keep Run from returning.
 func (s *Service) Run(ctx context.Context) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go func() {
+		select {
+		case <-s.stop:
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
 	ticker := time.NewTicker(s.interval)
 	defer ticker.Stop()
 	for {
@@ -415,9 +426,15 @@ func (s *Service) Run(ctx context.Context) error {
 		case <-s.stop:
 			return nil
 		case <-ctx.Done():
+			if s.stopped() {
+				return nil
+			}
 			return fmt.Errorf("service stopped: %w", ctx.Err())
 		case <-ticker.C:
 			if err := s.tick(ctx); err != nil {
+				if s.stopped() {
+					return nil
+				}
 				return fmt.Errorf("tick: %w", err)
 			}
 		}
@@ -428,6 +445,15 @@ func (s *Service) Run(ctx context.Context) error {
 // goroutines.
 func (s *Service) Stop() {
 	s.stopOnce.Do(func() { close(s.stop) })
+}
+
+func (s *Service) stopped() bool {
+	select {
+	case <-s.stop:
+		return true
+	default:
+		return false
+	}
 }
 ```
 
@@ -498,7 +524,25 @@ For a value computed once on first use, use `sync.OnceValue` or `sync.OnceValues
 From [`examples/concurrency/sync.go`](../examples/concurrency/sync.go):
 
 ```go
+// Config loads its settings once, on first use, and keeps the result,
+// including a load error, for every later call.
+type Config struct {
+	load func() (map[string]string, error)
+}
 
+// NewConfig returns a Config that calls load at most once.
+func NewConfig(load func() (map[string]string, error)) *Config {
+	return &Config{load: sync.OnceValues(load)}
+}
+
+// Get returns the settings, loading them on the first call.
+func (c *Config) Get() (map[string]string, error) {
+	settings, err := c.load()
+	if err != nil {
+		return nil, fmt.Errorf("load config: %w", err)
+	}
+	return settings, nil
+}
 ```
 
 ## Limiting concurrency and rate

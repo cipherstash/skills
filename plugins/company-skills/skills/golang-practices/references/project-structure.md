@@ -29,7 +29,7 @@ Each Go example is quoted from the examples module. The `go.mod`, layout, and Do
 - A function returns a usable value or an error, not both: on error, return the zero value or `nil` with it.
 - Read configuration once, at start-up, and pass it down. Report every missing or invalid setting together, and never put a secret in a log line or an error.
 - Give each file at most one `//go:build` line, above the `package` clause and followed by a blank line.
-- Commit `go.mod` and `go.sum`. Do not commit a `replace` that points at a local path.
+- Commit `go.mod` and `go.sum`. Do not commit a `replace` that points at a path outside the repository.
 - Build container images that run as a non-root user, from a current base image that matches the module's Go version.
 
 ## Layout
@@ -133,7 +133,7 @@ require golang.org/x/sys v0.20.0 // indirect
 - `go` is the minimum Go version for the module. It also sets the language rules the module is compiled with, such as the Go 1.22 loop variable semantics. From Go 1.21, a go command older than this line does not build the module. It downloads a newer toolchain instead, when the `GOTOOLCHAIN` setting allows that. Read this line before applying a version-sensitive rule.
 - `toolchain` (Go 1.21 and later), when present, names the toolchain to use if the local one is older.
 - `require` lists direct dependencies. Entries marked `// indirect` are needed by dependencies; `go mod tidy` maintains them.
-- `replace` with a local path (`=> ../mylib`) is for local development. A `go.work` file does the same without editing `go.mod`.
+- `replace` with a path outside the repository (`=> ../mylib`) is for local development only. A `go.work` file does the same without editing `go.mod`.
 - `retract` marks versions of your own module that users should not pick.
 
 ## Workspaces

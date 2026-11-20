@@ -256,6 +256,39 @@ class AreasTableTest(unittest.TestCase):
                     self.assertTrue((PRACTICES / name).is_file(), f"{area}: golang-practices has no {name}")
                     self.assertIn(f"`{name}`", body, f"{link.group(1)} does not name {name}")
 
+    def test_every_step_reference_is_in_the_table(self):
+        named = {re.search(r"\]\((references/step-[a-z-]+\.md)\)", row[3]).group(1) for row in areas_table()}
+        on_disk = {f"references/{p.name}" for p in (SKILL / "references").glob("step-*.md")}
+        self.assertEqual(on_disk, named)
+
+    def test_review_step_makes_reading_the_references_mandatory(self):
+        # Reviews loaded golang-practices but read none of the reference files,
+        # so the review step must order the reads, and an area whose step
+        # reference was not read must count as not reviewed.
+        text = (SKILL / "SKILL.md").read_text(encoding="utf-8")
+        step = re.search(r"(?ms)^6\. \*\*Review each area\.\*\*.*?(?=^7\. )", text)
+        self.assertIsNotNone(step, "SKILL.md has no step 6, Review each area")
+        body = step.group(0)
+        self.assertIn("Read its step reference now", body)
+        self.assertIn("then each practices reference the table names for it", body)
+        self.assertIn("An area whose step reference was not read is not reviewed", body)
+
+    def test_report_lists_the_files_read_for_each_area(self):
+        # output.md's example lists, per area, the step reference and the
+        # golang-practices references read, matching the areas table.
+        text = (SKILL / "references" / "output.md").read_text(encoding="utf-8")
+        section = text.split("\n## Coverage and limits\n", 1)[1].split("\n## ", 1)[0]
+        rows = re.findall(r"(?m)^  (\d+)\. ([^:]+): read (.+)$", section)
+        self.assertEqual([area for _, area, _ in rows], AREAS)
+        for order, area, _, step, practices in areas_table():
+            read = dict((a, files) for _, a, files in rows)[area]
+            with self.subTest(area=area):
+                step_name = re.search(r"\]\((references/step-[a-z-]+\.md)\)", step).group(1)
+                self.assertIn(f"`{step_name}`", read)
+                for name in re.findall(r"`(references/[a-z-]+\.md)`", practices):
+                    self.assertIn(f"golang-practices `{name}`", read)
+        self.assertIn("step reference not read", text)
+
 
 class SettingsTableTest(unittest.TestCase):
     def settings(self):
@@ -335,6 +368,65 @@ class ExpectedFindingsTest(unittest.TestCase):
 
     def test_the_insecure_query_concatenates_its_argument(self):
         self.assertIn('+ sku +', finding("Security")["quoted"])
+
+
+# Words the fixture declares that are also ordinary English or Go words, so
+# they may appear in the skill text for their own sake.
+COMMON_WORDS = {"Empty", "Line", "Lines", "Merge", "Quantity", "SKU", "Units", "add", "orders"}
+
+# Values from the fixture's code and expected results that are not declared
+# names but would still give its answers away.
+FIXTURE_LITERALS = ["B2", "AUD", "price_cents", "order_lines", "1299", "2400", "433", "95.8%"]
+
+
+def fixture_terms():
+    """Return the names, paths, and values that identify the fixture.
+
+    Taken from its Go files: every declared function, method, type, constant,
+    variable, and exported struct field, each module path, and each file's path
+    in its module, plus FIXTURE_LITERALS, less COMMON_WORDS.
+    """
+    terms = set(FIXTURE_LITERALS)
+    for root in (BASE, HEAD):
+        for path in root.rglob("*.go"):
+            text = path.read_text(encoding="utf-8")
+            terms.update(re.findall(r"(?m)^func (?:\([^)]*\) )?(\w+)", text))
+            terms.update(re.findall(r"(?m)^(?:type|const|var) (\w+)", text))
+            terms.update(re.findall(r"(?m)^\t([A-Z]\w*) +\S", text))
+            terms.add(path.relative_to(root).as_posix())
+            terms.add("./" + path.parent.relative_to(root).as_posix())
+        for path in root.rglob("go.mod"):
+            terms.update(re.findall(r"(?m)^module (\S+)", path.read_text(encoding="utf-8")))
+            if path.parent != root:
+                terms.add("./" + path.parent.relative_to(root).as_posix())
+    return terms - COMMON_WORDS
+
+
+class AnswerKeyTest(unittest.TestCase):
+    """The skill text must not contain the fixture's answers.
+
+    A run of the skill against the fixture shows that the skill finds the
+    planted defects only if nothing it reads names them. Examples in SKILL.md
+    and references/ use a different domain.
+    """
+
+    def test_derives_the_fixture_terms(self):
+        terms = fixture_terms()
+        for term in ("Summarise", "LinesQuery", "TotalCents", "orders/query.go", "./orders", "example.com/pricing"):
+            self.assertIn(term, terms)
+        self.assertNotIn("Merge", terms)
+
+    def test_skill_text_does_not_name_the_fixture(self):
+        pattern = re.compile(
+            r"(?<![\w/-])(" + "|".join(re.escape(t) for t in sorted(fixture_terms(), key=len, reverse=True)) + r")(?![\w-])"
+        )
+        pages = [SKILL / "SKILL.md", *sorted((SKILL / "references").glob("*.md"))]
+        pages += [PRACTICES / "SKILL.md", *sorted((PRACTICES / "references").glob("*.md"))]
+        found = []
+        for page in pages:
+            for number, line in enumerate(page.read_text(encoding="utf-8").splitlines(), 1):
+                found += [f"{page.relative_to(SKILL.parent)}:{number}: {m.group(1)}" for m in pattern.finditer(line)]
+        self.assertEqual(found, [], "fixture terms in the skill text:\n" + "\n".join(found))
 
 
 class GoFixtureTest(unittest.TestCase):

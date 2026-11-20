@@ -29,7 +29,7 @@ The examples target Go 1.22, the `go` line in [`examples/go.mod`](../examples/go
 - Check the errors a test's own calls return, including writes to fixtures and golden files.
 - Prefer a small hand-written fake to a mocking library.
 - Wait for a condition, not a fixed time. `time.Sleep` to wait for a server makes tests slow and still flaky.
-- Put the build constraint for tagged tests on the first line, as `//go:build integration`, followed by a blank line.
+- Put the build constraint for tagged tests above the `package` clause, as `//go:build integration`, followed by a blank line.
 - A test that is missing, such as a fuzz test or a doctest-style example, is not a defect in itself. Add one when it would catch a plausible regression.
 
 ## Table-driven tests
@@ -275,7 +275,7 @@ func (c *Counter) Value() int {
 
 Slow tests or tests that need outside services can sit behind a build tag.
 
-From Go 1.17, the syntax is `//go:build`. It must be the first line of the file, before `package`, followed by a blank line.
+From Go 1.17, the syntax is `//go:build`. It must come before the `package` clause, with only blank lines and other `//` comments, such as a licence header, above it, and it must be followed by a blank line. Otherwise Go treats it as an ordinary comment and the constraint does nothing.
 
 A file has at most one `//go:build` line. That line combines conditions with `&&`, `||`, and `!`. The old `// +build` lines are not needed from Go 1.17. `go fix` removes them in modules that declare Go 1.18 or later.
 

@@ -87,7 +87,8 @@ CipherStash made these changes:
   - the archived github.com/golang/mock is replaced by fakes, or
     go.uber.org/mock where a project already generates mocks;
   - the Dockerfile used an old golang base image and alpine:latest and ran
-    as root; it uses a current Go image and a distroless nonroot image;
+    as root; it takes the Go version as a build argument, to be set to the
+    latest supported release, and uses a distroless nonroot image;
   - the envconfig-based loader is replaced by a standard library loader
     that reports every problem and keeps secrets out of errors;
   - "go get -u ./..." as a routine update and the Makefile are dropped;

@@ -30,8 +30,6 @@ Go's TLS client checks the server's certificate chain and host name by default. 
 
 From [`examples/security/tls.go`](../examples/security/tls.go):
 
-From [`examples/security/tls.go`](../examples/security/tls.go):
-
 ```go
 // NewClientWithCA returns an HTTP client that trusts the certificates in
 // caPEM as well as the system roots. Use it for a server with a private
@@ -44,20 +42,20 @@ func NewClientWithCA(caPEM []byte) (*http.Client, error) {
 	if !pool.AppendCertsFromPEM(caPEM) {
 		return nil, errors.New("new client: no certificates found in CA PEM")
 	}
-	return &http.Client{
-		Timeout: 30 * time.Second,
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				RootCAs:    pool,
-				MinVersion: tls.VersionTLS12,
-				// InsecureSkipVerify stays false: certificates and host
-				// names are checked.
-			},
-		},
-	}, nil
+	// Clone the default transport to keep its proxy settings, HTTP/2, and
+	// timeouts. A bare &http.Transport{} has none of them.
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.TLSClientConfig = &tls.Config{
+		RootCAs:    pool,
+		MinVersion: tls.VersionTLS12,
+		// InsecureSkipVerify stays false: certificates and host names are
+		// checked.
+	}
+	return &http.Client{Timeout: 30 * time.Second, Transport: transport}, nil
 }
 ```
 
+- Start from `http.DefaultTransport.(*http.Transport).Clone()` and change only `TLSClientConfig`. A new `&http.Transport{}` ignores `HTTPS_PROXY` and `NO_PROXY`, has no dial, handshake, or idle timeouts, and, with a custom `TLSClientConfig`, does not use HTTP/2.
 - Set `MinVersion: tls.VersionTLS12` or higher. Go's default minimum for clients has been TLS 1.2 since Go 1.18, but stating it guards against older toolchains and copied configs.
 - Leave cipher suites at their defaults unless a policy requires otherwise; Go chooses safe ones.
 - In tests, use `httptest.NewTLSServer` and its `Client()` instead of turning verification off. That client trusts the test certificate.
@@ -255,6 +253,6 @@ go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 | G404 | `math/rand` used for secrets |
 | G112 | HTTP server with no header timeout |
 
-`gosec` also reports false positives. To suppress one, put a comment on the line with the reason: `//nolint:gosec // <reason>` under golangci-lint, or `// #nosec G304 -- <reason>` for gosec alone.
+`gosec` also reports false positives. To suppress one, put a comment on the line with the reason: `//nolint:gosec // <reason>` under golangci-lint, or `// #nosec G304 -- <reason>` for gosec alone. A function that takes a path from its caller, such as a library's `WriteLines(path, ...)`, gets G304 although the caller owns the check. In test code, findings such as G304 on a golden-file path or G104 on `Close` are low risk; many repositories exclude `_test.go` files from `gosec` instead of suppressing each one.
 
 `go run tool@latest` downloads and runs the latest release. Pin a version, or use the module's `tool` directive (Go 1.24), where the repository needs repeatable results. Updating dependencies after `govulncheck` reports one is in `dependencies.md`.

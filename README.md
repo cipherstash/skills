@@ -151,7 +151,7 @@ Each skill is authored once under `plugins/company-skills/skills/`. The portable
 | `rust-sdk-dx` | Conventions for public Rust APIs in libraries and SDKs | Automatic while writing Rust library code |
 | `rust-security` | Rules for Rust code that handles secrets, cryptography, and authentication | Automatic while writing Rust that touches secrets |
 | `rust-testing` | Conventions for Rust tests: nextest, scenario modules, fake data, mocktail, paused time | Automatic while writing Rust tests |
-| `golang-practices` | Conventions for writing Go: error handling and concurrency, with examples that compile and pass the race detector | Automatic while writing Go |
+| `golang-practices` | Conventions for writing Go: errors, concurrency, naming, interfaces, generics, testing, project structure, security, performance and dependencies, with examples that compile and pass the race detector | Automatic while writing Go |
 | `filing-github-issues` | Draft and file well-structured GitHub issues on CipherStash repos | Explicit or automatic |
 | `authoring-pull-requests` | Branch, commit, and open draft pull requests with a consistent structure | Explicit or automatic |
 | `plain-language` | Write, rewrite, and review prose in plain language (ISO 24495 and GOV.UK), with a bundled checker | Explicit or automatic |

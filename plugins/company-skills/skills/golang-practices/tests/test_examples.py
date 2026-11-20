@@ -53,6 +53,31 @@ def quoted_blocks(text):
         yield line, source.group(1) if source else None, match.group(1)
 
 
+def excerpt_problem(code, source_text):
+    """Return why code is not a whole-declaration excerpt of source_text, or None.
+
+    A quoted block must be non-empty and must match a run of whole lines in the
+    source that starts after a blank line (or the start of the file) and ends
+    before a blank line (or the end of the file), so it cannot begin or end in
+    the middle of a declaration or its doc comment.
+    """
+    if not code.strip():
+        return "block is empty"
+    block = code.splitlines()
+    lines = source_text.splitlines()
+    for start in range(len(lines) - len(block) + 1):
+        if lines[start : start + len(block)] != block:
+            continue
+        end = start + len(block)
+        if (start == 0 or not lines[start - 1].strip()) and (
+            end == len(lines) or not lines[end].strip()
+        ):
+            return None
+    if code not in source_text:
+        return "block is not a verbatim excerpt"
+    return "block starts or ends inside a declaration or doc comment"
+
+
 class GoExamplesTest(unittest.TestCase):
     def setUp(self):
         self.go = shutil.which("go")
@@ -130,11 +155,8 @@ class QuotedSnippetsTest(unittest.TestCase):
                     target = (EXAMPLES / source).resolve()
                     self.assertTrue(target.is_relative_to(EXAMPLES.resolve()), where)
                     self.assertTrue(target.is_file(), f"{where}: {source} does not exist")
-                    self.assertIn(
-                        code,
-                        target.read_text(encoding="utf-8"),
-                        f"{where}: block is not a verbatim excerpt of examples/{source}",
-                    )
+                    problem = excerpt_problem(code, target.read_text(encoding="utf-8"))
+                    self.assertIsNone(problem, f"{where}: {problem} (examples/{source})")
 
     def test_each_reference_states_the_go_version(self):
         version = go_version()
@@ -171,6 +193,27 @@ class QuotedBlocksParserTest(unittest.TestCase):
     def test_block_without_a_source_link(self):
         text = "Some prose.\n\n```go\nfunc A() {}\n```\n"
         self.assertEqual(list(quoted_blocks(text)), [(3, None, "func A() {}\n")])
+
+    def test_rejects_an_empty_block(self):
+        self.assertEqual(excerpt_problem("\n", "func A() {}\n"), "block is empty")
+
+    def test_accepts_whole_declarations(self):
+        source = "package p\n\n// A does a.\nfunc A() {}\n\nfunc B() {}\n"
+        self.assertIsNone(excerpt_problem("// A does a.\nfunc A() {}\n", source))
+        self.assertIsNone(excerpt_problem("func B() {}\n", source))
+
+    def test_rejects_a_partial_declaration(self):
+        source = "// A does a.\nfunc A() {\n\treturn\n}\n"
+        cut = "block starts or ends inside a declaration or doc comment"
+        self.assertEqual(excerpt_problem("func A() {\n", source), cut)
+        self.assertEqual(excerpt_problem("\treturn\n}\n", source), cut)
+        self.assertEqual(excerpt_problem("turn\n", source), cut)
+
+    def test_rejects_text_not_in_the_source(self):
+        self.assertEqual(
+            excerpt_problem("func C() {}\n", "func A() {}\n"),
+            "block is not a verbatim excerpt",
+        )
 
     def test_ignores_other_languages(self):
         text = "```sh\ngo test ./...\n```\n"

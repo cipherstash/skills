@@ -22,7 +22,7 @@ The commands target Go 1.22, the `go` line in [`examples/go.mod`](../examples/go
 - Run `go mod tidy` after changing imports or dependencies, and commit `go.mod` and `go.sum` together.
 - Run `govulncheck ./...` when dependencies change, and fix the vulnerabilities it reports in code the module calls.
 - Update dependencies one at a time, to a version you chose, with the tests run after each. Do not run `go get -u ./...` as a routine step.
-- Do not commit a `replace` that points at a local path, or a `go.work` file the repository does not already track.
+- Do not commit a `replace` that points at a path outside the repository, because no other checkout can see it. A `replace` to a directory inside the repository is fine. Do not commit a `go.work` file the repository does not already track.
 - Treat a new major version as an API migration, not an update.
 
 ## Before adding a dependency

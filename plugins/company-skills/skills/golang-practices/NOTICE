@@ -1,0 +1,43 @@
+Go practices skill for Claude Code and Codex
+
+This directory contains material adapted from the golang-pro skill in
+Jeffallan/claude-skills (https://github.com/Jeffallan/claude-skills), path
+skills/golang-pro, at commit 36f3fe8052da7c57083783268c6ea3265d075265
+(release v0.4.20). That material is distributed under the MIT License,
+copied in LICENSE.
+
+Modifications in this copy
+--------------------------
+
+CipherStash made these changes:
+
+- references/concurrency.md is adapted from skills/golang-pro/references/
+  concurrency.md and the core pattern example in skills/golang-pro/SKILL.md.
+  Its examples now live as Go source in examples/concurrency/, with tests,
+  and these defects are fixed:
+  - the pipeline example waited for its whole timeout on success and then
+    returned a timeout error; RunJobs returns as soon as the work is done;
+  - pipeline, fan-out and fan-in stages ranged over their input and checked
+    the context only when sending, so they leaked when the input was never
+    closed; every stage now also selects on the context when receiving;
+  - the worker pool's Submit and the semaphore's Acquire blocked with no
+    context, and pool tasks had no way to be cancelled; they now take one;
+  - the worker pool's Shutdown and the server's done channel panicked when
+    closed twice, and Submit after Shutdown panicked; shutdown is now safe
+    to repeat and Submit returns ErrPoolClosed;
+  - the timeout example ran a call that ignored its context in a goroutine
+    raced against time.After, and returned an unwrapped error; Fetch passes
+    the context to the request instead;
+  - the cache wrote to a nil map, and the sync.Once example dropped the
+    load error; they use a constructor and sync.OnceValues;
+  - the server example printed instead of returning errors;
+  - the rate limiter example, which imported golang.org/x/time/rate, is
+    replaced by prose, so the examples module needs only the standard
+    library;
+  - the loop-variable advice depends on the module's Go version.
+- references/error-handling.md is new.
+- SKILL.md is new: a rule list and an index of references. The upstream
+  frontmatter metadata, persona line, workflow, output template and list of
+  related skills are not carried over, and "no naked returns" is not treated
+  as an error-handling rule.
+- examples/ and tests/ are new.

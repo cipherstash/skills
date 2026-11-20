@@ -74,7 +74,7 @@ How to choose the context:
 
 Define a sentinel error (`var ErrNotFound = errors.New(...)`) when callers only need to know which failure happened. Define an error type when they need its details. Export either one only when callers are meant to match it, because it then becomes part of the API.
 
-`errors.Is` walks the chain of wrapped errors looking for a value. `errors.As` walks it looking for a type. Pass it a pointer to a variable of that type, which it sets on a match.
+`errors.Is` walks the chain of wrapped errors looking for a value. `errors.As` walks it looking for a type. Pass it a pointer to a variable of that type. On a match, it sets the variable.
 
 From [`examples/errorhandling/validation.go`](../examples/errorhandling/validation.go):
 
@@ -200,7 +200,7 @@ func WriteLines(path string, lines []string) error {
 }
 ```
 
-`defer resp.Body.Close()` on something you only read is accepted practice. The data has already arrived, so there is nothing useful to do with the error. The [`Fetch` example in the concurrency reference](concurrency.md#blocking-calls-take-a-context) does this, with a comment saying why.
+`defer resp.Body.Close()` on something you only read is accepted practice. The data has already arrived, so there is nothing useful to do with the error. The `Fetch` example in the concurrency reference does this, with a comment saying why.
 
 When ignoring an error is right, make it visible. Assign it to `_` and add a comment saying why it cannot matter, for example `_ = os.Remove(tmp) // best effort: tmp is in a directory cleared at start-up`. A bare call that drops the error looks like a mistake to the reader and to linters such as `errcheck`.
 

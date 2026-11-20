@@ -9,16 +9,18 @@ import (
 
 // WriteAll writes each line to w and then closes w. It reports a failed
 // Close as well as a failed write: for a file, Close can be where a write
-// error first shows up.
+// error first shows up. A file's errors are *fs.PathError values, which
+// already name the operation and the path, so WriteAll adds only the number
+// of the line that failed.
 func WriteAll(w io.WriteCloser, lines []string) (err error) {
 	defer func() {
 		if cerr := w.Close(); cerr != nil {
-			err = errors.Join(err, fmt.Errorf("close: %w", cerr))
+			err = errors.Join(err, cerr)
 		}
 	}()
-	for _, line := range lines {
+	for i, line := range lines {
 		if _, err = fmt.Fprintln(w, line); err != nil {
-			return fmt.Errorf("write line: %w", err)
+			return fmt.Errorf("write line %d: %w", i+1, err)
 		}
 	}
 	return nil

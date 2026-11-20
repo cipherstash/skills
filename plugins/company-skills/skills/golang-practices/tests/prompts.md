@@ -22,7 +22,7 @@ This is a background convention skill: it is applied while the agent writes Go, 
 - The agent reads `references/concurrency.md` before writing goroutines, channels, or `sync` code. It reads `references/error-handling.md` before writing error handling. It does not load references for areas the change does not touch.
 - Every goroutine the agent writes has a way to stop and something that waits for it. The way to stop is a context, a closed input, or a stop method that is safe to call twice.
 - Blocking calls take a `context.Context`. The code returns as soon as the work is done, not when a timeout expires.
-- Errors are checked, wrapped with `%w` and context, and matched with `errors.Is` or `errors.As`. An ignored error has `_ =` and a comment saying why.
+- Errors are checked, wrapped with `%w` and context, and matched with `errors.Is` or `errors.As`. An ignored error has a comment saying why, and `_ =` unless it is a deferred `Close` on something only read.
 - A panic is used only for a programmer error.
 - The agent runs `gofmt`, `go vet ./...`, and `go test -race ./...`, or says which it could not run.
 - The agent does not invent packages, helpers, or repository paths that are not in the user's codebase.

@@ -86,3 +86,17 @@ func TestServiceReturnsTheTickError(t *testing.T) {
 		t.Fatalf("Run = %v, want it to wrap %v", err, errBoom)
 	}
 }
+
+func TestServiceReturnsATickErrorThatIsNotTheStop(t *testing.T) {
+	// A tick that fails for its own reason just as Stop is called, such as a
+	// failed database write, must not have its error dropped.
+	errWrite := errors.New("write failed")
+	var s *concurrency.Service
+	s = concurrency.NewService(time.Millisecond, func(context.Context) error {
+		s.Stop()
+		return errWrite
+	})
+	if err := waitFor(t, runInBackground(context.Background(), s)); !errors.Is(err, errWrite) {
+		t.Fatalf("Run = %v, want it to wrap %v", err, errWrite)
+	}
+}

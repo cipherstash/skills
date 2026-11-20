@@ -34,6 +34,11 @@ func RunJobs(ctx context.Context, jobs []Job, process func(context.Context, Job)
 // worker processes jobs until jobs is closed, a job fails, or ctx ends.
 func worker(ctx context.Context, jobs <-chan Job, process func(context.Context, Job) error) error {
 	for {
+		// select picks at random among ready cases, so check ctx first: a
+		// context that has already ended must not start another job.
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("worker stopped: %w", err)
+		}
 		select {
 		case <-ctx.Done():
 			return fmt.Errorf("worker stopped: %w", ctx.Err())

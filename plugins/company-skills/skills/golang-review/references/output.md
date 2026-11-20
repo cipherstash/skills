@@ -33,9 +33,18 @@ Skills: `golang-review`, `golang-practices`
 
 ## Coverage and limits
 
-- Areas reviewed: all ten, in priority order.
+- Areas reviewed: all ten, in priority order, with the files read for each:
+  1. Error handling: read `references/step-error-handling.md`, golang-practices `references/error-handling.md`
+  2. Correctness and edge cases: read `references/step-correctness.md`, golang-practices `references/error-handling.md`, golang-practices `references/interfaces.md`
+  3. Testing and coverage: read `references/step-testing.md`, golang-practices `references/testing.md`
+  4. Concurrency safety: read `references/step-concurrency.md`, golang-practices `references/concurrency.md`
+  5. Naming and style: read `references/step-naming.md`, golang-practices `references/project-structure.md`, golang-practices `references/interfaces.md`
+  6. Security: read `references/step-security.md`, golang-practices `references/security.md`
+  7. Performance: read `references/step-performance.md`, golang-practices `references/performance.md`
+  8. Dependency management: read `references/step-dependencies.md`, golang-practices `references/dependencies.md`, golang-practices `references/project-structure.md`
+  9. Documentation: read `references/step-documentation.md`, golang-practices `references/project-structure.md`, golang-practices `references/testing.md`
+  10. Breaking changes: read `references/step-breaking-changes.md`, golang-practices `references/dependencies.md`, golang-practices `references/project-structure.md`
 - Areas not reviewed: none.
-- References read: golang-practices `references/error-handling.md`, `references/interfaces.md`, `references/testing.md`, `references/concurrency.md`, `references/project-structure.md`, `references/security.md`, `references/performance.md`, `references/dependencies.md`.
 - Limits: `govulncheck` not run, so known vulnerabilities were not checked; `staticcheck`, `gosec`, and `apidiff` not installed.
 
 ## Findings
@@ -72,7 +81,7 @@ REQUEST_CHANGES: <one to three sentences: what blocks the change, and any limit 
 - **Go version**: one line per module when the change touches several. Write `1.16 (no go line)` where the module has none.
 - **Checks**: one row per check, with the exact command and scope. The outcome is `passed`, `failed: <evidence>`, or `not run: <reason>`, as `checks.md` defines them. A check run without `-race`, because the race detector was unavailable, is its own row. The coverage row gives the total and every function in a changed file at 0.0%, or `not run` with the reason when the tests did not run.
 - **API changes**: every removed, renamed, or changed exported declaration, the additions in one line, and the version note, as `step-breaking-changes.md` describes. Write `None.` when the exported API is unchanged, and `not compared: <reason>` when the review could not compare it, which is also a limit. Leave the section out only when breaking changes are not in scope at the user's request.
-- **Coverage and limits**: every area is listed once, as reviewed or not reviewed with the reason: left out at the user's request, or cut for scope. List the golang-practices references read. If the skill could not be loaded, write `golang-practices not loaded:` and the references not read under limits. Every check not run is a limit, as is any change to the user's tree found in step 8.
+- **Coverage and limits**: every area is listed once, as reviewed or not reviewed with the reason: left out at the user's request, cut for scope, or `step reference not read`. A reviewed area lists the files read for it in step 6: its step reference and each golang-practices reference, by path. An area is reviewed only if its step reference was read; otherwise it is listed as not reviewed, `step reference not read`, with no findings under it. A golang-practices reference the table names for a reviewed area but not read is a limit of that area. If the skill could not be loaded, write `golang-practices not loaded:` and the references not read under limits. Every check not run is a limit, as is any change to the user's tree found in step 8.
 - **Findings**: most severe first, numbered `G1`, `G2`, and so on. A finding with no single line gives the files and says `design-level`. A deleted line gives the base line and says `deleted`. Write `Rule:` when the finding rests on a rule, and `Trigger and consequence:` when it rests on behaviour. Write both when both apply. With no findings, write `No findings.` and keep the coverage section, so the result is read as clean only within that coverage.
 - **Verdict**: the last section. `REQUEST_CHANGES` when any finding is critical or major, otherwise `APPROVE`. An `APPROVE` summary names the limits and areas not reviewed.
 

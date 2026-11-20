@@ -256,6 +256,39 @@ class AreasTableTest(unittest.TestCase):
                     self.assertTrue((PRACTICES / name).is_file(), f"{area}: golang-practices has no {name}")
                     self.assertIn(f"`{name}`", body, f"{link.group(1)} does not name {name}")
 
+    def test_every_step_reference_is_in_the_table(self):
+        named = {re.search(r"\]\((references/step-[a-z-]+\.md)\)", row[3]).group(1) for row in areas_table()}
+        on_disk = {f"references/{p.name}" for p in (SKILL / "references").glob("step-*.md")}
+        self.assertEqual(on_disk, named)
+
+    def test_review_step_makes_reading_the_references_mandatory(self):
+        # Reviews loaded golang-practices but read none of the reference files,
+        # so the review step must order the reads, and an area whose step
+        # reference was not read must count as not reviewed.
+        text = (SKILL / "SKILL.md").read_text(encoding="utf-8")
+        step = re.search(r"(?ms)^6\. \*\*Review each area\.\*\*.*?(?=^7\. )", text)
+        self.assertIsNotNone(step, "SKILL.md has no step 6, Review each area")
+        body = step.group(0)
+        self.assertIn("Read its step reference now", body)
+        self.assertIn("then each practices reference the table names for it", body)
+        self.assertIn("An area whose step reference was not read is not reviewed", body)
+
+    def test_report_lists_the_files_read_for_each_area(self):
+        # output.md's example lists, per area, the step reference and the
+        # golang-practices references read, matching the areas table.
+        text = (SKILL / "references" / "output.md").read_text(encoding="utf-8")
+        section = text.split("\n## Coverage and limits\n", 1)[1].split("\n## ", 1)[0]
+        rows = re.findall(r"(?m)^  (\d+)\. ([^:]+): read (.+)$", section)
+        self.assertEqual([area for _, area, _ in rows], AREAS)
+        for order, area, _, step, practices in areas_table():
+            read = dict((a, files) for _, a, files in rows)[area]
+            with self.subTest(area=area):
+                step_name = re.search(r"\]\((references/step-[a-z-]+\.md)\)", step).group(1)
+                self.assertIn(f"`{step_name}`", read)
+                for name in re.findall(r"`(references/[a-z-]+\.md)`", practices):
+                    self.assertIn(f"golang-practices `{name}`", read)
+        self.assertIn("step reference not read", text)
+
 
 class SettingsTableTest(unittest.TestCase):
     def settings(self):

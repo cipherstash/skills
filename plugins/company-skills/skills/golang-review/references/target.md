@@ -18,7 +18,8 @@ Read this in steps 1 and 2: how each kind of target becomes a base and a head, w
 - The target as the user gave it.
 - The repository: its local path, and the PR's URL for a pull request.
 - The reviewed state: the full base and head commit SHAs, or, for uncommitted changes, the commit they sit on and the words "plus uncommitted changes". A snapshot is not a commit, so `review-post` cannot post a review of it until it is committed.
-- The changed files from `git diff --name-status <base> <head>`, and from them the changed Go files (`.go`, `go.mod`, `go.sum`, `go.work`) and the packages they belong to.
+- The changed files from `git diff --name-status <base> <head>`. For uncommitted changes there is no head commit: the list is `git diff --name-status HEAD` plus the untracked files from `git ls-files --others --exclude-standard`.
+- From that list, the changed Go files and the packages they belong to. Go files are `go.mod`, `go.sum`, `go.work`, and every file `go build` compiles into a package: `.go` files, plus, in a directory that holds Go files, cgo and assembly sources and headers (`.c`, `.h`, `.cc`, `.cpp`, `.cxx`, `.hh`, `.hpp`, `.hxx`, `.m`, `.s`, `.S`, `.sx`, `.f`, `.F`, `.for`, `.f90`), SWIG files (`.swig`, `.swigcxx`), and `.syso` objects. `go test` compiles and runs these too.
 
 ## Pull request
 
@@ -29,7 +30,7 @@ Read this in steps 1 and 2: how each kind of target becomes a base and a head, w
 
 ## Branch
 
-The head is the branch's tip commit. The base is `git merge-base <base branch> <branch>`, where the base branch is the one the user named, or else the default branch, found by the first of these that works:
+The head is the branch's tip commit. The base is `git merge-base <base ref> <branch>`. The base ref is the base branch's remote-tracking ref, `refs/remotes/origin/<base branch>`, because a local branch can be behind the remote, which would count other people's commits as part of the change, and a clone may have no local copy at all. Use the local branch only when there is no remote-tracking ref. The base branch is the one the user named, or else the default branch, found by the first of these that works:
 
 1. `git symbolic-ref --short refs/remotes/origin/HEAD`, with `origin/` stripped. It fails with `not a symbolic ref` when `origin/HEAD` was never set, as in a repository that added its remote after `git init`.
 2. The `HEAD branch:` line of `git remote show origin`, which asks the remote.
@@ -41,20 +42,20 @@ If none of these gives a branch, treat the target as unidentifiable.
 
 - `A..B`: base `A`, head `B`.
 - `A...B`: base `git merge-base A B`, head `B`.
-- One commit `C`: base `C^`, head `C`. A merge commit's base is its first parent; say so.
+- One commit `C`: base `C^`, head `C`. A merge commit's base is its first parent; say so. A root commit has no parent: its base is the empty tree, `git hash-object -t tree /dev/null`, so every file in it is added. There is then no base commit to run checks at.
 
 Resolve each name with `git rev-parse --verify <name>^{commit}`. A name that does not resolve makes the target unidentifiable.
 
 ## Diff
 
 - **Uncommitted changes** ("my changes", "what I have here"): the base is `HEAD`, the changes are `git diff HEAD` plus untracked files from `git ls-files --others --exclude-standard`. The reviewed state is a snapshot.
-- **A patch file or pasted diff**: review the patch as the change. To run checks, find the commit it applies to: the commit the user names, or `HEAD`. In the temporary worktree at that commit, run `git apply --check` and then `git apply`. If it does not apply cleanly, review the patch by reading alone and record that no checks could run as a limit.
+- **A patch file or pasted diff**: review the patch as the change. To run checks, find the commit it applies to: the commit the user names, or `HEAD`. In the temporary worktree at that commit, run `GIT_LFS_SKIP_SMUDGE=1 git -c core.hooksPath=/dev/null apply --check` and then the same without `--check`. If it does not apply cleanly, review the patch by reading alone and record that no checks could run as a limit.
 
 ## No target named
 
 A request such as "review my Go changes" or "is this ready to merge?" names no target. Resolve it from the repository, in this order:
 
-1. Uncommitted changes that touch Go files: review them as a snapshot. If the current branch also has commits ahead of the default branch, review the branch and the uncommitted changes together, and say so: the base is then the branch's base, as [Branch](#branch) finds it, and the head is the snapshot.
+1. Uncommitted changes that touch Go files: review them as a snapshot. If the current branch also has commits ahead of the default branch, review the branch and the uncommitted changes together, and say so: the base is then the branch's base, found against the remote-tracking ref as [Branch](#branch) describes, and the head is the snapshot.
 2. A current branch with commits ahead of the default branch: review that branch.
 3. Otherwise there is no identifiable target.
 
@@ -76,6 +77,6 @@ Checking out the change's code must run none of it. Run every git command that c
 1. Record `git status --porcelain` for the user's tree.
 2. Choose a directory outside the repository: the host's scratch directory, or one from `mktemp -d`.
 3. Create the worktree at the head: `GIT_LFS_SKIP_SMUDGE=1 git -c core.hooksPath=/dev/null worktree add --detach <dir>/golang-review-<short head SHA> <head commit>`. This writes only under `.git/worktrees/`.
-4. For uncommitted changes, create it at `HEAD` instead. Then copy the changes in with `git diff HEAD --binary | git -C <worktree> -c core.hooksPath=/dev/null apply --binary`, and copy each untracked file from `git ls-files --others --exclude-standard -z` to the same path in the worktree. A patch file is applied the same way.
-5. Remove it on every exit from here on, including a stop: `git worktree remove --force <worktree>`. Do not run `git worktree prune`, which also deletes the records of the user's other worktrees whose directories are missing, such as ones on an unmounted drive. Remove a base worktree, if [checks.md](checks.md) had you make one, the same way.
+4. For uncommitted changes, create it at `HEAD` instead. Then copy the changes in with `git diff HEAD --binary | GIT_LFS_SKIP_SMUDGE=1 git -C <worktree> -c core.hooksPath=/dev/null apply --binary`, and copy each untracked file from `git ls-files --others --exclude-standard -z` to the same path in the worktree. A patch file is applied the same way.
+5. Remove it on every exit from here on, including a stop: `git worktree remove --force <worktree>`. Do not run `git worktree prune`, which also deletes the records of the user's other worktrees whose directories are missing, such as ones on an unmounted drive. Remove a base worktree, if `checks.md` had you make one, the same way.
 6. Before the report, run `git status --porcelain` again for the user's tree. Any difference from step 1 is reported, with the paths.

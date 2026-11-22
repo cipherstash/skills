@@ -24,8 +24,10 @@ Then, in a session started in `$work`, ask for a review of the last commit, for 
 
 ## Checks a correct review reports
 
-- `go vet ./...` passes. Neither planted defect is one `go vet` detects, so a clean vet is not a clean review.
-- `go test -race ./...` fails with `WARNING: DATA RACE`: writes in `(*Summary).add` (`orders/orders.go:43` to `:45`) from goroutines started at `orders/orders.go:31`, reached through `orders/orders.go:35`.
+The skill runs the checks over the changed package, `./orders`. A review that runs them over `./...` is also correct: in this module the two scopes hold the same package.
+
+- `go vet ./orders` passes. Neither planted defect is one `go vet` detects, so a clean vet is not a clean review.
+- `go test -race -count=1 -timeout 5m ./orders` fails with `WARNING: DATA RACE`: writes in `(*Summary).add` (`orders/orders.go:43` to `:45`) from goroutines started at `orders/orders.go:31`, reached through `orders/orders.go:35`.
 - The Go version, read from `go.mod`, is 1.22.
 - The `golang-practices` references read: `references/error-handling.md` and `references/concurrency.md`. If the skill could not be loaded, the review says so as a limit instead.
 - The eight checklist areas this version does not cover are listed as not reviewed.
@@ -47,7 +49,7 @@ Then, in a session started in `$work`, ask for a review of the last commit, for 
 - Cause: every goroutine calls `s.add` on the shared `Summary` with no lock, so the `+=` and `++` in `add` race.
 - Trigger and consequence: any call with two or more records. Updates are lost, so `Lines`, `Units`, and `TotalCents` can come back too low, with no error. It is major, not critical: the wrong totals are `Summarise`'s result, and nothing in the change stores or sends them.
 - Rule: golang-practices, concurrency: a data race is a bug even when the test passes.
-- Evidence: `go test -race ./...` reports `WARNING: DATA RACE` at `orders.go:43` through `orders.go:35`.
+- Evidence: `go test -race -count=1 -timeout 5m ./orders` reports `WARNING: DATA RACE` at `orders.go:43` through `orders.go:35`.
 - A correct fix guards the totals with a mutex, or has each goroutine send its line to one goroutine that adds them.
 
 ## May report

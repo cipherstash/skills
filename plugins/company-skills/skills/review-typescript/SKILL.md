@@ -1,0 +1,46 @@
+---
+name: review-typescript
+description: Reviews TypeScript and JavaScript changes for runtime/type mismatches, API compatibility, asynchronous behavior, and invalid tests. Use for a TypeScript-specific concern named directly, or a TypeScript assignment from review-code; a general request to review TypeScript changes goes to review-code. Does not implement fixes, post feedback, or assess general coverage gaps (review-test-gaps).
+---
+
+# review-typescript
+
+Review the TypeScript and JavaScript portion of an identified change. Return findings to `review-code` or the user; preserve the reviewed source tree and leave publishing to `review-post`.
+
+## Inputs and scope
+
+Require a diff, its exact base and head commits (or an identified working-tree snapshot), the matching tree, and available requirements and repository guidance. When invoked directly, resolve the installed `review-code` skill and read its `references/findings.md` contract. A delegated assignment supplies that contract. If the target is missing or ambiguous, ask for it before reviewing; use `review-code` to prepare a PR target that has not yet been resolved.
+
+Review TypeScript and JavaScript source, including TSX/JSX, declarations, and compiler/package configuration that changes their behavior. Apply runtime, input-boundary, async, and consumer checks to JavaScript-only projects; apply type-system checks only where TypeScript or checked JavaScript is configured. If there are no applicable changes, return `not applicable` with the reviewed scope.
+
+## Review
+
+1. **Establish compiler and runtime assumptions.** Read the effective `tsconfig` chain, package exports, compiler/runtime versions, and local guidance. Determine null/index checking, module resolution, declaration generation, and the build path used by affected consumers.
+2. **Follow data across type boundaries.** Trace assertions, `any`, non-null assertions, suppression comments, and untyped inputs to the validation or invariant that makes them safe. Check that predicates establish all properties they promise. Types disappear at runtime: demonstrate the input that passes through a claimed guarantee and breaks its consumer, rather than treating every assertion as a defect.
+3. **Exercise changed states.** Follow newly possible union variants, missing keys, null/undefined values, empty arrays, and mutation across asynchronous work. Check promise rejection handling, detached work, and ordering where the change depends on completion. Prove a reachable bad state before recommending an exhaustiveness check or a different state model.
+4. **Check public contracts and build output.** Follow changed generics, overloads, inference, readonly promises, and declaration files into real consumers. Examine runtime import side effects, module cycles, and exports with the configured emit and bundler. A compiler-option change, enum, value import, or widened annotation alone is not a finding: identify the broken consumer guarantee or explicit repository rule.
+5. **Inspect type-test validity.** Check whether assertions or `any` in a test bypass the type relation it claims to test, and whether negative type tests actually compile under the test command. Identify a test that can pass despite the demonstrated bad implementation. Send missing type/runtime scenarios to `review-test-gaps` with their contracts and relevant files.
+6. **Check evidence.** Use the project's installed type-check, lint, and focused test commands when safe and available. Avoid package runners that download missing tools. Inspect scripts before execution; do not change code, loosen compiler options, install dependencies, or auto-fix diagnostics. Separate baseline errors and setup limitations from regressions introduced by the diff.
+
+## Language practice references
+
+The `typescript-pro` skill, bundled with company-skills as its own plugin, carries TypeScript practice references. Where it is installed, invoke it by name and read the reference for each area the diff touches before judging that area. Invoking it loads the skill and gives its directory, which the `references/` paths below resolve from.
+
+| Changed area | Reference |
+| --- | --- |
+| Generic constraints, conditional, mapped, template literal and recursive types, variance | `references/advanced-types.md` |
+| `tsconfig` strictness, project references, module resolution, declaration files | `references/configuration.md` |
+| Builders, factories, repositories, API clients, state machines, result types | `references/patterns.md` |
+| Type predicates, discriminated unions, assertion functions, narrowing, branded types | `references/type-guards.md` |
+| Built-in and custom utility types | `references/utility-types.md` |
+
+Use them under these rules:
+
+- Use the skill for its references. Its `SKILL.md` is a workflow for writing TypeScript; its steps, MUST lists, and output templates are not review criteria.
+- A reference shows preferred practice. A departure from it is a finding only with the trigger and consequence, or the cited rule, that **Return** requires.
+- The steps in **Review** win where a reference disagrees. `references/patterns.md` and `references/type-guards.md` prefer particular designs, such as branded types and state machines; steps 2 to 4 hold, so an enum, a type assertion, or a different state model is not a finding without the broken guarantee.
+- Record the references read alongside the checks run. If the skill is not installed, record that as a coverage limit and continue from this skill alone.
+
+## Return
+
+Use the supplied findings contract. Each finding needs a reviewed-tree location, changed cause, concrete trigger and impact (or a cited objective rule), evidence, severity `critical`/`major`/`minor`, feasible correction, and source skill/agent/model. Use `unknown` for unavailable provenance. Record the reviewed commit or snapshot, applicable configurations, checks actually run, failures, and skipped checks even when no findings survive. Stop when every assigned change is examined or explicitly marked unreviewed with a reason.

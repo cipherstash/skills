@@ -42,7 +42,9 @@ Most skills here are workflows: a user asks for a result and the skill runs a pr
 
 A programming language gets a pair of skills with the language as the shared prefix: `<lang>-practices` and `<lang>-review`. `<lang>` is the language's lowercase name, never an abbreviation: `golang` for Go, then `python`, `typescript`, or `rust`. Copy the layout of the Go pair, `golang-practices` with `golang-review`, for the next language. The Go pair is the worked example.
 
-Rust already has convention skills: `rust-sdk-dx`, `rust-security`, and `rust-testing`. Rust's review skill may read those in place of a new `rust-practices` skill. Decide that before you build a pair for a language like this.
+Rust already has convention skills: `rust-sdk-dx`, `rust-security`, and `rust-testing`. Rust is exempt from the practices-skill rules below for now. A `rust-review` skill may read those three as they are, with no `examples/` module, script test, or short `SKILL.md`. The exemption ends when a `rust-practices` skill is added.
+
+Any other language that already has convention skills needs a decision like this before you build its pair.
 
 - Name the review skill `<lang>-review`, not `review-<lang>`. This guide groups skills by what they are about. A language review is about the language. The `review-` prefix stays reserved for skills that work on a review's findings, such as `review-fix` and `review-post`.
 - Put all knowledge about the language in the practices skill. The practices skill is a convention skill, so the rules above apply to it.

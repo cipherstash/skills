@@ -27,7 +27,7 @@ Read every command before running it, and run only what [references/checks.md](r
 
 ## Steps
 
-1. **Resolve the target.** Follow [references/target.md](references/target.md) to find the base and head of the change, list the changed Go files and their packages, and record the reviewed state: full base and head commit SHAs, or a snapshot of the uncommitted changes on top of a named commit. With no target you can identify, stop and report what you looked for and what the review needs: a PR number or URL, a branch, a commit range, or a diff. Do not ask a question. With no Go files, `go.mod`, `go.sum`, or `go.work` in the change, stop and report that there is no Go change to review. Completion: the reviewed state is recorded and every changed Go file is listed, or the run has stopped with its report.
+1. **Resolve the target.** Follow [references/target.md](references/target.md) to find the base and head of the change, list the changed Go files and their packages, and record the reviewed state: full base and head commit SHAs, or a snapshot of the uncommitted changes on top of a named commit. With no target you can identify, stop and report what you looked for and what the review needs: a PR number or URL, a branch, a commit range, or a diff. Do not ask a question. With no Go files in the change, as that reference lists them (`.go` files, cgo and assembly sources in Go packages, `.syso` objects, `go.mod`, `go.sum`, `go.work`), stop and report that there is no Go change to review. Completion: the reviewed state is recorded and every changed Go file is listed, or the run has stopped with its report.
 
 2. **Prepare the tree.** Create the temporary worktree at the head, as [references/target.md](references/target.md) describes, and record `git status --porcelain` for the user's tree. Without a local clone the review reads the change through the host's GitHub tools and runs no checks; record that as a limit. Completion: the worktree path is recorded, or the limit is.
 
@@ -41,7 +41,7 @@ Read every command before running it, and run only what [references/checks.md](r
 
 7. **Test each finding.** Keep a candidate only if it meets the finding contract below, and give it a severity. Drop a departure from preferred practice that has no consequence and breaks no cited rule. Merge candidates that share one root cause into one finding that lists every location. Completion: every remaining finding meets the contract.
 
-8. **Report.** Remove the worktree. Compare `git status --porcelain` with the record from step 2, and report any difference. Then write the report in the format of [references/output.md](references/output.md): the reviewed state, the checks and their outcomes, coverage and limits, the findings most severe first, and last the verdict with a short summary. Completion: the worktree is gone and the report ends with its verdict.
+8. **Report.** Remove the worktree. Compare `git status --porcelain` with the record from step 2, and report any difference. Then write the report in the format of [references/output.md](references/output.md): the reviewed state, the checks and their outcomes, coverage and limits, the findings most severe first, a one-line list of the next steps that apply, and last the verdict with a short summary. Completion: the worktree is gone and the report ends with its verdict.
 
 ## Areas
 

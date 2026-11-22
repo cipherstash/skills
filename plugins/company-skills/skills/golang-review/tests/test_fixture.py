@@ -74,17 +74,21 @@ def expected_findings():
     return findings
 
 
-def changed_files():
-    """Return the module-relative paths that differ between base/ and head/."""
+def changed_files(base=BASE, head=HEAD):
+    """Return the module-relative paths that differ between base and head."""
     changed = []
 
     def walk(cmp, prefix=""):
-        for name in cmp.left_only + cmp.right_only + cmp.diff_files:
-            changed.append(prefix + name)
+        # dircmp compares files by size and mtime only, so compare the common
+        # files' contents here.
+        changed.extend(prefix + name for name in cmp.left_only + cmp.right_only)
+        for name in cmp.common_files:
+            if not filecmp.cmp(Path(cmp.left) / name, Path(cmp.right) / name, shallow=False):
+                changed.append(prefix + name)
         for name, sub in cmp.subdirs.items():
             walk(sub, prefix + name + "/")
 
-    walk(filecmp.dircmp(BASE, HEAD))
+    walk(filecmp.dircmp(base, head))
     return sorted(changed)
 
 
@@ -116,6 +120,18 @@ class ExpectedFindingsTest(unittest.TestCase):
 
     def test_the_change_touches_only_the_package(self):
         self.assertEqual(changed_files(), ["orders/orders.go", "orders/orders_test.go"])
+
+    def test_changed_files_compares_contents(self):
+        # A same-size edit with a matching mtime, as after extracting an archive,
+        # must still count as a change.
+        with tempfile.TemporaryDirectory() as tmp:
+            base, head = Path(tmp) / "base", Path(tmp) / "head"
+            for module, version in ((base, "1.21"), (head, "1.22")):
+                module.mkdir()
+                go_mod = module / "go.mod"
+                go_mod.write_text(f"module example\n\ngo {version}\n", encoding="utf-8")
+                os.utime(go_mod, (1_700_000_000, 1_700_000_000))
+            self.assertEqual(changed_files(base, head), ["go.mod"])
 
 
 class GoFixtureTest(unittest.TestCase):

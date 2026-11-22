@@ -38,6 +38,8 @@ Skills: `golang-review`, `golang-practices`
 - Fix: return each goroutine's error to `Summarise` and wrap it with the record's index.
 - Source: golang-review · <model ID>
 
+Next: `review-cross-check`, `review-post`, `review-fix`, if you ask.
+
 ## Verdict
 
 REQUEST_CHANGES: <one to three sentences: what blocks the change, and any limit the reader must know.>

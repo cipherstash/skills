@@ -25,13 +25,13 @@ Leave `GOWORK` as the repository has it: a committed `go.work` is part of how th
 
 ## Scope
 
-Check the changed packages: each directory with a changed `.go` file, as `./<dir>` from the module root. When the change touches `go.mod` or an exported identifier, add `./...` for `go vet`, since a change there can break other packages in the module. Record the package list in the report.
+Check the changed packages: each directory with a changed Go file, as `target.md` lists them, that still exists at the head, as `./<dir>` from the module root. Leave out a directory the change deletes: `go vet` fails on it with `directory not found` and then checks none of the packages. When the change touches `go.mod` or an exported identifier, add `./...` for `go vet`, since a change there can break other packages in the module. Record the package list in the report.
 
 ## Before running tests
 
 `go vet` compiles the packages but runs none of their code. `go test` runs the change's code on this machine with the user's permissions: `init` functions, `TestMain`, the tests themselves, and every function they call, changed or not. An unchanged test that calls a changed function runs the change. Treat all of the changed code as untrusted until you have read it.
 
-1. Read every changed `.go` file, test or not, in the packages under test and in the module's packages they import; every `TestMain` and `init` function in the packages under test; and every changed file the tests load, such as files under `testdata/`.
+1. Read every changed Go file, as `target.md` lists them, test or not, in the packages under test and in the module's packages they import: the `.go` files, and the cgo and assembly sources compiled with them, since a C constructor function runs when the test binary starts. Read every `TestMain` and `init` function in the packages under test, and every changed file the tests load, such as files under `testdata/`. A changed `.syso` file is a compiled object that cannot be read, so its tests are not run.
 2. Look for code that reaches outside a test's own sandbox: `os/exec` or `syscall` calls, network connections to anything but loopback, reads of credentials, tokens, or the user's home directory, writes outside `t.TempDir()`, and `//go:generate` or `cgo` code.
 3. Run the tests if that code does only what the change and its tests plainly need. If it does more, or there is more changed code than you can read (large generated or vendored code), do not run them. Record the tests as not run, give the reason, and say that the user can run them.
 
@@ -62,5 +62,5 @@ Record each check as exactly one of:
 - **failed**: it ran and reported a problem. Quote the relevant output with its file and line. A failure caused by the change is evidence for a finding, and a compile error in changed code is itself a finding.
   - A race report (`WARNING: DATA RACE`) or a deadlock is evidence even if it does not happen again: the race detector reports only races that happened, and both depend on timing. Never discard one as flaky.
   - Any other test failure that does not happen again when run once more is flaky. Report it under the checks, not as a finding.
-  - To tell whether a failure is already present, run the same command at the base, in a second worktree made as `target.md` describes but at the base commit, and remove it the same way. Run it only if the diff's base side, read like the head in [Before running tests](#before-running-tests), is safe too. A failure that also happens at the base is not caused by the change: report it under the checks as already present.
+  - To tell whether a failure is already present, run the same command at the base, when there is a base commit, in a second worktree made as `target.md` describes but at the base commit, and remove it the same way. Run it only if the diff's base side, read like the head in [Before running tests](#before-running-tests), is safe too. A failure that also happens at the base is not caused by the change: report it under the checks as already present.
 - **not run**: it could not run or was not run. Give the reason: the go command is missing, the local toolchain is older than the `go` line, modules are missing from the cache (the user can run `go mod download`), the race detector is unavailable, the test code was not safe to run, there is no local clone, or the patch did not apply. This is a limit of the review. It is never a pass and never a defect.

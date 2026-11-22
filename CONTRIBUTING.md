@@ -40,14 +40,14 @@ Most skills here are workflows: a user asks for a result and the skill runs a pr
 
 ## Language skills
 
-A programming language gets a pair of skills with the language as the shared prefix: `<lang>-practices` and `<lang>-review`. Copy the layout of the Go pair, `golang-practices` with `golang-review`, for the next language. The Go pair is the worked example.
+A programming language gets a pair of skills with the language as the shared prefix: `<lang>-practices` and `<lang>-review`. `<lang>` is the language's lowercase name, never an abbreviation: `golang` for Go, then `python`, `typescript`, or `rust`. Copy the layout of the Go pair, `golang-practices` with `golang-review`, for the next language. The Go pair is the worked example.
 
 Rust already has convention skills: `rust-sdk-dx`, `rust-security`, and `rust-testing`. Rust's review skill may read those in place of a new `rust-practices` skill. Decide that before you build a pair for a language like this.
 
 - Name the review skill `<lang>-review`, not `review-<lang>`. This guide groups skills by what they are about. A language review is about the language. The `review-` prefix stays reserved for skills that work on a review's findings, such as `review-fix` and `review-post`.
 - Put all knowledge about the language in the practices skill. The practices skill is a convention skill, so the rules above apply to it.
 - Put only the review procedure in the review skill: its steps, the tools it runs, what counts as a finding, and the report format. Where both skills cover a topic, the practices skill states the rule. The review skill names the practices reference to read. The review skill may restate a rule that decides what is a finding, such as a minimum language version. Keep that copy the same as the practices reference.
-- In the review skill, invoke the practices skill by name to read its references. Loading it gives its directory, and its reference paths resolve from there. Do not link to `../<lang>-practices/` from any file. A reference path may not leave its own skill directory. The validator checks this in `SKILL.md` only. Follow it in the other files too.
+- In the review skill, invoke the practices skill by name to read its references. Loading it gives its directory, and its reference paths resolve from there. No file in the review skill may link to or read `../<lang>-practices/`. The validator rejects a Markdown link in `SKILL.md` that leaves the skill directory. The validator does not check other files or plain-text paths, so check those by hand.
 - If the practices skill cannot be loaded, the review carries on with its own steps. The report lists each reference it could not read as a limit of the review.
 - Keep the practices skill's `SKILL.md` safe to load during a review. Give it a short rule list and a table saying when to read each reference. Leave out any authoring workflow, output template, or persona.
 - Keep reference examples as real source that CI builds and tests. Put them in a small module under the practices skill's `examples/`, with tests. Quote each code block in a reference word for word from that source, with a link to the file on the line before it.
@@ -55,10 +55,11 @@ Rust already has convention skills: `rust-sdk-dx`, `rust-security`, and `rust-te
 - State in each reference the language version its examples target.
 - Include a seeded-defect fixture in the review skill, under `tests/fixtures/`. The fixture is a small change, as a `base/` tree and a `head/` tree, with one planted defect for each area the skill covers. The fixture's `expected-findings.md` lists the findings a correct review must report.
 - Add a script test to the review skill that checks the fixture. The test checks that the base is clean, that each defect comes from the change, and that the tools catch what they should. Where no tool shows a defect, add a probe test to a temporary copy of the module. The fixture stays unchanged. The test also checks that each expected location quotes its line. Nothing in CI runs an agent, so run the review against the fixture by hand.
-- Report each finding with a severity of `critical`, `major`, or `minor`. Those are the values `review-cross-check`, `review-post`, and `review-fix` take unchanged. Use the meanings the Go review uses. A finding is `critical` only when the review traces it to a crash, a security exposure, or wrong data stored or sent outside the program. A race or a dropped error that falls short of that is `major`.
+- Report each finding with a severity of `critical`, `major`, or `minor`. Those are the values `review-cross-check`, `review-post`, and `review-fix` take unchanged. Copy their meanings from the [Finding contract](plugins/company-skills/skills/golang-review/SKILL.md#finding-contract) in `golang-review`. Change only the Go-specific examples. Do not paraphrase them.
 - End the review report with a verdict of `APPROVE` or `REQUEST_CHANGES`. The verdict stays in the report: the review skill never submits an approving or blocking review on GitHub.
 - Keep the review skill read-only. `review-fix` fixes findings and `review-post` posts them, so the review skill does neither. Write the review steps to run in sequence, so the skill works on hosts without subagents.
-- Run the checks in a temporary worktree. Check it out with git hooks and Git Large File Storage (LFS) downloads turned off, so the checkout runs none of the change. Remove it with `git worktree remove`. Never run `git worktree prune`: it deletes the records of the user's other worktrees. Before you run the tests, read all the changed code they will run, not only the test code. If that code does more than the change needs, leave the tests unrun.
+- Run the checks in a temporary worktree. The checkout must run none of the change. The review must remove the worktree on every exit. The review must never remove the records of the user's other worktrees. Copy the steps from `golang-review`'s [target.md](plugins/company-skills/skills/golang-review/references/target.md#the-temporary-worktree).
+- Read all the changed code the tests will run before you run them. If that code does more than the change needs, record the tests as not run and say why. Copy the steps from `golang-review`'s [checks.md](plugins/company-skills/skills/golang-review/references/checks.md#before-running-tests).
 
 ### Taking in upstream material
 
@@ -68,6 +69,7 @@ A language pair often starts from an upstream skill. Take its material in like t
 - Copy it under its licence. Put the licence text in the skill's `LICENSE`. Put a `NOTICE` beside it that names the source repository, path, and commit, and lists every change. `plain-language` follows the same pattern.
 - Fix every defect the audit found before the copy merges. Rewrite or drop confused or dated rules.
 - Drop the upstream frontmatter metadata, persona line, and links to skills that do not exist here.
+- If company-skills installs the upstream skill as a dependency, the new `<lang>-practices` replaces it. The README lists these under **Bundled language practice skills**. The release PR that adds the pair removes the dependency from the marketplace catalog and the manifests. That PR also tells users how to uninstall the old plugin.
 
 ## Behavior cases
 

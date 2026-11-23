@@ -5,6 +5,7 @@ import (
 	"runtime"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -124,7 +125,6 @@ func TestMergeClosesOnCancelWhenInputsStayOpen(t *testing.T) {
 }
 
 func TestMergeStopsOnCancelWhenNobodyReads(t *testing.T) {
-	before := runtime.NumGoroutine()
 	ctx, cancel := context.WithCancel(context.Background())
 	in := make(chan int)
 	_ = generics.Merge(ctx, in) // nobody reads the output
@@ -132,11 +132,41 @@ func TestMergeStopsOnCancelWhenNobodyReads(t *testing.T) {
 	cancel()
 
 	// Merge's goroutines must exit even though the send never completes.
+	// Look for them by name, not by counting goroutines: a count also moves
+	// when goroutines from earlier tests exit, which can hide a leak.
 	deadline := time.Now().Add(5 * time.Second)
-	for runtime.NumGoroutine() > before {
+	for {
+		n := goroutinesIn("example.com/golang-practices/generics.Merge[")
+		if n == 0 {
+			return
+		}
 		if time.Now().After(deadline) {
-			t.Fatalf("%d goroutines still running after cancel, want at most %d", runtime.NumGoroutine(), before)
+			t.Fatalf("%d goroutines still running in generics.Merge after cancel", n)
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
+}
+
+// goroutinesIn counts the goroutines with a function whose name starts with
+// prefix on their stack.
+func goroutinesIn(prefix string) int {
+	buf := make([]byte, 1<<20)
+	for {
+		n := runtime.Stack(buf, true)
+		if n < len(buf) {
+			buf = buf[:n]
+			break
+		}
+		buf = make([]byte, 2*len(buf))
+	}
+	count := 0
+	for _, g := range strings.Split(string(buf), "\n\n") {
+		for _, line := range strings.Split(g, "\n") {
+			if strings.HasPrefix(line, prefix) {
+				count++
+				break
+			}
+		}
+	}
+	return count
 }

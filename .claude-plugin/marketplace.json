@@ -18,7 +18,7 @@
         "path": "./plugins/differential-review",
         "sha": "149d7b21f4067765b82e67029730b42d228ef4b4"
       },
-      "description": "Trail of Bits security-focused differential review of code changes, pinned to a reviewed upstream commit.",
+      "description": "Trail of Bits security-focused differential review of code changes.",
       "license": "CC-BY-SA-4.0",
       "author": {
         "name": "Trail of Bits",
@@ -33,7 +33,7 @@
         "path": "./plugins/insecure-defaults",
         "sha": "149d7b21f4067765b82e67029730b42d228ef4b4"
       },
-      "description": "Trail of Bits audit for insecure default configuration, pinned to a reviewed upstream commit.",
+      "description": "Trail of Bits audit for insecure default configuration.",
       "license": "CC-BY-SA-4.0",
       "author": {
         "name": "Trail of Bits",
@@ -48,7 +48,7 @@
         "path": "./plugins/code-improver",
         "sha": "149d7b21f4067765b82e67029730b42d228ef4b4"
       },
-      "description": "Trail of Bits review-and-fix loop for skills, plugins, or a branch's changes (skill-improver, code-improver, pr-improver), pinned to a reviewed upstream commit.",
+      "description": "Trail of Bits review-and-fix loop for skills, plugins, or a branch's changes (skill-improver, code-improver, pr-improver).",
       "license": "CC-BY-SA-4.0",
       "author": {
         "name": "Trail of Bits",
@@ -63,7 +63,7 @@
         "path": "./plugins/plugin-dev",
         "sha": "73c8cf3ea7e296057b467990f2f5d61b4c922260"
       },
-      "description": "Anthropic's plugin development toolkit, including the skill-reviewer agent that skill-improver uses, pinned to a reviewed upstream commit.",
+      "description": "Anthropic's plugin development toolkit, including the skill-reviewer agent that skill-improver uses.",
       "license": "Apache-2.0",
       "author": {
         "name": "Anthropic",
@@ -78,7 +78,7 @@
         "path": "./skills/golang-pro",
         "sha": "36f3fe8052da7c57083783268c6ea3265d075265"
       },
-      "description": "Jeffallan's Go language practice skill and references, pinned to a reviewed upstream commit.",
+      "description": "Jeffallan's Go language practice skill and references.",
       "license": "MIT",
       "author": {
         "name": "Jeffallan",
@@ -95,7 +95,7 @@
         "path": "./skills/python-pro",
         "sha": "36f3fe8052da7c57083783268c6ea3265d075265"
       },
-      "description": "Jeffallan's Python language practice skill and references, pinned to a reviewed upstream commit.",
+      "description": "Jeffallan's Python language practice skill and references.",
       "license": "MIT",
       "author": {
         "name": "Jeffallan",
@@ -112,7 +112,7 @@
         "path": "./skills/rust-engineer",
         "sha": "36f3fe8052da7c57083783268c6ea3265d075265"
       },
-      "description": "Jeffallan's Rust language practice skill and references, pinned to a reviewed upstream commit.",
+      "description": "Jeffallan's Rust language practice skill and references.",
       "license": "MIT",
       "author": {
         "name": "Jeffallan",
@@ -129,7 +129,7 @@
         "path": "./skills/typescript-pro",
         "sha": "36f3fe8052da7c57083783268c6ea3265d075265"
       },
-      "description": "Jeffallan's TypeScript language practice skill and references, pinned to a reviewed upstream commit.",
+      "description": "Jeffallan's TypeScript language practice skill and references.",
       "license": "MIT",
       "author": {
         "name": "Jeffallan",

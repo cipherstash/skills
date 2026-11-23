@@ -15,7 +15,7 @@ claude plugin marketplace add cipherstash/skills
 claude plugin install company-skills@company
 ```
 
-Installing company-skills also installs and enables six plugins as dependencies: the Trail of Bits `differential-review` and `insecure-defaults` plugins (see [Bundled Trail of Bits plugins](#bundled-trail-of-bits-plugins)), and the `golang-pro`, `python-pro`, `rust-engineer` and `typescript-pro` language skills (see [Bundled language practice skills](#bundled-language-practice-skills)).
+Installing company-skills also installs and enables six plugins as dependencies: the Trail of Bits `differential-review` and `insecure-defaults` plugins (see [Bundled Trail of Bits plugins](#bundled-trail-of-bits-plugins-and-plugin-dev)), and the `golang-pro`, `python-pro`, `rust-engineer` and `typescript-pro` language skills (see [Bundled language practice skills](#bundled-language-practice-skills)).
 
 Inside a session, `/plugin marketplace add cipherstash/skills` and `/plugin install company-skills@company` do the same. Start a new session, then invoke a skill by its namespaced name, for example `/company-skills:review-fix`.
 
@@ -47,7 +47,7 @@ codex plugin add insecure-defaults@company
 codex plugin list --marketplace company
 ```
 
-Codex does not install plugin dependencies, so add the two Trail of Bits plugins explicitly (see [Bundled Trail of Bits plugins](#bundled-trail-of-bits-plugins)). The command syntax was checked against `codex-cli 0.169.0`. Start a fresh session and use `/skills` or type `$` to select an installed skill, then supply its inputs. Skills can also match requests automatically.
+Codex does not install plugin dependencies, so add the two Trail of Bits plugins explicitly (see [Bundled Trail of Bits plugins](#bundled-trail-of-bits-plugins-and-plugin-dev)). The command syntax was checked against `codex-cli 0.169.0`. Start a fresh session and use `/skills` or type `$` to select an installed skill, then supply its inputs. Skills can also match requests automatically.
 
 If your CLI does not provide `plugin add`, restart the desktop app, choose **Company** in the Plugins Directory, and install **Company Skills** there. See [OpenAI’s plugin packaging guide](https://developers.openai.com/plugins/build/plugins) for marketplace configuration.
 
@@ -59,7 +59,7 @@ codex plugin remove company-skills@company
 codex plugin add company-skills@company
 ```
 
-## Bundled Trail of Bits plugins
+## Bundled Trail of Bits plugins and plugin-dev
 
 The `company` marketplace also lists three plugins from [Trail of Bits' skills repository](https://github.com/trailofbits/skills), so accounts and routines that cannot add the Trail of Bits marketplace still get them:
 

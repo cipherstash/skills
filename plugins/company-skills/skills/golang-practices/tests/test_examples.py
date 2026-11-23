@@ -15,13 +15,14 @@ SKILL = Path(__file__).resolve().parents[1]
 EXAMPLES = SKILL / "examples"
 REFERENCES = SKILL / "references"
 
-# A Go fence opener: up to three spaces of indent, three or more backticks or
-# tildes, then go or golang in any case, optionally followed by more info. The
-# closer uses the same indent and fence characters.
-FENCE_RE = re.compile(
-    r"(?ms)^(?P<indent> {0,3})(?P<fence>`{3,}|~{3,})[ \t]*(?i:go|golang)(?:[ \t][^\n]*)?\n"
-    r"(?P<code>.*?)^(?P=indent)(?P=fence)[ \t]*$"
-)
+# Fenced code blocks follow CommonMark: an opener is up to three spaces of
+# indent, then three or more backticks or tildes, then an info string whose
+# first word is the language. A backtick opener's info string has no backtick.
+OPENER_RE = re.compile(r"^(?P<indent> {0,3})(?P<fence>`{3,}|~{3,})(?P<info>.*)$")
+# Any line that looks like it opens a Go block, at any indent. Every such line
+# outside another block must be a real opener, so no Go block is skipped.
+GO_LIKE_RE = re.compile(r"^\s*(?:`{3,}|~{3,})\s*(?:go|golang)(?:\s|$)", re.IGNORECASE)
+GO_LANGUAGES = {"go", "golang"}
 SOURCE_RE = re.compile(r"\]\(\.\./examples/([^)#]+\.go)\)")
 GO_DIRECTIVE_RE = re.compile(r"(?m)^go (\d+\.\d+)(?:\.\d+)?\s*$")
 
@@ -33,19 +34,61 @@ def go_version():
     return match.group(1)
 
 
+def closes(line, fence):
+    """Report whether line closes a block opened with fence.
+
+    A closer has up to three spaces of indent, whatever the opener's indent, then
+    at least as many of the same fence character, then only whitespace.
+    """
+    stripped = line.lstrip(" ")
+    if len(line) - len(stripped) > 3:
+        return False
+    run = len(stripped) - len(stripped.lstrip(fence[0]))
+    return run >= len(fence) and not stripped[run:].strip()
+
+
+def parse_fences(text):
+    """Return (blocks, problems) for the Go blocks in text.
+
+    blocks is a list of (line number, source path or None, code). Each code
+    line has up to the opener's indent removed. problems lists, by line, each
+    Go-like line that is not a valid opener and each Go block with no closer.
+    """
+    blocks, problems = [], []
+    lines = text.splitlines(keepends=True)
+    i = 0
+    while i < len(lines):
+        line = lines[i].rstrip("\n")
+        opener = OPENER_RE.match(line)
+        if opener and opener["fence"][0] == "`" and "`" in opener["info"]:
+            opener = None
+        if not opener:
+            if GO_LIKE_RE.match(line):
+                problems.append(f"line {i + 1}: looks like a Go fence but does not open one")
+            i += 1
+            continue
+        fence, indent = opener["fence"], len(opener["indent"])
+        words = opener["info"].split()
+        is_go = bool(words) and words[0].lower() in GO_LANGUAGES
+        body, j = [], i + 1
+        while j < len(lines) and not closes(lines[j].rstrip("\n"), fence):
+            content = lines[j]
+            body.append(content[min(indent, len(content) - len(content.lstrip(" "))) :])
+            j += 1
+        if is_go:
+            if j == len(lines):
+                problems.append(f"line {i + 1}: Go block has no closing fence")
+            else:
+                lead = next((l for l in reversed(lines[:i]) if l.strip()), "")
+                source = SOURCE_RE.search(lead)
+                blocks.append((i + 1, source.group(1) if source else None, "".join(body)))
+        i = j + 1
+    return blocks, problems
+
+
 def quoted_blocks(text):
     """Yield (line number, source path or None, code) for each Go block in text."""
-    for match in FENCE_RE.finditer(text):
-        before = text[: match.start()].rstrip("\n").splitlines()
-        lead = before[-1] if before else ""
-        source = SOURCE_RE.search(lead)
-        line = text.count("\n", 0, match.start()) + 1
-        indent = match.group("indent")
-        code = "".join(
-            l[len(indent) :] if l.startswith(indent) else l
-            for l in match.group("code").splitlines(keepends=True)
-        )
-        yield line, source.group(1) if source else None, code
+    yield from parse_fences(text)[0]
 
 
 def excerpt_problem(code, source_text):
@@ -136,6 +179,11 @@ class QuotedSnippetsTest(unittest.TestCase):
                     problem = excerpt_problem(code, target.read_text(encoding="utf-8"))
                     self.assertIsNone(problem, f"{where}: {problem} (examples/{source})")
 
+    def test_no_go_block_is_skipped(self):
+        for path in self.references():
+            with self.subTest(reference=path.name):
+                self.assertEqual(parse_fences(path.read_text(encoding="utf-8"))[1], [])
+
     def test_each_reference_states_the_go_version(self):
         version = go_version()
         for path in self.references():
@@ -192,6 +240,37 @@ class QuotedBlocksParserTest(unittest.TestCase):
     def test_reads_an_indented_fence(self):
         text = "1. From [`a.go`](../examples/pkg/a.go):\n\n   ```go\n   func A() {}\n   ```\n"
         self.assertEqual(list(quoted_blocks(text)), [(3, "pkg/a.go", "func A() {}\n")])
+
+    def test_reads_an_indented_fence_closed_at_column_zero(self):
+        text = "From [`a.go`](../examples/pkg/a.go):\n\n  ```go\n  func A() {}\n```\n"
+        self.assertEqual(list(quoted_blocks(text)), [(3, "pkg/a.go", "func A() {}\n")])
+
+    def test_reads_a_fence_closed_by_a_longer_fence(self):
+        text = "From [`a.go`](../examples/pkg/a.go):\n\n~~~go\nfunc A() {}\n~~~~\n"
+        self.assertEqual(list(quoted_blocks(text)), [(3, "pkg/a.go", "func A() {}\n")])
+
+    def test_a_shorter_or_different_fence_does_not_close(self):
+        text = "````go\nfunc A() {}\n```\n~~~~\n````\n"
+        self.assertEqual(list(quoted_blocks(text)), [(1, None, "func A() {}\n```\n~~~~\n")])
+
+    def test_a_closer_needs_only_whitespace_after_it(self):
+        text = "```go\nfunc A() {}\n``` x\n```  \n"
+        self.assertEqual(list(quoted_blocks(text)), [(1, None, "func A() {}\n``` x\n")])
+
+    def test_reports_a_go_block_with_no_closer(self):
+        self.assertEqual(
+            parse_fences("```go\nfunc A() {}\n")[1], ["line 1: Go block has no closing fence"]
+        )
+
+    def test_reports_a_go_like_line_that_opens_nothing(self):
+        self.assertEqual(
+            parse_fences("    ```go\nfunc A() {}\n    ```\n")[1],
+            ["line 1: looks like a Go fence but does not open one"],
+        )
+
+    def test_ignores_a_go_fence_inside_another_block(self):
+        text = "````md\n```go\nfunc A() {}\n```\n````\n"
+        self.assertEqual(parse_fences(text), ([], []))
 
     def test_ignores_other_languages(self):
         text = "```sh\ngo test ./...\n```\n"

@@ -1,6 +1,6 @@
 ---
 name: filing-github-issues
-description: Drafts and files GitHub issues on CipherStash repositories — searches open and closed issues in the current repo and its siblings first, verifies every mechanical claim with file:line evidence, picks the right repo (upstream cause versus consumer impact), and writes a Background / Problem / Proposal body in plain wording a reader new to CipherStash can follow. Use when drafting or filing a GitHub issue on a CipherStash repository, or when asked to write up a bug, gap, or proposal as a GitHub issue. Files only when the user asked to file or approves the draft. Not for Linear issues or tickets, and not for pull requests (authoring-pull-requests).
+description: Drafts and files GitHub issues on CipherStash repositories, with a duplicate search, verified evidence, and a plain-language Background / Problem / Proposal body. Use when drafting or filing a GitHub issue on a CipherStash repository, or writing up a bug, gap, or proposal as one. Not for Linear issues or pull requests (authoring-pull-requests).
 ---
 
 # filing-github-issues

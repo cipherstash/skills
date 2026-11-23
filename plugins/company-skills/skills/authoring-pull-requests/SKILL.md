@@ -1,6 +1,6 @@
 ---
 name: authoring-pull-requests
-description: Takes finished work from the working tree to a draft pull request on a CipherStash GitHub repository — a type-prefixed branch, signed conventional commits that explain why, the repository's own pre-PR checklist and lint/build/test commands, and a plain-language PR body (Summary, Changes, Verification, Related, Review notes) with honest verification. Use when committing work, opening or updating a pull request, writing a PR title or body, re-signing or rebasing a branch that has an open PR, or asked to "ship", "push this up", or "raise a PR". Opens PRs as drafts and never merges, closes, or marks one ready without being asked. Not for fixing review findings or auditing review comments on an existing PR (review-fix, review-audit) or for filing GitHub issues (filing-github-issues).
+description: Takes finished work from the working tree to a draft pull request on a CipherStash GitHub repository: branch, signed commits, the repository's own checks, and a plain-language PR body. Use when committing work, opening or updating a pull request, writing a PR title or body, re-signing or rebasing a branch with an open PR, or asked to ship work or push it up for review. Not for fixing or auditing review findings (review-fix, review-audit) or filing GitHub issues (filing-github-issues).
 ---
 
 # authoring-pull-requests

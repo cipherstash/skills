@@ -1,16 +1,14 @@
 # Repository guidance
 
-Skills have one canonical source: `plugins/company-skills/skills/`.
+Every skill lives once, in `plugins/company-skills/skills/`; Codex and Claude Code both publish from that directory.
 
-When adding or changing a skill, follow [CONTRIBUTING.md](CONTRIBUTING.md). Complete every authoring rule and behavior case, then run `python3 scripts/validate.py` successfully.
-
-Keep the portable, Codex, and Claude plugin versions aligned for releases. Follow CONTRIBUTING.md's Codex compatibility and packaging rules, and keep README installation and invocation instructions current for both hosts. Do not duplicate a skill into product-specific directories.
+When adding, changing, renaming, or releasing a skill, follow [CONTRIBUTING.md](CONTRIBUTING.md). The change is done when it meets every authoring rule and behavior case, the README's installation and invocation instructions are current for both hosts, and `python3 scripts/validate.py` passes.
 
 ## Agent skills
 
 ### Issue tracker
 
-Issues are tracked in GitHub Issues on `cipherstash/skills`, using the `gh` CLI. See `docs/agents/issue-tracker.md`.
+Issues are tracked in GitHub Issues on `cipherstash/skills`. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 

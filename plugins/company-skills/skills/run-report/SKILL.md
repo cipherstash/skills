@@ -1,6 +1,6 @@
 ---
 name: run-report
-description: Keeps a log of every problem an unattended run hits — errors, failed commands, retries, fallbacks, workarounds, skipped or partial steps, missing skills or access, and assumptions made in place of instructions — then publishes a run report as a Claude artifact, or in the final message where artifacts are unavailable, with the run's status, an analysis of each problem, and its impact on what the run produced; a clean run still publishes one. Use when a scheduled task's or routine's prompt lists this skill or asks for a run report, or when asked to report what went wrong in a run. Does not diagnose a single failure, post review findings (review-post), or file issues (filing-github-issues).
+description: Logs every problem an unattended run hits and publishes a run report (status, and each problem's analysis and impact) as a Claude artifact or in the final message, even for a clean run. Use when a scheduled task's or routine's prompt lists this skill or asks for a run report, or when asked to report what went wrong in a run. Does not diagnose a single failure, post review findings (review-post), or file issues (filing-github-issues).
 argument-hint: "[run name]"
 ---
 

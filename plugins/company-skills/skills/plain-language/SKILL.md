@@ -1,6 +1,6 @@
 ---
 name: plain-language
-description: Writes, rewrites, and reviews prose a person reads in plain language, following ISO 24495-1:2023, ISO 24495-3:2026, and the GOV.UK content guidance, and checks the result with a bundled checker. Use when writing a document, README, plan, spec, report, findings, or summary for people to read; when rewriting or reviewing text that is hard to read or full of jargon, metaphor, idiom, or cliché; and when the user mentions plain language, plain English, or ISO 24495. Not for writing or changing code or configuration, or for generated reference output such as API docs, though code comments and commit messages are in scope, and a repository's own style guide wins where it is stricter or where it sets a different house style.
+description: Writes, rewrites, and reviews prose people read in plain language (ISO 24495 and the GOV.UK content guidance), checked with a bundled checker. Use when writing a document, README, plan, spec, report, findings, or summary for people to read; when rewriting or reviewing text that is hard to read; or when the user mentions plain language or plain English. Covers code comments and commit messages. Not for code, configuration, or generated reference output such as API docs.
 ---
 
 # Plain language

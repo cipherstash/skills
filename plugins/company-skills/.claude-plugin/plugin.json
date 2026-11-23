@@ -14,8 +14,6 @@
   "dependencies": [
     "differential-review",
     "insecure-defaults",
-    "code-improver",
-    "plugin-dev",
     "golang-pro",
     "python-pro",
     "rust-engineer",

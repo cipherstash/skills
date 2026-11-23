@@ -69,18 +69,30 @@ The `company` marketplace also lists three plugins from [Trail of Bits' skills r
 | `insecure-defaults` | The `/insecure-defaults:audit` command and its `audit-pipeline` workflow: an audit for fallback secrets, default credentials, fail-open switches, weak crypto, permissive access, and debug leakage |
 | `code-improver` | The `skill-improver`, `code-improver`, and `pr-improver` skills: a review-and-fix loop that runs until a review comes back clean. Claude Code only, because it runs as a workflow |
 
-`skill-improver` reviews with the `plugin-dev:skill-reviewer` agent, so the catalog also lists Anthropic's `plugin-dev` plugin from [claude-plugins-official](https://github.com/anthropics/claude-plugins-official), pinned the same way and published under the Apache 2.0 licence.
+`skill-improver` reviews with the `plugin-dev:skill-reviewer` agent, so the Claude catalog also lists Anthropic's `plugin-dev` plugin from [claude-plugins-official](https://github.com/anthropics/claude-plugins-official), pinned to one full upstream commit SHA and published under the Apache 2.0 licence.
 
 The Trail of Bits entries are `git-subdir` sources pinned to one full upstream commit SHA. No upstream files are copied into this repository. They are published by Trail of Bits under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/), not this repository's MIT licence.
 
-- **Claude Code:** company-skills declares all of them, and `plugin-dev`, as dependencies, so `claude plugin install company-skills@company` installs and enables them. Checked with Claude Code 2.1.327; `code-improver` and `plugin-dev` installed from this catalog with Claude Code 2.1.330.
-- **Codex:** the Codex catalog lists only `differential-review` and `insecure-defaults`. Both plugins install from the same pinned entries, but Codex has no plugin dependencies, so install each with `codex plugin add` as shown under [Codex](#codex). `insecure-defaults` ships a Claude Code command and workflow and no `skills/` directory, so it may expose nothing in Codex. Checked with `codex-cli 0.169.0`.
+- **Claude Code:** company-skills declares `differential-review` and `insecure-defaults` as dependencies, so `claude plugin install company-skills@company` installs and enables them. Checked with Claude Code 2.1.327.
+- **Claude Code, opt-in:** `code-improver` and `plugin-dev` are not dependencies, because `plugin-dev` adds a whole plugin-development toolkit to every session. Install them by name when you want `skill-improver`, and skip `plugin-dev@company` if you already have `plugin-dev` from `claude-plugins-official`. Checked with Claude Code 2.1.330.
 
-Nothing auto-updates them: a plugin with a pinned `sha` stays on that commit through marketplace refreshes and plugin updates. To move the pin, open a pull request that:
+  ```sh
+  claude plugin install code-improver@company
+  claude plugin install plugin-dev@company
+  ```
 
-1. Reviews the upstream changes to `plugins/differential-review`, `plugins/insecure-defaults`, and `plugins/code-improver` since the current SHA.
-2. Changes `sha` for the Trail of Bits entries in `.claude-plugin/marketplace.json` and `.agents/plugins/marketplace.json` to the same new full 40-character commit SHA. The validator fails when the two catalogs differ or a SHA is not a full commit.
+  Then run `/code-improver:skill-improver <skill name or path>`.
+- **Codex:** the Codex catalog lists only `differential-review` and `insecure-defaults`. Both install from the same pinned entries, but Codex has no plugin dependencies, so install each with `codex plugin add` as shown under [Codex](#codex). `insecure-defaults` ships a Claude Code command and workflow and no `skills/` directory, so it may expose nothing in Codex. Checked with `codex-cli 0.169.0`. `code-improver` and `plugin-dev` are Claude-catalog-only and were not tested in Codex.
+
+Nothing auto-updates them: a plugin with a pinned `sha` stays on that commit through marketplace refreshes and plugin updates. To move the Trail of Bits pin, open a pull request that:
+
+1. Reviews the upstream changes to `plugins/differential-review`, `plugins/insecure-defaults`, and `plugins/code-improver` since the current SHA, and checks that `skill-improver` still names the `plugin-dev:skill-reviewer` agent.
+2. Changes `sha` to the same new full 40-character commit SHA for all three Trail of Bits entries in `.claude-plugin/marketplace.json`, and for the two in `.agents/plugins/marketplace.json`. The validator fails when a pin differs between the two catalogs or a SHA is not a full commit. It does not check `code-improver`, which only the Claude catalog lists, so move that one by hand.
 3. Bumps the plugin version in all three manifests, as described in [Releases](CONTRIBUTING.md#releases).
+
+To move the `plugin-dev` pin, review the upstream changes to `plugins/plugin-dev` in `anthropics/claude-plugins-official` since its SHA, confirm the `skill-reviewer` agent is still there, change its `sha` in `.claude-plugin/marketplace.json`, and bump the version as above.
+
+Installed users get a moved pin only when they update that plugin by name, for example `claude plugin update code-improver@company` and `claude plugin update plugin-dev@company`.
 
 ## Bundled language practice skills
 

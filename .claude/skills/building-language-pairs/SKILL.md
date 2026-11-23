@@ -28,7 +28,7 @@ Where this skill names another skill, use it when the host has it. Otherwise do 
 
 - **`tdd`**: write a failing test, watch it fail, then write the code that passes it.
 - **`code-review`**: check the diff against the ticket's acceptance criteria and CONTRIBUTING.md. Report each defect with its file, line, and severity.
-- **`review-fix`** and **`review-audit`** ship in company-skills, so every host has them.
+- **`authoring-pull-requests`**, **`review-fix`**, **`review-audit`**, and **`run-report`** are company-skills skills. When company-skills is not installed, read `plugins/company-skills/skills/<name>/SKILL.md` in this repository and follow it.
 
 ## Unattended runs
 

@@ -218,7 +218,9 @@ The code review skills were renamed in 0.8.0 and their deprecated aliases were r
 
 Follow [CONTRIBUTING.md](CONTRIBUTING.md) to add or change a skill: naming, progressive disclosure, required behavior cases, releases, and the validation commands to run. Pull requests run `python3 scripts/validate.py`, `python3 -m unittest discover -s scripts/tests`, and each skill's `tests/` suite in GitHub Actions; the `claude plugin validate --strict` checks run locally only.
 
-The `golang-practices` suite runs `go vet` and `go test -race` over the skill's examples module. The `golang-review` suite checks its seeded-defect fixture, a sample change with one planted defect in each of the ten checklist areas. It checks that every expected finding quotes the line it names, and that the base vets and passes with the race detector. It also reproduces each planted defect that a tool or a short probe can show, such as the race and a panic on empty input. Without Go, the Go checks in both suites are skipped locally with a message, and they fail in CI.
+The `golang-practices` suite runs `go vet`, `go test -race`, and `gofmt -l` over the skill's examples module. It also checks that every Go block in its references is quoted from a file in that module.
+
+The `golang-review` suite checks its seeded-defect fixture, a sample change with one planted defect in each of the ten checklist areas. It checks that every expected finding quotes the line it names, and that the base vets and passes with the race detector. It also reproduces each planted defect that a tool or a short probe can show, such as the race and a panic on empty input. Without Go, the Go checks in both suites are skipped locally with a message, and they fail in CI.
 
 See the official [Codex skills documentation](https://developers.openai.com/codex/skills/) and [Claude Code plugin marketplace documentation](https://code.claude.com/docs/en/plugin-marketplaces) for current publishing and installation options.
 

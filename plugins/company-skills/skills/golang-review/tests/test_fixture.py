@@ -273,6 +273,13 @@ class SkillTextTest(unittest.TestCase):
         self.assertIn("ask the user", before)
         self.assertIn("exact command", before)
 
+    def test_a_test_written_for_the_review_runs_only_where_tests_may_run(self):
+        # A test added in the worktree still links and runs the change's code.
+        checks = self.section("references/checks.md", "The checks")
+        added = re.search(r"(?m)^To show a suspected .*$", checks)
+        self.assertIsNotNone(added)
+        self.assertIn("only where [Before running tests](#before-running-tests) allows tests to run", added.group(0))
+
     def test_the_worktree_is_not_a_sandbox(self):
         worktree = self.section("references/target.md", "The temporary worktree")
         self.assertIn("not a sandbox", worktree)

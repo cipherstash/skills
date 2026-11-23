@@ -60,7 +60,7 @@ From the repository's `Makefile`, task runner file, or CI configuration, take on
 
 A linter the repository already uses, such as `staticcheck` or `errcheck`, can also be run when it is already installed: check with `command -v` and record its version. Do not install one.
 
-To show a suspected race or leak that no existing test reaches, you may add a test file in the temporary worktree, run it there, and quote its output as evidence. Say in the finding that the test was written for the review. It goes away with the worktree.
+To show a suspected race or leak that no existing test reaches, you may add a test file in the temporary worktree. Run it only where [Before running tests](#before-running-tests) allows tests to run, since it runs the change's code too, and quote its output as evidence. Say in the finding that the test was written for the review. It goes away with the worktree.
 
 ## Commands the review never runs
 

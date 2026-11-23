@@ -190,6 +190,32 @@ class PackagingTests(unittest.TestCase):
                 )
                 self.check_result(1, "example-plugin: a bundled plugin in the catalog must be a company-skills dependency")
 
+    def test_codex_bundled_plugin_must_be_a_dependency(self):
+        codex_market = ".agents/plugins/marketplace.json"
+        policy = {"policy": {"installation": "AVAILABLE", "authentication": "ON_INSTALL"}, "category": "Productivity"}
+        for entry in (
+            git_subdir(),
+            {"name": "example-plugin", "source": {"source": "local", "path": "./plugins/example-plugin"}},
+        ):
+            with self.subTest(entry=entry):
+                shutil.copy(REPO / codex_market, self.root / codex_market)
+                self.change_json(codex_market, lambda data: data["plugins"].append({**entry, **policy}))
+                self.check_result(
+                    1, f"{codex_market}: example-plugin: a bundled plugin in the catalog must be a company-skills dependency"
+                )
+
+    def test_malformed_dependencies_report_only_the_shape_error(self):
+        manifest = "plugins/company-skills/.claude-plugin/plugin.json"
+        for dependencies in ("differential-review", [{"name": "differential-review"}], None):
+            with self.subTest(dependencies=dependencies):
+                self.change_json(manifest, lambda data: data.update(dependencies=dependencies))
+                output = io.StringIO()
+                with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
+                    result = validate.main()
+                self.assertEqual(result, 1, output.getvalue())
+                self.assertIn("dependencies must name plugins in the company marketplace", output.getvalue())
+                self.assertNotIn("must be a company-skills dependency", output.getvalue())
+
     def test_removing_a_bundled_plugin_needs_both_catalogs_and_dependencies(self):
         manifest = "plugins/company-skills/.claude-plugin/plugin.json"
         claude_market = ".claude-plugin/marketplace.json"

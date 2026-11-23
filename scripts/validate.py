@@ -200,13 +200,17 @@ def validate_manifests() -> None:
         isinstance(name, str) and name in listed and name != portable.get("name") for name in dependencies
     ):
         fail(claude_manifest_path, "dependencies must name plugins in the company marketplace")
-    # The catalog bundles other plugins only so company-skills can install them.
-    # Any other entry that is not a dependency, whatever its source type, is a
-    # half-finished removal.
-    declared = {name for name in dependencies if isinstance(name, str)} if isinstance(dependencies, list) else set()
-    for entry in claude_entries:
-        if isinstance(entry, dict) and entry.get("name") not in declared | {portable.get("name")}:
-            fail(claude_market_path, f"{entry.get('name')}: a bundled plugin in the catalog must be a company-skills dependency")
+    # Each catalog bundles other plugins only so company-skills can install them
+    # (Codex users add them by hand, as Codex has no plugin dependencies). Any
+    # other entry that is not a dependency, whatever its source type, is a
+    # half-finished removal. A malformed list has already failed above, so skip
+    # the check rather than report every entry.
+    if isinstance(dependencies, list) and all(isinstance(name, str) for name in dependencies):
+        allowed = set(dependencies) | {portable.get("name")}
+        for path, entries in ((claude_market_path, claude_entries), (codex_market_path, codex_entries)):
+            for entry in entries:
+                if isinstance(entry, dict) and entry.get("name") not in allowed:
+                    fail(path, f"{entry.get('name')}: a bundled plugin in the catalog must be a company-skills dependency")
 
     claude_pins = git_subdir_pins(claude_entries)
     codex_pins = git_subdir_pins(codex_entries)

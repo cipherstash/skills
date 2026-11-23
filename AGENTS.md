@@ -1,6 +1,6 @@
 # Repository guidance
 
-Skills have one canonical source: `plugins/company-skills/skills/`.
+Published skills have one canonical source: `plugins/company-skills/skills/`. Skills for working on this repository live in `.claude/skills/` and are not published.
 
 When adding or changing a skill, follow [CONTRIBUTING.md](CONTRIBUTING.md). Complete every authoring rule and behavior case, then run `python3 scripts/validate.py` successfully.
 

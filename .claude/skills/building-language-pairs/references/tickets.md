@@ -1,6 +1,6 @@
 # Ticket breakdown
 
-Split a pair into five tickets. Each first slice is a tracer bullet: it runs the whole path for one skill on a narrow scope, so later tickets only widen it. Copy the acceptance criteria from the Go ticket named in each row, changing only what is specific to the language.
+Split a pair into five tickets. Each first slice is a tracer bullet: it runs the whole path for one skill on a narrow scope, so later tickets only widen it. Copy the acceptance criteria from the Go ticket named in each row, and change what is specific to the language. Add each item [gotchas.md](gotchas.md) marks as a criterion for that ticket.
 
 | # | Ticket | Go ticket | Blocked by |
 | --- | --- | --- | --- |
@@ -12,9 +12,9 @@ Split a pair into five tickets. Each first slice is a tracer bullet: it runs the
 
 Merge order into the integration branch: 1, 2, 3, 4, 5. Tickets 2 and 3 can be built in parallel. Ticket 4 branches from 3 and merges 2 in.
 
-When design step 1 decided that `<lang>-review` reads existing convention skills instead of a new practices skill, drop tickets 1 and 2. Ticket 3 is then blocked by nothing, and ticket 4 by 3 only. The examples module and its checker are not built.
+When design step 1 decided that `<lang>-review` reads existing convention skills instead of a new practices skill, drop tickets 1 and 2. Ticket 3 is then blocked by nothing, and ticket 4 by 3 only. The examples module and its checker are not built. Ticket 3 takes over the CI toolchain install. Its fixture test needs it.
 
-Go had a sixth ticket, #61, for the convention in CONTRIBUTING.md. A later language changes CONTRIBUTING.md only when it settles something new, such as an exemption from design step 1. Put that change in the ticket that discovers it.
+Go had a sixth ticket, #61, for the convention in CONTRIBUTING.md. A later language changes CONTRIBUTING.md only when it settles something new, such as the answer to design step 1. Put a change that design settles in the first ticket of the layout. Put a change found during build in the ticket that finds it.
 
 ## What each ticket proves
 
@@ -22,7 +22,7 @@ Go had a sixth ticket, #61, for the convention in CONTRIBUTING.md. A later langu
 2. **Remaining references.** Every other area in the checklist gets a reference, each quoting the examples module.
 3. **Review first slice.** Target resolution, the temporary worktree, the safe-checks reference, the finding contract, and the verdict, applied to two areas. A seeded-defect fixture with one planted defect for each of those two areas, its `expected-findings.md`, and its script test.
 4. **Remaining areas.** One step reference per remaining area, and one planted fixture defect per area.
-5. **Release ticket.** Remove the upstream plugin from every catalog that lists it and from the dependencies. Update the README, including uninstall steps for the old plugin modelled on its `golang-pro` note. Bump the version in all three manifests. Run strict plugin validation, the behaviour cases on both hosts, and the fixture review by hand. The main PR, opened after this ticket merges, carries the integration branch to `main`.
+5. **Release ticket.** Remove the upstream plugin from every catalog that lists it and from the dependencies. Update the README, including uninstall steps for the old plugin modelled on its `golang-pro` note. Bump the version in all three manifests. Run strict plugin validation, the behaviour cases on both hosts, and the fixture review by hand. Leave out #62's last criterion, the merge to `main`. The main PR, opened after this ticket merges, does that.
 
 ## Writing each ticket
 

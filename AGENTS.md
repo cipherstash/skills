@@ -6,6 +6,8 @@ When adding or changing a skill, follow [CONTRIBUTING.md](CONTRIBUTING.md). Comp
 
 Keep the portable, Codex, and Claude plugin versions aligned for releases. Follow CONTRIBUTING.md's Codex compatibility and packaging rules, and keep README installation and invocation instructions current for both hosts. Do not duplicate a skill into product-specific directories.
 
+To build a language's skill pair (`<lang>-practices` and `<lang>-review`), read and follow `.claude/skills/building-language-pairs/SKILL.md`.
+
 ## Agent skills
 
 ### Issue tracker

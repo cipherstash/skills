@@ -42,6 +42,8 @@ Most skills here are workflows: a user asks for a result and the skill runs a pr
 
 A programming language gets a pair of skills with the language as the shared prefix: `<lang>-practices` and `<lang>-review`. `<lang>` is the language's lowercase name, never an abbreviation: `golang` for Go, then `python`, `typescript`, or `rust`. Copy the layout of the Go pair, `golang-practices` with `golang-review`, for the next language. The Go pair is the worked example.
 
+To build a new pair, follow the [`building-language-pairs`](.claude/skills/building-language-pairs/SKILL.md) project skill. It takes a language ticket through an audit and tickets to the release PR.
+
 Rust already has convention skills: `rust-sdk-dx`, `rust-security`, and `rust-testing`. Rust is exempt from the practices-skill rules below for now. A `rust-review` skill may read those three as they are, with no `examples/` module, script test, or short `SKILL.md`. The exemption ends when a `rust-practices` skill is added.
 
 Any other language that already has convention skills needs a decision like this before you build its pair.

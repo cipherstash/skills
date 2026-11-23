@@ -136,6 +136,18 @@ func TestDecodeJSON(t *testing.T) {
 		t.Fatal("DecodeJSON accepted an unknown field")
 	}
 
+	for _, body := range []string{`{"Name":"ada"}{"Admin":true}`, `{"Name":"ada"} garbage`} {
+		r = httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+		if err := security.DecodeJSON(httptest.NewRecorder(), r, &v); err == nil {
+			t.Errorf("DecodeJSON accepted trailing data in %s", body)
+		}
+	}
+
+	r = httptest.NewRequest(http.MethodPost, "/", strings.NewReader("{\"Name\":\"ada\"}\n"))
+	if err := security.DecodeJSON(httptest.NewRecorder(), r, &v); err != nil {
+		t.Errorf("DecodeJSON rejected a body with a trailing newline: %v", err)
+	}
+
 	big := `{"Name":"` + strings.Repeat("a", 2<<20) + `"}`
 	r = httptest.NewRequest(http.MethodPost, "/", strings.NewReader(big))
 	var tooBig *http.MaxBytesError

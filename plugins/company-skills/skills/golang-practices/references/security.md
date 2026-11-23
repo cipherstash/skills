@@ -162,7 +162,7 @@ func OpenUpload(dir, name string) (*os.File, error) {
 }
 ```
 
-**Sizes.** Without a limit, one large request can exhaust memory. Cap request bodies with `http.MaxBytesReader`, and cap other readers with `io.LimitReader`:
+**Sizes.** Without a limit, one large request can exhaust memory. Cap request bodies with `http.MaxBytesReader`, and cap other readers with `io.LimitReader`. A `json.Decoder` reads one value and stops, so also check that nothing follows it, or a body such as `{"Name":"ada"} garbage` is accepted:
 
 From [`examples/security/input.go`](../examples/security/input.go):
 
@@ -171,12 +171,18 @@ From [`examples/security/input.go`](../examples/security/input.go):
 const maxBodyBytes = 1 << 20 // 1 MiB
 
 // DecodeJSON decodes the request body into v. It limits the body's size, so
-// a client cannot exhaust memory, and rejects unknown fields.
+// a client cannot exhaust memory, and rejects unknown fields and anything
+// after the first JSON value.
 func DecodeJSON(w http.ResponseWriter, r *http.Request, v any) error {
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodyBytes))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(v); err != nil {
 		return fmt.Errorf("decode request body: %w", err)
+	}
+	// Decode reads one value and leaves the rest. Only io.EOF shows there
+	// was nothing after it.
+	if err := dec.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		return errors.New("decode request body: unexpected data after the JSON value")
 	}
 	return nil
 }

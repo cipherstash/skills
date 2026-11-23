@@ -30,7 +30,7 @@ Read this in steps 1 and 2: how each kind of target becomes a base and a head, w
 
 ## Branch
 
-The head is the branch's tip commit. The base is `git merge-base <base ref> <branch>`. The base ref is the base branch's remote-tracking ref, `refs/remotes/origin/<base branch>`, because a local branch can be behind the remote, which would count other people's commits as part of the change, and a clone may have no local copy at all. Use the local branch only when there is no remote-tracking ref. The base branch is the one the user named, or else the default branch, found by the first of these that works:
+The head is the branch's tip commit. The base is `git merge-base refs/remotes/origin/<base branch> <branch>`, written with the full remote-tracking ref, not the bare branch name: a bare `main` names the local branch, which can be behind the remote, so the diff would count other people's commits as part of the change, and a clone may have no local `main` at all. Use the local branch only when `git rev-parse --verify refs/remotes/origin/<base branch>` fails, and record which ref the base came from. The base branch is the one the user named, or else the default branch, found by the first of these that works:
 
 1. `git symbolic-ref --short refs/remotes/origin/HEAD`, with `origin/` stripped. It fails with `not a symbolic ref` when `origin/HEAD` was never set, as in a repository that added its remote after `git init`.
 2. The `HEAD branch:` line of `git remote show origin`, which asks the remote.
@@ -55,8 +55,8 @@ Resolve each name with `git rev-parse --verify <name>^{commit}`. A name that doe
 
 A request such as "review my Go changes" or "is this ready to merge?" names no target. Resolve it from the repository, in this order:
 
-1. Uncommitted changes that touch Go files: review them as a snapshot. If the current branch also has commits ahead of the default branch, review the branch and the uncommitted changes together, and say so: the base is then the branch's base, found against the remote-tracking ref as [Branch](#branch) describes, and the head is the snapshot.
-2. A current branch with commits ahead of the default branch: review that branch.
+1. Uncommitted changes that touch Go files: review them as a snapshot. If the current branch also has commits ahead of `refs/remotes/origin/<default branch>`, review the branch and the uncommitted changes together, and say so: the base is then the branch's base, found against the remote-tracking ref as [Branch](#branch) describes, and the head is the snapshot.
+2. A current branch with commits ahead of the default branch: review that branch. Count the commits against `refs/remotes/origin/<default branch>`, as in [Branch](#branch).
 3. Otherwise there is no identifiable target.
 
 ## No identifiable target
@@ -70,7 +70,7 @@ Outside a git repository, with no PR URL or diff given, the report says that too
 
 ## The temporary worktree
 
-Checks run here so that nothing they do, including test code that writes files, reaches the user's tree.
+Checks run here so that nothing they do, including test code that writes files, reaches the user's tree. Make it with `git worktree add`, as below. A `git archive` export, a copy of the files, or a checkout in the user's tree is not a substitute: an archive leaves out files marked `export-ignore` and rewrites `export-subst` ones, so the checks would not run on the reviewed commit, and the user's tree must not change.
 
 Checking out the change's code must run none of it. Run every git command that checks out or updates files in the worktree (`worktree add`, and `apply` in it) with `GIT_LFS_SKIP_SMUDGE=1 git -c core.hooksPath=/dev/null …`. Without them, `worktree add` runs the repository's `post-checkout` hook, and any hook manager it starts, before the change has been read, and Git LFS downloads large files over the network. Files stored in LFS stay as pointer files; a test that loads one fails, which is a limit, not a finding.
 

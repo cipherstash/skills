@@ -8,7 +8,7 @@ Use this shape. Keep every section, even when it is empty, so a reader can see w
 # Go review: <target as given>
 
 Reviewed `<base short SHA>`..`<head short SHA>` (full: `<base SHA>`..`<head SHA>`) in `<repository path or PR URL>`
-Go version: 1.22 (`go.mod`)
+Go version: 1.23 (`go.mod`)
 Source: golang-review · <model ID, or unknown> · host <Claude Code, Codex, or unknown>
 Skills: `golang-review`, `golang-practices`
 
@@ -16,8 +16,8 @@ Skills: `golang-review`, `golang-practices`
 
 | Check | Scope | Outcome |
 | --- | --- | --- |
-| `go vet` | `./orders` | passed |
-| `go test -race -count=1 -timeout 5m` | `./orders` | failed: `WARNING: DATA RACE`, write at `orders/orders.go:43` reached through `orders/orders.go:35` |
+| `go vet` | `./mailer` | passed |
+| `go test -race -count=1 -timeout 5m` | `./mailer` | failed: `WARNING: DATA RACE`, write at `mailer/queue.go:58` reached through `mailer/queue.go:71` |
 
 ## Coverage and limits
 
@@ -28,15 +28,17 @@ Skills: `golang-review`, `golang-practices`
 
 ## Findings
 
-### G1 · major · `orders/orders.go:34` · decode error dropped
+### G1 · major · `mailer/queue.go:64` · send error logged and dropped
 
 - Area: error handling
-- Cause: the change calls `json.Unmarshal` as a statement, dropping its error. The base returned it.
-- Trigger and consequence: a record that does not decode, such as `{"sku":"B2","quantity":"one"}`, is still counted as a line, with zero quantity and price, and `Summarise` returns a nil error.
+- Cause: the change replaces `return fmt.Errorf("send %s: %w", m.ID, err)` with a log line and `continue`, so `Flush` returns nil after a failed send. The base returned the error.
+- Trigger and consequence: when the mail server refuses one message, `Flush` returns nil and `Worker.run` deletes the whole batch from the queue, so the refused message is never retried.
 - Rule: golang-practices error handling, "Check every returned error."
-- Evidence: read at `orders/orders.go:34`. `go vet` does not report it.
-- Fix: return each goroutine's error to `Summarise` and wrap it with the record's index.
+- Evidence: read at `mailer/queue.go:64` and its caller at `mailer/worker.go:40`. `go vet` does not report it.
+- Fix: collect each failed send with `errors.Join`, return the result from `Flush`, and keep a message in the queue until its send succeeds.
 - Source: golang-review · <model ID>
+
+<further findings, most severe first>
 
 Next: `review-cross-check`, `review-post`, `review-fix`, if you ask.
 

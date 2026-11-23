@@ -41,6 +41,36 @@
       }
     },
     {
+      "name": "code-improver",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/trailofbits/skills.git",
+        "path": "./plugins/code-improver",
+        "sha": "149d7b21f4067765b82e67029730b42d228ef4b4"
+      },
+      "description": "Trail of Bits review-and-fix loop for skills, plugins, or a branch's changes (skill-improver, code-improver, pr-improver), pinned to a reviewed upstream commit.",
+      "license": "CC-BY-SA-4.0",
+      "author": {
+        "name": "Trail of Bits",
+        "url": "https://github.com/trailofbits"
+      }
+    },
+    {
+      "name": "plugin-dev",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/anthropics/claude-plugins-official.git",
+        "path": "./plugins/plugin-dev",
+        "sha": "73c8cf3ea7e296057b467990f2f5d61b4c922260"
+      },
+      "description": "Anthropic's plugin development toolkit, including the skill-reviewer agent that skill-improver uses, pinned to a reviewed upstream commit.",
+      "license": "Apache-2.0",
+      "author": {
+        "name": "Anthropic",
+        "url": "https://github.com/anthropics"
+      }
+    },
+    {
       "name": "golang-pro",
       "source": {
         "source": "git-subdir",

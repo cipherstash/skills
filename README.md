@@ -61,22 +61,25 @@ codex plugin add company-skills@company
 
 ## Bundled Trail of Bits plugins
 
-The `company` marketplace also lists two plugins from [Trail of Bits' skills repository](https://github.com/trailofbits/skills), so accounts and routines that cannot add the Trail of Bits marketplace still get them:
+The `company` marketplace also lists three plugins from [Trail of Bits' skills repository](https://github.com/trailofbits/skills), so accounts and routines that cannot add the Trail of Bits marketplace still get them:
 
 | Plugin | Provides |
 | --- | --- |
 | `differential-review` | The `differential-review` skill, the `/differential-review:diff-review` command, and the `adversarial-modeler` agent: a security-focused review of a PR, commit, or diff |
 | `insecure-defaults` | The `/insecure-defaults:audit` command and its `audit-pipeline` workflow: an audit for fallback secrets, default credentials, fail-open switches, weak crypto, permissive access, and debug leakage |
+| `code-improver` | The `skill-improver`, `code-improver`, and `pr-improver` skills: a review-and-fix loop that runs until a review comes back clean. Claude Code only, because it runs as a workflow |
 
-Both entries are `git-subdir` sources pinned to one full upstream commit SHA. No upstream files are copied into this repository. They are published by Trail of Bits under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/), not this repository's MIT licence.
+`skill-improver` reviews with the `plugin-dev:skill-reviewer` agent, so the catalog also lists Anthropic's `plugin-dev` plugin from [claude-plugins-official](https://github.com/anthropics/claude-plugins-official), pinned the same way and published under the Apache 2.0 licence.
 
-- **Claude Code:** company-skills declares both as dependencies, so `claude plugin install company-skills@company` installs and enables them. Checked with Claude Code 2.1.327.
-- **Codex:** both plugins install from the same pinned entries, but Codex has no plugin dependencies, so install each with `codex plugin add` as shown under [Codex](#codex). `insecure-defaults` ships a Claude Code command and workflow and no `skills/` directory, so it may expose nothing in Codex. Checked with `codex-cli 0.169.0`.
+The Trail of Bits entries are `git-subdir` sources pinned to one full upstream commit SHA. No upstream files are copied into this repository. They are published by Trail of Bits under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/), not this repository's MIT licence.
+
+- **Claude Code:** company-skills declares all of them, and `plugin-dev`, as dependencies, so `claude plugin install company-skills@company` installs and enables them. Checked with Claude Code 2.1.327; `code-improver` and `plugin-dev` installed from this catalog with Claude Code 2.1.330.
+- **Codex:** the Codex catalog lists only `differential-review` and `insecure-defaults`. Both plugins install from the same pinned entries, but Codex has no plugin dependencies, so install each with `codex plugin add` as shown under [Codex](#codex). `insecure-defaults` ships a Claude Code command and workflow and no `skills/` directory, so it may expose nothing in Codex. Checked with `codex-cli 0.169.0`.
 
 Nothing auto-updates them: a plugin with a pinned `sha` stays on that commit through marketplace refreshes and plugin updates. To move the pin, open a pull request that:
 
-1. Reviews the upstream changes to `plugins/differential-review` and `plugins/insecure-defaults` since the current SHA.
-2. Changes `sha` for both entries in `.claude-plugin/marketplace.json` and `.agents/plugins/marketplace.json` to the same new full 40-character commit SHA. The validator fails when the two catalogs differ or a SHA is not a full commit.
+1. Reviews the upstream changes to `plugins/differential-review`, `plugins/insecure-defaults`, and `plugins/code-improver` since the current SHA.
+2. Changes `sha` for the Trail of Bits entries in `.claude-plugin/marketplace.json` and `.agents/plugins/marketplace.json` to the same new full 40-character commit SHA. The validator fails when the two catalogs differ or a SHA is not a full commit.
 3. Bumps the plugin version in all three manifests, as described in [Releases](CONTRIBUTING.md#releases).
 
 ## Bundled language practice skills

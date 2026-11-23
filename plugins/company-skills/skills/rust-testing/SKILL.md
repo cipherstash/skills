@@ -1,6 +1,6 @@
 ---
 name: rust-testing
-description: Applies CipherStash conventions for Rust tests: nextest, given_* scenario modules, assertion messages, randomised test data, mocktail HTTP mocks, paused-time tokio tests, stress tests, and napi-rs boundaries. Use when writing or changing Rust tests, test fixtures or helpers, mock servers, or nextest configuration. Does not apply to production Rust code, documentation, or tests in other languages, except JavaScript tests of a napi-rs crate's test-utils mocks.
+description: Applies CipherStash conventions for Rust tests: nextest, given_* scenario modules, assertion messages, randomised test data, mocktail HTTP mocks, paused-time tokio tests, stress tests, and napi-rs boundaries. Use when writing or changing Rust tests (#[test], #[tokio::test]), test modules, fixtures or helpers, mock servers, or .config/nextest.toml. Does not apply to production Rust code with no test changes, documentation, or tests in other languages, except JavaScript tests of a napi-rs crate's test-utils mocks.
 user-invocable: false
 ---
 

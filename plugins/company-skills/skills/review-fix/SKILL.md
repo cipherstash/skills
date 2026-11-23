@@ -1,6 +1,6 @@
 ---
 name: review-fix
-description: Verifies and fixes code review findings, each confirmed defect fixed red first with a regression test where one can be written. Use when asked to fix or work through findings from this session's review, from review-audit, or pasted from review agents. Does not perform the review, reply to or resolve PR threads, or audit a PR's existing feedback (review-audit).
+description: Verifies and fixes code review findings, each confirmed defect fixed red first with a regression test where one can be written. Use when asked to fix or work through findings from this session's review, from a PR's unresolved review feedback (audited with review-audit), or pasted from review agents. Does not perform the review, reply to or resolve PR threads, or audit a PR's existing feedback (review-audit).
 argument-hint: "[pasted findings]"
 ---
 

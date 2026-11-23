@@ -26,6 +26,7 @@ FIXTURE = SKILL / "tests" / "fixtures" / "seeded-change"
 BASE = FIXTURE / "base"
 HEAD = FIXTURE / "head"
 EXPECTED = FIXTURE / "expected-findings.md"
+PRACTICES = SKILL.parent / "golang-practices"
 
 # Added to a temporary copy of a fixture module by GoFixtureTest: it prints
 # whether Summarise returned an error for G1's bad record, and how many lines
@@ -132,6 +133,102 @@ class ExpectedFindingsTest(unittest.TestCase):
                 go_mod.write_text(f"module example\n\ngo {version}\n", encoding="utf-8")
                 os.utime(go_mod, (1_700_000_000, 1_700_000_000))
             self.assertEqual(changed_files(base, head), ["go.mod"])
+
+
+# Words the fixture declares that are also ordinary English or Go words, so
+# they may appear in the skill text for their own sake.
+COMMON_WORDS = {"Line", "Lines", "Quantity", "SKU", "Units", "add", "orders"}
+
+# Values from the fixture's code and expected results that are not declared
+# names but would still give its answers away.
+FIXTURE_LITERALS = ["B2", "price_cents", "1299", "2400"]
+
+
+def fixture_terms():
+    """Return the names, paths, and values that identify the fixture.
+
+    Taken from its Go files: every declared function, method, type, constant,
+    variable, and exported struct field, each module path, and each file's path
+    in its module, plus FIXTURE_LITERALS, less COMMON_WORDS.
+    """
+    terms = set(FIXTURE_LITERALS)
+    for root in (BASE, HEAD):
+        for path in root.rglob("*.go"):
+            text = path.read_text(encoding="utf-8")
+            terms.update(re.findall(r"(?m)^func (?:\([^)]*\) )?(\w+)", text))
+            terms.update(re.findall(r"(?m)^(?:type|const|var) (\w+)", text))
+            terms.update(re.findall(r"(?m)^\t([A-Z]\w*) +\S", text))
+            terms.add(path.relative_to(root).as_posix())
+            terms.add("./" + path.parent.relative_to(root).as_posix())
+        for path in root.rglob("go.mod"):
+            terms.update(re.findall(r"(?m)^module (\S+)", path.read_text(encoding="utf-8")))
+    return terms - COMMON_WORDS
+
+
+class AnswerKeyTest(unittest.TestCase):
+    """The skill text must not contain the fixture's answers.
+
+    A run of the skill against the fixture shows that the skill finds the
+    planted defects only if nothing it reads names them. Examples in SKILL.md
+    and references/ use a different domain.
+    """
+
+    def test_derives_the_fixture_terms(self):
+        terms = fixture_terms()
+        for term in ("Summarise", "TotalCents", "orders/orders.go", "./orders", "example.com/seededchange"):
+            self.assertIn(term, terms)
+        self.assertNotIn("Lines", terms)
+
+    def test_skill_text_does_not_name_the_fixture(self):
+        pattern = re.compile(
+            r"(?<![\w/-])(" + "|".join(re.escape(t) for t in sorted(fixture_terms(), key=len, reverse=True)) + r")(?![\w-])"
+        )
+        pages = [SKILL / "SKILL.md", *sorted((SKILL / "references").glob("*.md"))]
+        pages += [PRACTICES / "SKILL.md", *sorted((PRACTICES / "references").glob("*.md"))]
+        found = []
+        for page in pages:
+            for number, line in enumerate(page.read_text(encoding="utf-8").splitlines(), 1):
+                found += [f"{page.relative_to(SKILL.parent)}:{number}: {m.group(1)}" for m in pattern.finditer(line)]
+        self.assertEqual(found, [], "fixture terms in the skill text:\n" + "\n".join(found))
+
+
+class SkillTextTest(unittest.TestCase):
+    """Instructions that host runs showed agents skipping stay explicit."""
+
+    def section(self, page, heading):
+        text = (SKILL / page).read_text(encoding="utf-8")
+        match = re.search(rf"(?ms)^## {re.escape(heading)}\n(.*?)(?=^## |\Z)", text)
+        self.assertIsNotNone(match, f"{page} has no '## {heading}'")
+        return match.group(1)
+
+    def uncovered_areas(self):
+        rows = re.findall(r"(?m)^\| \d+ \| ([^|]+?) \| \w+ \| Not yet covered \|", (SKILL / "SKILL.md").read_text(encoding="utf-8"))
+        self.assertEqual(len(rows), 8, rows)
+        return [area.lower() for area in rows]
+
+    def test_an_archive_is_not_the_worktree(self):
+        worktree = self.section("references/target.md", "The temporary worktree")
+        self.assertIn("`git worktree add`", worktree)
+        self.assertRegex(worktree, r"`git archive`[^.]*not a substitute")
+
+    def test_the_branch_base_is_the_remote_tracking_ref(self):
+        branch = self.section("references/target.md", "Branch")
+        self.assertIn("git merge-base refs/remotes/origin/<base branch> <branch>", branch)
+        no_target = self.section("references/target.md", "No target named")
+        self.assertIn("refs/remotes/origin/<default branch>", no_target)
+
+    def test_the_template_lists_every_area_not_yet_covered(self):
+        template = (SKILL / "references" / "output.md").read_text(encoding="utf-8")
+        line = re.search(r"(?m)^- Areas not reviewed: (.+)$", template)
+        self.assertIsNotNone(line, "output.md's template has no 'Areas not reviewed' line")
+        for area in self.uncovered_areas():
+            with self.subTest(area=area):
+                self.assertIn(area, line.group(1))
+
+    def test_the_report_step_requires_the_areas_not_reviewed(self):
+        step = re.search(r"(?m)^8\. \*\*Report\.\*\*.*$", (SKILL / "SKILL.md").read_text(encoding="utf-8"))
+        self.assertIsNotNone(step)
+        self.assertIn("every area not reviewed", step.group(0))
 
 
 class GoFixtureTest(unittest.TestCase):

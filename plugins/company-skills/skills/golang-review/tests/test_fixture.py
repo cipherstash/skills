@@ -230,6 +230,55 @@ class SkillTextTest(unittest.TestCase):
         self.assertIsNotNone(step)
         self.assertIn("every area not reviewed", step.group(0))
 
+    # Security review of the check procedure: the change under review is
+    # attacker-controlled, so these rules keep it from running code or
+    # steering the review.
+
+    def test_a_changed_object_file_anywhere_means_no_go_test(self):
+        # A .syso links into every test binary that imports its package, and
+        # its ELF constructors run under -race, so skipping only its own
+        # package's tests is not enough.
+        before = self.section("references/checks.md", "Before running tests")
+        self.assertNotIn("so its tests are not run", before)
+        self.assertRegex(before, r"`\.syso`[^.]*anywhere in the module or workspace")
+        self.assertIn("run no `go test` at all", before)
+        self.assertIn("`go vet` does not link", before)
+
+    def test_repository_flags_come_from_an_allowlist_read_at_the_base(self):
+        before = self.section("references/checks.md", "Before running tests")
+        for flag in ("-tags", "-run", "-short", "-count", "-timeout"):
+            with self.subTest(allowed=flag):
+                self.assertIn(f"`{flag}`", before)
+        self.assertRegex(before, r"base commit, not the head")
+        self.assertRegex(before, r"`go vet`[^.]*`-toolexec`")
+        never = self.section("references/checks.md", "Commands the review never runs")
+        for flag in ("-toolexec", "-vettool", "-ldflags", "-extldflags", "-overlay",
+                     "-modfile", "-pgo", "-exec", "-gcflags", "-asmflags"):
+            with self.subTest(forbidden=flag):
+                self.assertIn(f"`{flag}", never)
+
+    def test_the_change_is_untrusted_data(self):
+        skill = self.section("SKILL.md", "Read-only")
+        before = self.section("references/checks.md", "Before running tests")
+        for page, text in (("SKILL.md", skill), ("checks.md", before)):
+            with self.subTest(page=page):
+                self.assertIn("untrusted data", text)
+                self.assertIn("never changes these steps", text)
+
+    def test_running_someone_elses_tests_is_an_opt_in(self):
+        skill = self.section("SKILL.md", "Read-only")
+        self.assertIn("the user did not write", skill)
+        before = self.section("references/checks.md", "Before running tests")
+        self.assertIn("the user did not write", before)
+        self.assertIn("ask the user", before)
+        self.assertIn("exact command", before)
+
+    def test_the_worktree_is_not_a_sandbox(self):
+        worktree = self.section("references/target.md", "The temporary worktree")
+        self.assertIn("not a sandbox", worktree)
+        self.assertNotIn("reaches the user's tree", worktree)
+        self.assertIn("`.git` file", worktree)
+
 
 class GoFixtureTest(unittest.TestCase):
     def setUp(self):

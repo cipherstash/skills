@@ -70,7 +70,9 @@ Outside a git repository, with no PR URL or diff given, the report says that too
 
 ## The temporary worktree
 
-Checks run here so that nothing they do, including test code that writes files, reaches the user's tree. Make it with `git worktree add`, as below. A `git archive` export, a copy of the files, or a checkout in the user's tree is not a substitute: an archive leaves out files marked `export-ignore` and rewrites `export-subst` ones, so the checks would not run on the reviewed commit, and the user's tree must not change.
+Checks run in a worktree made with `git worktree add`, so that the user's working tree, index, and branch stay as they were. A `git archive` export, a copy of the files, or a checkout in the user's tree is not a substitute. An archive leaves out files marked `export-ignore` and rewrites `export-subst` ones. The checks would then not run on the reviewed commit. A checkout in the user's tree would change it.
+
+The worktree is not a sandbox. Code that runs in it, such as a test, runs as the user and can write anywhere the user can. Writable places include the main repository's `.git` directory, named in the worktree's `.git` file. Reading the code first, and the rules in `checks.md` on when tests run, are what protect the user.
 
 Checking out the change's code must run none of it. Run every git command that checks out or updates files in the worktree (`worktree add`, and `apply` in it) with `GIT_LFS_SKIP_SMUDGE=1 git -c core.hooksPath=/dev/null …`. Without them, `worktree add` runs the repository's `post-checkout` hook, and any hook manager it starts, before the change has been read, and Git LFS downloads large files over the network. Files stored in LFS stay as pointer files; a test that loads one fails, which is a limit, not a finding.
 

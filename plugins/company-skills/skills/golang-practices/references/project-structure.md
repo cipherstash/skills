@@ -26,7 +26,7 @@ Each Go example is quoted from the examples module. The `go.mod`, layout, and Do
 - Put each binary's `main` package under `cmd/<name>/`, and keep it short: read configuration, build the dependencies, and run.
 - Put code that other modules must not import under `internal/`.
 - Name packages for what they provide, in short lower-case words. See [Naming packages and identifiers](#naming-packages-and-identifiers).
-- A function returns a usable value or an error, not both: on error, return the zero value or `nil` with it.
+- A function returns a usable value or an error, not both: on error, return the zero value or `nil` with it. The exception is a partial result the contract documents, such as the `n` bytes that `io.Reader` and `io.Writer` return with an error.
 - Read configuration once, at start-up, and pass it down. Report every missing or invalid setting together, and never put a secret in a log line or an error.
 - Give each file at most one `//go:build` line, above the `package` clause and followed by a blank line.
 - Commit `go.mod` and `go.sum`. Do not commit a `replace` that points at a path outside the repository.
@@ -66,7 +66,7 @@ A library can be a single package at the module root. There is no official "stan
 - Keep initialisms in one case: `ID`, `URL`, `HTTP`, `JSON`, `API`. Write `userID`, `baseURL`, `ServeHTTP`, `newHTTPClient`, not `userId`, `baseUrl`, or `ServeHttp`.
 - Getters have no `Get` prefix: `Owner()`, with `SetOwner()` for the setter.
 - Name error variables `ErrX` and error types `XError`.
-- Name one-method interfaces with `-er`: see `interfaces.md`.
+- Name one-method interfaces with `-er`, or for their role: see `interfaces.md`.
 - Short names for short scopes (`i`, `r`, `buf`), longer ones for package-level names.
 
 **Receivers**

@@ -23,7 +23,7 @@ Rules for writing Go. Apply them to every Go change, and read the reference for 
 - Handle an error once: return it, or log it and carry on, not both.
 - Match with `errors.Is` and `errors.As`. A `==` comparison or a type assertion misses a wrapped error.
 - Return the literal `nil` for no error, never a nil pointer of a concrete error type.
-- Return a usable value or an error, not both. On error, return the zero value or `nil` with it.
+- Return a usable value or an error, not both. On error, return the zero value or `nil` with it. The exception is a partial result the contract documents, such as the `n` bytes that `io.Reader` and `io.Writer` return with an error.
 - Error strings start in lower case, unless they begin with a proper noun or acronym, and have no trailing punctuation.
 - Return errors for run-time failures. Panic only for programmer errors, such as a broken invariant or a `Must` helper on a value fixed in the source.
 
@@ -41,7 +41,7 @@ Rules for writing Go. Apply them to every Go change, and read the reference for 
 - Package names are short, lower case, one word, and say what the package provides. No `util`, `common`, or `models`. Exported names do not repeat the package name: `user.Service`, not `user.UserService`.
 - Initialisms keep one case: `ID`, `URL`, `HTTP`, as in `userID` and `ServeHTTP`.
 - A receiver is one or two letters from its type, and the same on every method. Never use `this` or `self`.
-- One-method interfaces are named for the method plus `-er`: `Reader`, `Flusher`.
+- Name a one-method interface for what it does: usually the method plus `-er`, as in `Reader` and `Flusher`, or the role when that says more, as in `http.Handler` and `Mailer`. No `I` prefix or `Interface` suffix.
 - Document every exported name with a comment that starts with the name.
 
 ### Interfaces and generics

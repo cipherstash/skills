@@ -21,7 +21,7 @@ The examples target Go 1.22, the `go` line in [`examples/go.mod`](../examples/go
 - Define an interface in the package that uses it, with only the methods that package calls. Do not define one beside its only implementation "for mocking".
 - Keep interfaces small. One or two methods is common. Compose bigger ones from small ones (`io.ReadWriteCloser` is `io.Reader`, `io.Writer`, and `io.Closer`).
 - Accept interfaces, return concrete types. A constructor returns `*T`, so callers see every method and the type can grow without breaking them. Return an interface only when the concrete type must stay hidden, as `errors.New` does.
-- Name a one-method interface after its method plus `-er`: `Reader`, `Closer`, `Flusher`. Do not prefix with `I` or suffix with `Interface`.
+- Name a one-method interface for what it does. Usually that is the method plus `-er`: `Reader`, `Closer`, `Flusher`. When the role says more than the method, name the role, as `http.Handler` does for `ServeHTTP`: `Mailer` says more than `Sender`. Do not prefix with `I` or suffix with `Interface`.
 - Use the two-value type assertion, `v, ok := x.(T)`, unless a failed assertion is a bug. The one-value form panics.
 - Wrap errors that an implementation returns from the calls it makes, as in any other function. See `error-handling.md`. The exception is an error the interface's contract names, such as `io.EOF` from a `Read`: return it unwrapped, because callers compare it with `==`.
 - Add a compile-time check, `var _ io.Reader = (*T)(nil)`, when a type is meant to satisfy an interface that nothing in its own package uses.
@@ -289,7 +289,7 @@ An interface holding a nil pointer is not nil, so `case nil` does not match it. 
 | Define interfaces where they are used | The implementation does not need to know its callers, and fakes stay small |
 | Small interfaces, composed | Fewer methods to implement and fake |
 | Accept interfaces, return `*T` | Callers get every method; the type can grow without breaking them |
-| `-er` names for one-method interfaces | Matches the standard library: `Reader`, `Closer` |
+| `-er` or role names for one-method interfaces | Matches the standard library: `Reader`, `Closer`, `http.Handler` |
 | `v, ok := x.(T)` | A failed assertion is handled, not a panic |
 | `var _ I = (*T)(nil)` | The build fails where the type is defined, not in a distant caller |
 | Wrap errors in implementations | The caller learns which step failed |

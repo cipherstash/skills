@@ -219,14 +219,21 @@ func LoadConfig(lookup func(string) (string, bool)) (Config, error) {
 	var errs []error
 
 	if v, ok := lookup("ADDR"); ok {
+		if v == "" {
+			errs = append(errs, errors.New("ADDR is set but empty"))
+		}
 		cfg.Addr = v
 	}
 	if v, ok := lookup("READ_TIMEOUT"); ok {
 		d, err := time.ParseDuration(v)
-		if err != nil {
+		switch {
+		case err != nil:
 			// time.ParseDuration's error quotes the value. Leave it out, as
 			// for any setting that might hold a secret.
 			errs = append(errs, errors.New("READ_TIMEOUT is not a duration such as 30s"))
+		case d <= 0:
+			// http.Server treats a zero or negative timeout as no timeout.
+			errs = append(errs, errors.New("READ_TIMEOUT must be more than zero"))
 		}
 		cfg.ReadTimeout = d
 	}

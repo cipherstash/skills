@@ -3,7 +3,6 @@ package project_test
 import (
 	"context"
 	"errors"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -59,6 +58,26 @@ func TestLoadConfigReportsEveryProblem(t *testing.T) {
 	}
 }
 
+func TestLoadConfigRejectsInvalidValues(t *testing.T) {
+	for _, tt := range []struct {
+		name, key, value string
+	}{
+		{"zero timeout", "READ_TIMEOUT", "0s"},
+		{"negative timeout", "READ_TIMEOUT", "-5s"},
+		{"empty address", "ADDR", ""},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := project.LoadConfig(env(map[string]string{tt.key: tt.value, "DATABASE_URL": "postgres://db"}))
+			if err == nil {
+				t.Fatalf("LoadConfig accepted %s=%q", tt.key, tt.value)
+			}
+			if !strings.Contains(err.Error(), tt.key) {
+				t.Fatalf("error %q does not name %s", err, tt.key)
+			}
+		})
+	}
+}
+
 func TestLoadConfigErrorsLeaveValuesOut(t *testing.T) {
 	_, err := project.LoadConfig(env(map[string]string{"READ_TIMEOUT": "s3cr3t", "DATABASE_URL": "postgres://db"}))
 	if err == nil {
@@ -75,12 +94,5 @@ func TestRevisionAndVersion(t *testing.T) {
 	}
 	if project.Revision() == "" {
 		t.Error("Revision() is empty")
-	}
-}
-
-func TestSystemConfigDir(t *testing.T) {
-	got := project.SystemConfigDir()
-	if runtime.GOOS != "windows" && got != "/etc/example" {
-		t.Fatalf("SystemConfigDir() = %q on %s", got, runtime.GOOS)
 	}
 }

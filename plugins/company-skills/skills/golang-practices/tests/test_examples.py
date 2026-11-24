@@ -15,7 +15,7 @@ SKILL = Path(__file__).resolve().parents[1]
 EXAMPLES = SKILL / "examples"
 REFERENCES = SKILL / "references"
 
-# The areas the skill must cover (cipherstash/skills#56). Each has one reference.
+# The areas the skill must cover (cipherstash/skills#56), and wazero. Each has one reference.
 EXPECTED_REFERENCES = {
     "concurrency.md",
     "dependencies.md",
@@ -26,6 +26,7 @@ EXPECTED_REFERENCES = {
     "project-structure.md",
     "security.md",
     "testing.md",
+    "wazero.md",
 }
 # Build tags that guard files in the examples module. Each is vetted and tested
 # too, so a file behind a tag cannot rot unseen.

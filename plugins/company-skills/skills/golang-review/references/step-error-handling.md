@@ -7,6 +7,7 @@ Area 1, high priority. Read this, and golang-practices' `references/error-handli
 - [Ignored errors](#ignored-errors)
 - [Errors returned without context](#errors-returned-without-context)
 - [Other error-handling defects](#other-error-handling-defects)
+- [Code that embeds wazero](#code-that-embeds-wazero)
 - [Evidence](#evidence)
 - [Version-sensitive rules](#version-sensitive-rules)
 - [Not a finding](#not-a-finding)
@@ -38,6 +39,16 @@ The practices reference also covers these. Report them when the change introduce
 - An error logged and then returned, so the same failure is reported twice.
 - A nil pointer of a concrete error type returned as `error`. The caller's `err != nil` is then true even on success.
 - A `panic` for a failure that can happen at run time, such as bad input or a failed I/O call.
+
+## Code that embeds wazero
+
+When a changed package imports `github.com/tetratelabs/wazero`, also read golang-practices' `references/wazero.md`. Its sections 1 and 5 list the error-handling cases:
+
+- A host function that panics for an expected failure, such as a network error. After wazero recovers the panic, the guest's stack pointer stays lowered. After repeated errors, every call on the instance fails.
+- An instance used again after a trap or a recovered panic.
+- A guest export called with the wrong number of arguments, or a `Call` whose error is dropped, such as a deferred free. The free does not run, and guest memory fills up.
+
+Show a wrong argument count by comparing the `Call` with the export's signature in the guest's source.
 
 ## Evidence
 

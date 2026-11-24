@@ -26,6 +26,8 @@ The seeded-defect fixture in [fixtures/seeded-change/](fixtures/seeded-change/ex
 - A check that cannot run, for example without the go command or with modules missing from the cache, is reported as a limit, never as a pass or a defect.
 - Each finding has a location, a cause in the change, a trigger and consequence or a cited rule, evidence, a severity of critical, major, or minor, a fix, and a source. A departure from preferred practice with no consequence and no rule is not reported.
 - The eight areas not yet covered are listed as not reviewed.
+- For a change that imports `github.com/tetratelabs/wazero`, the review reads golang-practices' `references/wazero.md` in the error-handling and concurrency steps. It lists that reference among the references read.
+- In such a change, a deferred free of a host-staged buffer that runs after the allocator's `Exit` is reported. The consequence given is guest code running on unmapped memory, and a process fault that `recover` cannot catch. The review does not propose an `IsClosed` guard on a free inside the allocator's in-flight bracket. It does not say that wazero rejects a call into a closed module.
 - The report ends with `APPROVE` or `REQUEST_CHANGES` and a short summary. The skill posts nothing and submits no review on GitHub.
 - The steps run in order in one session, with no subagents.
 - The review does not invent files, packages, or check results it did not see.

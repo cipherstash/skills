@@ -9,6 +9,7 @@ Area 4, medium priority. Read this, and golang-practices' `references/concurrenc
 - [Goroutines with no way to stop](#goroutines-with-no-way-to-stop)
 - [Data races](#data-races)
 - [Deadlocks](#deadlocks)
+- [Code that embeds wazero](#code-that-embeds-wazero)
 - [Evidence](#evidence)
 - [Version-sensitive rules](#version-sensitive-rules)
 - [Not a finding](#not-a-finding)
@@ -57,7 +58,19 @@ Report a wait that can never end:
 - a lock held while sending on a channel, or while calling code that can take the same lock;
 - an unbuffered send whose only receiver is the sending goroutine, or is waiting for that goroutine;
 - `wg.Wait()` before closing a channel that the waited-for goroutines are reading;
-- a channel closed by a receiver or closed twice, which panics.
+- a channel closed by a receiver, or closed twice. Either can panic.
+
+## Code that embeds wazero
+
+When a changed package imports `github.com/tetratelabs/wazero`, also read golang-practices' `references/wazero.md`. Its sections 2, 3, 9, and 10 list the concurrency cases:
+
+- Calls into one module from several goroutines, or a `Close` that can run during a call. The failures include crashes that `recover` cannot catch.
+- `WithCloseOnContextDone(true)` on a module that serves later calls. One cancelled call closes the module for every later caller.
+- A custom memory allocator together with close-on-context-done. After a cancel followed by a trap, wazero v1.12.0 does not free the memory.
+- A guest export called after the allocator has unmapped the memory, such as a deferred free that runs after the allocator's in-flight bracket ends. The process dies with a fault.
+- An `IsClosed` guard on a free inside that bracket. That free is what releases the memory after a cancel followed by a trap.
+
+The race detector does not see memory accesses that the guest's compiled code makes. Most of these defects are shown by reading the call, close, and cleanup paths.
 
 ## Evidence
 

@@ -4,7 +4,6 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
-	"sync"
 	"testing"
 	"unicode/utf8"
 
@@ -69,21 +68,5 @@ func TestRenderMatchesGoldenFile(t *testing.T) {
 	}
 	if got != string(want) {
 		t.Errorf("Render output differs from %s\ngot:\n%s\nwant:\n%s", golden, got, want)
-	}
-}
-
-func TestCounterIsSafeForConcurrentUse(t *testing.T) {
-	var c textutil.Counter
-	var wg sync.WaitGroup
-	for i := 0; i < 50; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			c.Inc()
-		}()
-	}
-	wg.Wait()
-	if got := c.Value(); got != 50 {
-		t.Fatalf("Value() = %d, want 50", got)
 	}
 }

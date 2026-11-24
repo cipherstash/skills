@@ -1,11 +1,11 @@
-package textutil_test
+package welcome_test
 
 import (
 	"context"
 	"errors"
 	"testing"
 
-	"example.com/golang-practices/textutil"
+	"example.com/golang-practices/welcome"
 )
 
 // fakeSender records what it is asked to send, and fails when err is set.
@@ -24,7 +24,7 @@ func (f *fakeSender) Send(_ context.Context, to, _ string) error {
 
 func TestWelcomeSendsToEachAddress(t *testing.T) {
 	fake := &fakeSender{}
-	if err := textutil.Welcome(context.Background(), fake, []string{"ada@example.com"}); err != nil {
+	if err := welcome.Welcome(context.Background(), fake, []string{"ada@example.com"}); err != nil {
 		t.Fatalf("Welcome: %v", err)
 	}
 	if len(fake.sent) != 1 {
@@ -37,7 +37,7 @@ func TestWelcomeSendsToEachAddress(t *testing.T) {
 
 func TestWelcomeWrapsTheSendError(t *testing.T) {
 	boom := errors.New("smtp down")
-	err := textutil.Welcome(context.Background(), &fakeSender{err: boom}, []string{"ada@example.com"})
+	err := welcome.Welcome(context.Background(), &fakeSender{err: boom}, []string{"ada@example.com"})
 	if !errors.Is(err, boom) {
 		t.Fatalf("err = %v, want it to wrap %v", err, boom)
 	}

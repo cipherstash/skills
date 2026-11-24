@@ -64,7 +64,8 @@ CipherStash made these changes:
   - Pop clears the removed slot, and the Result type and other patterns
     that fight Go's (T, error) convention are dropped.
 - references/testing.md is adapted from skills/golang-pro/references/
-  testing.md. Its examples now live in examples/textutil/, with tests, and
+  testing.md. Its examples now live in examples/textutil/,
+  examples/welcome/, examples/metrics/ and examples/health/, with tests, and
   these changes are made:
   - copying the loop variable for parallel subtests is described as needed
     only before Go 1.22;

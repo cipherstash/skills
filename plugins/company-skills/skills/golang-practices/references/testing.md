@@ -100,7 +100,7 @@ func writeFixture(t *testing.T, name, content string) string {
 
 The code under test takes a small interface, so a test can pass a hand-written fake. The fake records what it was asked to do. A field tells it to fail.
 
-From [`examples/textutil/textutil.go`](../examples/textutil/textutil.go):
+From [`examples/welcome/welcome.go`](../examples/welcome/welcome.go):
 
 ```go
 // Sender sends a message to an address.
@@ -120,7 +120,7 @@ func Welcome(ctx context.Context, s Sender, addrs []string) error {
 }
 ```
 
-From [`examples/textutil/welcome_test.go`](../examples/textutil/welcome_test.go):
+From [`examples/welcome/welcome_test.go`](../examples/welcome/welcome_test.go):
 
 ```go
 // fakeSender records what it is asked to send, and fails when err is set.
@@ -139,7 +139,7 @@ func (f *fakeSender) Send(_ context.Context, to, _ string) error {
 
 func TestWelcomeSendsToEachAddress(t *testing.T) {
 	fake := &fakeSender{}
-	if err := textutil.Welcome(context.Background(), fake, []string{"ada@example.com"}); err != nil {
+	if err := welcome.Welcome(context.Background(), fake, []string{"ada@example.com"}); err != nil {
 		t.Fatalf("Welcome: %v", err)
 	}
 	if len(fake.sent) != 1 {
@@ -152,7 +152,7 @@ func TestWelcomeSendsToEachAddress(t *testing.T) {
 
 func TestWelcomeWrapsTheSendError(t *testing.T) {
 	boom := errors.New("smtp down")
-	err := textutil.Welcome(context.Background(), &fakeSender{err: boom}, []string{"ada@example.com"})
+	err := welcome.Welcome(context.Background(), &fakeSender{err: boom}, []string{"ada@example.com"})
 	if !errors.Is(err, boom) {
 		t.Fatalf("err = %v, want it to wrap %v", err, boom)
 	}
@@ -225,11 +225,11 @@ Skip inputs outside the function's contract with `t.Skip`, as here for invalid U
 
 `go test -race` reports two goroutines that access the same memory, at least one of them writing, without synchronisation. It only finds races in code that runs, so the test must drive the concurrent paths. A test like this one fails under `-race` if `Counter` drops its mutex:
 
-From [`examples/textutil/textutil_test.go`](../examples/textutil/textutil_test.go):
+From [`examples/metrics/metrics_test.go`](../examples/metrics/metrics_test.go):
 
 ```go
 func TestCounterIsSafeForConcurrentUse(t *testing.T) {
-	var c textutil.Counter
+	var c metrics.Counter
 	var wg sync.WaitGroup
 	for i := 0; i < 50; i++ {
 		wg.Add(1)
@@ -247,7 +247,7 @@ func TestCounterIsSafeForConcurrentUse(t *testing.T) {
 
 The counter itself:
 
-From [`examples/textutil/textutil.go`](../examples/textutil/textutil.go):
+From [`examples/metrics/metrics.go`](../examples/metrics/metrics.go):
 
 ```go
 // Counter is a counter that is safe for concurrent use.
@@ -281,12 +281,12 @@ A file has at most one `//go:build` line. That line combines conditions with `&&
 
 This test runs only with `go test -tags=integration ./...`. It starts a real HTTP server with `httptest`. The server is ready as soon as `NewServer` returns, so the test does not sleep.
 
-From [`examples/textutil/health_integration_test.go`](../examples/textutil/health_integration_test.go):
+From [`examples/health/health_integration_test.go`](../examples/health/health_integration_test.go):
 
 ```go
 //go:build integration
 
-package textutil_test
+package health_test
 
 import (
 	"context"
@@ -295,19 +295,19 @@ import (
 	"testing"
 	"time"
 
-	"example.com/golang-practices/textutil"
+	"example.com/golang-practices/health"
 )
 
-// TestCheckHealthAgainstAServer runs only with -tags=integration. The build
+// TestCheckAgainstAServer runs only with -tags=integration. The build
 // constraint is the first line of the file, followed by a blank line.
-func TestCheckHealthAgainstAServer(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(textutil.HealthHandler))
+func TestCheckAgainstAServer(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(health.Handler))
 	t.Cleanup(srv.Close) // ready as soon as NewServer returns: no sleep needed
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if err := textutil.CheckHealth(ctx, srv.Client(), srv.URL); err != nil {
-		t.Fatalf("CheckHealth: %v", err)
+	if err := health.Check(ctx, srv.Client(), srv.URL); err != nil {
+		t.Fatalf("Check: %v", err)
 	}
 }
 ```

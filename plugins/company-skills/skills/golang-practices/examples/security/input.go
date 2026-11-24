@@ -20,7 +20,7 @@ func OpenUpload(dir, name string) (*os.File, error) {
 	if !filepath.IsLocal(name) {
 		return nil, fmt.Errorf("open upload: %q is not a local path", name)
 	}
-	f, err := os.Open(filepath.Join(dir, name)) //nolint:gosec // G304: name is checked with filepath.IsLocal above
+	f, err := os.Open(filepath.Join(dir, name)) // #nosec G304 -- name is checked with filepath.IsLocal above
 	if err != nil {
 		return nil, fmt.Errorf("open upload: %w", err)
 	}

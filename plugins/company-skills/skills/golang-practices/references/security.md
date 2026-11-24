@@ -154,7 +154,7 @@ func OpenUpload(dir, name string) (*os.File, error) {
 	if !filepath.IsLocal(name) {
 		return nil, fmt.Errorf("open upload: %q is not a local path", name)
 	}
-	f, err := os.Open(filepath.Join(dir, name)) //nolint:gosec // G304: name is checked with filepath.IsLocal above
+	f, err := os.Open(filepath.Join(dir, name)) // #nosec G304 -- name is checked with filepath.IsLocal above
 	if err != nil {
 		return nil, fmt.Errorf("open upload: %w", err)
 	}
@@ -259,6 +259,6 @@ go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 | G404 | `math/rand` used for secrets |
 | G112 | HTTP server with no header timeout |
 
-`gosec` also reports false positives. To suppress one, put a comment on the line with the reason: `//nolint:gosec // <reason>` under golangci-lint, or `// #nosec G304 -- <reason>` for gosec alone. A function that takes a path from its caller, such as a library's `WriteLines(path, ...)`, gets G304 although the caller owns the check. In test code, findings such as G304 on a golden-file path or G104 on `Close` are low risk; many repositories exclude `_test.go` files from `gosec` instead of suppressing each one.
+`gosec` also reports false positives. To suppress one, put `// #nosec G304 -- <reason>` on the line, naming the rule. Both `gosec` and golangci-lint honour it. `gosec` run alone ignores `//nolint:gosec`. A function that takes a path from its caller, such as a library's `WriteLines(path, ...)`, gets G304 although the caller owns the check. In test code, findings such as G304 on a golden-file path or G104 on `Close` are low risk; many repositories exclude `_test.go` files from `gosec` instead of suppressing each one.
 
 `go run tool@latest` downloads and runs the latest release. Pin a version, or use the module's `tool` directive (Go 1.24), where the repository needs repeatable results. Updating dependencies after `govulncheck` reports one is in `dependencies.md`.

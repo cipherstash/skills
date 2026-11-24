@@ -99,4 +99,5 @@ Read the reference for each area the change touches. Each one states the Go vers
 | [references/security.md](references/security.md) | TLS clients or servers, secrets and credentials, SQL, file paths, request bodies, HTML, shell commands, tokens and random values, security linters |
 | [references/performance.md](references/performance.md) | Code on a hot path, slice and map sizing, string building, allocation, benchmarks, profiling |
 | [references/dependencies.md](references/dependencies.md) | Adding, updating or removing a module, `go mod tidy`, vulnerability checks, outdated dependencies, major versions, raising the `go` line |
+| [references/checks.md](references/checks.md) | The checks CI runs on every pull request: golangci-lint, govulncheck, semgrep, race-enabled tests with coverage, Fuzz targets for code that parses untrusted input, and their pinned versions |
 | [references/wazero.md](references/wazero.md) | Code that imports `github.com/tetratelabs/wazero`: host functions, sharing or closing a module, context cancellation, reading and freeing guest memory, the module config, custom memory allocators |

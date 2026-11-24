@@ -1,0 +1,15 @@
+# golangci-lint configuration template for the Go check suite.
+# See references/checks.md. Copy it to .golangci.yml at the module root.
+# A repository may enable more linters, but not fewer than these four.
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - govet
+    - staticcheck
+    - gosec
+
+formatters:
+  enable:
+    - gofumpt

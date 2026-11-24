@@ -15,8 +15,10 @@ SKILL = Path(__file__).resolve().parents[1]
 EXAMPLES = SKILL / "examples"
 REFERENCES = SKILL / "references"
 
-# The areas the skill must cover (cipherstash/skills#56), and wazero. Each has one reference.
+# The areas the skill must cover (cipherstash/skills#56), wazero, and the Go check
+# suite (cipherstash/skills#87). Each has one reference.
 EXPECTED_REFERENCES = {
+    "checks.md",
     "concurrency.md",
     "dependencies.md",
     "error-handling.md",

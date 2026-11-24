@@ -101,8 +101,13 @@ class PackagingTests(unittest.TestCase):
         shutil.rmtree(validate.SKILLS)
         self.check_result(1, "shared skills directory is required")
 
-    def add_to_both_catalogs(self, claude_entry, codex_entry):
+    def add_to_both_catalogs(self, claude_entry, codex_entry, declare=True):
         policy = {"policy": {"installation": "AVAILABLE", "authentication": "ON_INSTALL"}, "category": "Productivity"}
+        if claude_entry and declare:
+            self.change_json(
+                "plugins/company-skills/.claude-plugin/plugin.json",
+                lambda data: data["dependencies"].append(claude_entry["name"]),
+            )
         self.change_json(".claude-plugin/marketplace.json", lambda data: data["plugins"].extend([claude_entry] if claude_entry else []))
         self.change_json(
             ".agents/plugins/marketplace.json",
@@ -156,7 +161,6 @@ class PackagingTests(unittest.TestCase):
     def test_dependencies_name_listed_plugins(self):
         self.add_to_both_catalogs(git_subdir(), git_subdir())
         manifest = "plugins/company-skills/.claude-plugin/plugin.json"
-        self.change_json(manifest, lambda data: data.update(dependencies=["example-plugin"]))
         self.check_result(0, "Validation passed")
         for dependencies in (
             ["unlisted-plugin"],
@@ -167,6 +171,89 @@ class PackagingTests(unittest.TestCase):
             with self.subTest(dependencies=dependencies):
                 self.change_json(manifest, lambda data: data.update(dependencies=dependencies))
                 self.check_result(1, "dependencies must name plugins in the company marketplace")
+
+    def test_bundled_plugin_must_be_a_dependency(self):
+        self.add_to_both_catalogs(git_subdir(), git_subdir(), declare=False)
+        self.check_result(1, "example-plugin: a bundled plugin in the catalog must be a company-skills dependency")
+
+    def test_bundled_plugin_of_any_source_type_must_be_a_dependency(self):
+        for source in (
+            {"source": "github", "repo": "example/skills"},
+            {"source": "url", "url": "https://github.com/example/skills.git"},
+            "./plugins/example-plugin",
+        ):
+            with self.subTest(source=source):
+                shutil.copy(REPO / ".claude-plugin/marketplace.json", self.root / ".claude-plugin/marketplace.json")
+                self.change_json(
+                    ".claude-plugin/marketplace.json",
+                    lambda data: data["plugins"].append({"name": "example-plugin", "source": source}),
+                )
+                self.check_result(1, "example-plugin: a bundled plugin in the catalog must be a company-skills dependency")
+
+    def test_claude_opt_in_plugins_need_not_be_dependencies(self):
+        self.check_result(0, "Validation passed")
+        codex_market = ".agents/plugins/marketplace.json"
+        policy = {"policy": {"installation": "AVAILABLE", "authentication": "ON_INSTALL"}, "category": "Productivity"}
+        self.change_json(
+            codex_market,
+            lambda data: data["plugins"].append({**git_subdir(name="plugin-dev"), **policy}),
+        )
+        self.check_result(1, f"{codex_market}: plugin-dev: a bundled plugin in the catalog must be a company-skills dependency")
+
+    def test_codex_bundled_plugin_must_be_a_dependency(self):
+        codex_market = ".agents/plugins/marketplace.json"
+        policy = {"policy": {"installation": "AVAILABLE", "authentication": "ON_INSTALL"}, "category": "Productivity"}
+        for entry in (
+            git_subdir(),
+            {"name": "example-plugin", "source": {"source": "local", "path": "./plugins/example-plugin"}},
+        ):
+            with self.subTest(entry=entry):
+                shutil.copy(REPO / codex_market, self.root / codex_market)
+                self.change_json(codex_market, lambda data: data["plugins"].append({**entry, **policy}))
+                self.check_result(
+                    1, f"{codex_market}: example-plugin: a bundled plugin in the catalog must be a company-skills dependency"
+                )
+
+    def test_malformed_dependencies_report_only_the_shape_error(self):
+        manifest = "plugins/company-skills/.claude-plugin/plugin.json"
+        for dependencies in ("differential-review", [{"name": "differential-review"}], None):
+            with self.subTest(dependencies=dependencies):
+                self.change_json(manifest, lambda data: data.update(dependencies=dependencies))
+                output = io.StringIO()
+                with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
+                    result = validate.main()
+                self.assertEqual(result, 1, output.getvalue())
+                self.assertIn("dependencies must name plugins in the company marketplace", output.getvalue())
+                self.assertNotIn("must be a company-skills dependency", output.getvalue())
+
+    def test_removing_a_bundled_plugin_needs_both_catalogs_and_dependencies(self):
+        manifest = "plugins/company-skills/.claude-plugin/plugin.json"
+        claude_market = ".claude-plugin/marketplace.json"
+        codex_market = ".agents/plugins/marketplace.json"
+        # A plugin both catalogs list, so every removal path is exercised.
+        bundled = "differential-review"
+        for relative in (claude_market, codex_market):
+            self.assertIn(bundled, [entry["name"] for entry in json.loads((REPO / relative).read_text())["plugins"]])
+        self.assertIn(bundled, json.loads((REPO / manifest).read_text())["dependencies"])
+
+        def drop_dependency(data):
+            data["dependencies"].remove(bundled)
+
+        def drop_entry(data):
+            data["plugins"] = [entry for entry in data["plugins"] if entry["name"] != bundled]
+
+        for removed, diagnostic in (
+            ((claude_market, codex_market), "dependencies must name plugins in the company marketplace"),
+            ((manifest,), f"{bundled}: a bundled plugin in the catalog must be a company-skills dependency"),
+            ((manifest, claude_market), f"{bundled}: git-subdir pin must match in both marketplace catalogs"),
+            ((manifest, claude_market, codex_market), "Validation passed"),
+        ):
+            with self.subTest(removed=removed):
+                for relative in (manifest, claude_market, codex_market):
+                    shutil.copy(REPO / relative, self.root / relative)
+                for relative in removed:
+                    self.change_json(relative, drop_dependency if relative == manifest else drop_entry)
+                self.check_result(0 if diagnostic == "Validation passed" else 1, diagnostic)
 
     def test_publisher_required(self):
         for author in (None, {}, {"name": None}, {"name": ""}):

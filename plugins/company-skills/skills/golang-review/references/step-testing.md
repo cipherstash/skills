@@ -51,5 +51,5 @@ Report a test the change adds that cannot fail for the defect it names:
 
 - A coverage percentage, high or low, by itself.
 - No test for code with no logic to get wrong: a constant, a type declaration, a one-line getter, or generated code.
-- A missing fuzz test, benchmark, or testable example, unless it would catch a plausible regression.
+- A missing fuzz test, benchmark, or testable example, unless it would catch a plausible regression. The exception: a function the change adds that parses or decodes untrusted input, with no Fuzz target, is a `minor` finding. A function that existed before the change is not a finding. A crash that a fuzz run finds is reported at its own severity, not as `minor`.
 - A test style the practices reference prefers, such as table-driven tests, when the existing tests check the behaviour.

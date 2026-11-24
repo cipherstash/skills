@@ -1,9 +1,13 @@
 # Tests for the golang-practices examples module and the references that quote it.
 # Run: python3 -m unittest discover -s tests (from the skill directory).
 #
-# The Go checks need the go command on PATH. Without it they are skipped locally
-# with a message, and they fail when the CI environment variable is set, so a CI
-# job that forgot to install Go cannot pass silently.
+# The Go check suite (references/checks.md) runs over the examples module in CI,
+# in the validate workflow's go-check-suite job. These tests check only that
+# every quoted block matches its source, and that every benchmark runs.
+#
+# The benchmark run needs the go command on PATH. Without it, it is skipped
+# locally with a message, and it fails when the CI environment variable is set,
+# so a CI job that forgot to install Go cannot pass silently.
 import os
 import re
 import shutil
@@ -30,9 +34,6 @@ EXPECTED_REFERENCES = {
     "testing.md",
     "wazero.md",
 }
-# Build tags that guard files in the examples module. Each is vetted and tested
-# too, so a file behind a tag cannot rot unseen.
-BUILD_TAGS = ("integration",)
 
 # Fenced code blocks follow CommonMark: an opener is up to three spaces of
 # indent, then three or more backticks or tildes, then an info string whose
@@ -143,9 +144,8 @@ class GoExamplesTest(unittest.TestCase):
                 self.fail("go is not on PATH; CI must install the Go toolchain")
             self.skipTest("go is not on PATH; install Go to run the examples checks")
 
-    def run_go(self, *args, env_extra=None):
+    def run_go(self, *args):
         env = dict(os.environ, GOTOOLCHAIN="local", GOWORK="off", GOFLAGS="-mod=readonly")
-        env.update(env_extra or {})
         return subprocess.run(
             [self.go, *args],
             cwd=EXAMPLES,
@@ -155,8 +155,8 @@ class GoExamplesTest(unittest.TestCase):
             timeout=600,
         )
 
-    def assertGoSucceeds(self, *args, env_extra=None):
-        result = self.run_go(*args, env_extra=env_extra)
+    def assertGoSucceeds(self, *args):
+        result = self.run_go(*args)
         self.assertEqual(
             result.returncode,
             0,
@@ -164,33 +164,10 @@ class GoExamplesTest(unittest.TestCase):
         )
         return result
 
-    def test_vet(self):
-        self.assertGoSucceeds("vet", "./...")
-
-    def test_race(self):
-        self.assertGoSucceeds("test", "-race", "-count=1", "./...")
-
-    def test_vet_and_test_with_build_tags(self):
-        for tag in BUILD_TAGS:
-            with self.subTest(tag=tag):
-                self.assertGoSucceeds("vet", "-tags", tag, "./...")
-                self.assertGoSucceeds("test", "-race", "-count=1", "-tags", tag, "./...")
-
-    def test_vet_for_another_platform(self):
-        # Files behind a platform build constraint, such as //go:build !unix,
-        # compile only for that platform; vetting for Windows checks them.
-        self.assertGoSucceeds("vet", "./...", env_extra={"GOOS": "windows", "GOARCH": "amd64"})
-
     def test_benchmarks_run(self):
         # go test runs no benchmarks by default; run each once so a quoted
         # benchmark cannot break unseen.
         self.assertGoSucceeds("test", "-run=^$", "-bench=.", "-benchtime=1x", "-count=1", "./...")
-
-    def test_gofmt(self):
-        gofmt = shutil.which("gofmt") or str(Path(self.go).with_name("gofmt"))
-        result = subprocess.run([gofmt, "-l", "."], cwd=EXAMPLES, capture_output=True, text=True)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout.strip(), "", "files need gofmt:\n" + result.stdout)
 
 
 class QuotedSnippetsTest(unittest.TestCase):

@@ -167,7 +167,7 @@ func TestOpenUpload(t *testing.T) {
 
 	for _, name := range []string{"../a.txt", "/etc/passwd", "sub/../../a.txt", ""} {
 		if f, err := security.OpenUpload(dir, name); err == nil {
-			_ = f.Close() // only to release it: the test has already failed
+			_ = f.Close() // only to release it: the test fails below
 			t.Errorf("OpenUpload(%q) succeeded, want it rejected", name)
 		}
 	}

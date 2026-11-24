@@ -39,3 +39,8 @@ func (s *Summary) add(l Line) {
 	s.Units += l.Quantity
 	s.TotalCents += l.Quantity * l.PriceCents
 }
+
+// Empty reports whether s has no lines.
+func (s Summary) Empty() bool {
+	return s.Lines == 0
+}

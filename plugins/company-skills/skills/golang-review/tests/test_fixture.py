@@ -597,6 +597,15 @@ class SkillTextTest(unittest.TestCase):
         self.assertIn("`-gcflags=-m`", never)
         self.assertIn("step-performance.md", never)
 
+    def test_a_change_to_ci_alone_is_still_reviewed(self):
+        # A pull request that only weakens a check in a workflow or a
+        # golangci-lint config has no Go file, yet must get its major finding.
+        step = re.search(r"(?m)^1\. \*\*Resolve the target\.\*\*.*$", (SKILL / "SKILL.md").read_text(encoding="utf-8"))
+        self.assertIsNotNone(step)
+        self.assertIn("`.github/workflows/`", step.group(0))
+        self.assertIn("golangci-lint config", step.group(0))
+        self.assertIn("The check suite in CI", step.group(0))
+
     def test_the_worktree_is_not_a_sandbox(self):
         worktree = self.section("references/target.md", "The temporary worktree")
         self.assertIn("not a sandbox", worktree)

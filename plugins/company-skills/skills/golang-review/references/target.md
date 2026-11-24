@@ -20,6 +20,7 @@ Read this in steps 1 and 2: how each kind of target becomes a base and a head, w
 - The reviewed state: the full base and head commit SHAs, or, for uncommitted changes, the commit they sit on and the words "plus uncommitted changes". A snapshot is not a commit, so `review-post` cannot post a review of it until it is committed.
 - The changed files from `git diff --name-status <base> <head>`. For uncommitted changes there is no head commit: the list is `git diff --name-status HEAD` plus the untracked files from `git ls-files --others --exclude-standard`.
 - From that list, the changed Go files and the packages they belong to. Go files are `go.mod`, `go.sum`, `go.work`, and every file `go build` compiles into a package: `.go` files, plus, in a directory that holds Go files, cgo and assembly sources and headers (`.c`, `.h`, `.cc`, `.cpp`, `.cxx`, `.hh`, `.hpp`, `.hxx`, `.m`, `.s`, `.S`, `.sx`, `.f`, `.F`, `.for`, `.f90`), SWIG files (`.swig`, `.swigcxx`), and `.syso` objects. `go test` compiles and runs these too.
+- Whether the change touches a file under `.github/workflows/` or a golangci-lint config. Step 1 reviews such a change even when it changes no Go file.
 
 ## Pull request
 

@@ -393,10 +393,10 @@ class ExpectedFindingsTest(unittest.TestCase):
         self.assertIn("Fuzz targets", checks)
         self.assertIn("CI cannot tell that a Fuzz target is missing", listed)
         text = EXPECTED.read_text(encoding="utf-8")
-        line = re.search(r"(?m)^- The check suite section .*$", text)
+        line = re.search(r"(?m)^- The repository has no CI\. .*$", text)
         self.assertIsNotNone(line)
         prompts = (SKILL / "tests" / "prompts.md").read_text(encoding="utf-8")
-        case = re.search(r"(?m)^- On the fixture, which has no CI, .*$", prompts)
+        case = re.search(r"(?m)^- The fixture has no CI\. .*$", prompts)
         self.assertIsNotNone(case)
         for page, found in (("expected-findings.md", line.group(0)), ("prompts.md", case.group(0))):
             for check in checks:

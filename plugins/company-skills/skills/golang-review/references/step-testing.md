@@ -17,7 +17,7 @@ Report each function, method, or branch the change adds or alters that no test r
 
 Report a test the change deletes or weakens, such as a removed case or a loosened assertion, when the behaviour it covered still exists. If the deleted test caught a defect the change introduces, fold this into that defect's finding as part of its cause.
 
-Report a check of the Go check suite that the change removes or weakens in CI as `major`, as `checks.md` describes under "The check suite in CI".
+When the change removes or weakens a check of the Go check suite in CI, report it as `major`. `checks.md` describes this under "The check suite in CI".
 
 ## The race detector
 

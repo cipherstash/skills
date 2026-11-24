@@ -22,7 +22,7 @@ The examples target Go 1.22, the `go` line in [`examples/go.mod`](../examples/go
 ## Rules
 
 - Write table-driven tests with named cases and `t.Run`, so a failure names its case and `-run` can select it.
-- Run `go test -race ./...`. A data race is a bug even when the test passes.
+- Run the tests with the race detector. [checks.md](checks.md) gives the command CI runs. A data race is a bug even when the test passes.
 - Use `t.Fatalf` when the rest of the test cannot run, such as before indexing a slice that may be empty. Use `t.Errorf` to report a failure and keep checking.
 - Say what was wrong in the message: the call, what it returned, and what was wanted. `Reverse("ab") = "ab", want "ba"`.
 - Mark helpers with `t.Helper()`, and use `t.Cleanup` and `t.TempDir` for clean-up.
@@ -338,10 +338,10 @@ func ExampleRender() {
 
 ## Coverage
 
+CI writes a coverage profile and reports coverage per function. [checks.md](checks.md) gives the commands. To see which lines run, open the profile as annotated source in a browser:
+
 ```sh
-go test -race -coverprofile=cover.out ./...
-go tool cover -func=cover.out   # coverage per function
-go tool cover -html=cover.out   # annotated source in a browser
+go tool cover -html=coverage.out
 ```
 
 Coverage shows which lines no test runs. It does not show whether the tests check the right things. Look at uncovered new code and decide whether a regression there would go unnoticed. A percentage target is not a goal in itself.
@@ -356,5 +356,5 @@ Coverage shows which lines no test runs. It does not show whether the tests chec
 | `go test -short ./...` | Skip tests that check `testing.Short()` |
 | `go test -tags=integration ./...` | Include files behind `//go:build integration` |
 | `go test -fuzz=FuzzReverse ./textutil` | Fuzz one target in one package |
-| `go test -coverprofile=cover.out ./...` | Write a coverage profile |
+| `go test -coverprofile=coverage.out ./...` | Write a coverage profile |
 | `go test -bench=. -benchmem ./...` | Run benchmarks; see `performance.md` |

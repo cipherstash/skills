@@ -2,7 +2,7 @@
 
 Adding dependencies, keeping `go.mod` and `go.sum` tidy, checking for known vulnerabilities, finding outdated modules, and updating one dependency at a time.
 
-The commands target Go 1.22, the `go` line in [`examples/go.mod`](../examples/go.mod), unless the text names a later version. `go mod tidy -diff` needs Go 1.23, and the `tool` directive needs Go 1.24. This reference has no Go examples: the examples module has no dependencies, so the commands are shown as shell blocks. The layout of `go.mod` itself is in `project-structure.md`.
+The commands target Go 1.22, the `go` line in [`examples/go.mod`](../examples/go.mod), unless the text names a later version. `go mod tidy -diff` needs Go 1.23. This reference has no Go examples: the examples module has no dependencies, so the commands are shown as shell blocks. The layout of `go.mod` itself is in `project-structure.md`.
 
 ## Contents
 
@@ -69,7 +69,7 @@ go list -m all           # every module in the build, with its version
 
 `govulncheck` checks the module's dependencies and the Go standard library against the Go vulnerability database. It analyses the code. It lists first the vulnerabilities in functions the code calls, because those matter most.
 
-It is in the Go check suite. [checks.md](checks.md) gives its command and pinned version.
+`govulncheck` is in the Go check suite. [checks.md](checks.md) gives its command and pinned version.
 
 For each reported vulnerability:
 

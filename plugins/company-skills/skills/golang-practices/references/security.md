@@ -22,7 +22,7 @@ The examples target Go 1.22, the `go` line in [`examples/go.mod`](../examples/go
 - Build SQL with placeholders and pass values as arguments. Never build it by concatenating or formatting input into the query text.
 - Check every value from outside the process before use: paths, sizes, and anything placed in HTML, SQL, a shell, or a URL.
 - Make tokens, keys, and nonces with `crypto/rand`, never `math/rand`. Compare secrets with `crypto/subtle.ConstantTimeCompare`.
-- Run the security linter `gosec`, through `golangci-lint` where the repository uses it, and `govulncheck`. Explain each finding you suppress.
+- Run the security linter `gosec` and `govulncheck` as the check suite sets them up, in [checks.md](checks.md). Explain each finding you suppress.
 
 ## Verify TLS certificates
 
@@ -232,15 +232,7 @@ Use MD5 (Message Digest 5) and SHA-1 only for checksums that face no attacker. N
 
 ## Tools to run
 
-```sh
-# Security lint. If the repository uses golangci-lint, enable gosec in its config and run:
-golangci-lint run ./...
-# Without golangci-lint:
-go run github.com/securego/gosec/v2/cmd/gosec@latest ./...
-
-# Known vulnerabilities in dependencies and the standard library. It reports first the ones the code calls:
-go run golang.org/x/vuln/cmd/govulncheck@latest ./...
-```
+`gosec` runs through golangci-lint. `govulncheck` finds known vulnerabilities in dependencies and the standard library, and reports first the ones the code calls. Both are in the Go check suite. [checks.md](checks.md) gives their commands and pinned versions.
 
 `gosec` finds the problems in this reference, among others. Its rule IDs for them:
 
@@ -257,4 +249,4 @@ go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
 A function that takes a path from its caller, such as a library's `WriteLines(path, ...)`, gets G304 although the caller owns the check. In test code, findings such as G304 on a golden-file path or G104 on `Close` are low risk; many repositories exclude `_test.go` files from `gosec` instead of suppressing each one.
 
-`go run tool@latest` downloads and runs the latest release. Pin a version, or use the module's `tool` directive (Go 1.24), where the repository needs repeatable results. Updating dependencies after `govulncheck` reports one is in `dependencies.md`.
+Updating dependencies after `govulncheck` reports one is in `dependencies.md`.

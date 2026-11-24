@@ -212,6 +212,23 @@ class QuotedSnippetsTest(unittest.TestCase):
                     self.assertEqual(first_section, "## Contents")
 
 
+class SuiteToolVersionTest(unittest.TestCase):
+    # checks.md pins each suite tool's version, so no other file may fetch one
+    # at @latest (cipherstash/skills#89).
+    SUITE_TOOL_AT_LATEST_RE = re.compile(
+        r"\S*(?:golangci-lint|gosec|staticcheck|govulncheck|gofumpt|semgrep)\S*@latest"
+    )
+
+    def test_no_suite_tool_is_fetched_at_latest(self):
+        for path in [SKILL / "SKILL.md", *sorted(REFERENCES.glob("*.md"))]:
+            for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                with self.subTest(line=f"{path.name}:{number}"):
+                    self.assertIsNone(
+                        self.SUITE_TOOL_AT_LATEST_RE.search(line),
+                        "link to references/checks.md for the pinned version instead",
+                    )
+
+
 class ReferenceIndexTest(unittest.TestCase):
     def test_every_area_has_a_reference(self):
         found = {path.name for path in REFERENCES.glob("*.md")}

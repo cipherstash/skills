@@ -16,11 +16,13 @@ Every tool version is pinned. A repository's CI uses these versions.
 
 Two things float by choice. CI uses the latest stable Go release, through `actions/setup-go` with `go-version: stable`. semgrep reads the latest `p/golang` ruleset. Either can fail a pull request that did not cause the finding. Fix the finding.
 
+The golangci-lint pin moves with each Go minor release. A golangci-lint release cannot type-check code for a Go release newer than the one it was built with. So when a new Go minor release comes out, the lint steps fail with `file requires newer Go version` until the pin moves. That failure is not a finding in the code. Move the pin to a golangci-lint release built with the new Go.
+
 ## The checks
 
 - **golangci-lint**, as the runner for `govet`, `staticcheck`, `gosec`, and the `gofumpt` formatter. Use `gofumpt`, not `gofmt`. Start from the template [assets/golangci.yml](../assets/golangci.yml). A repository's own config may enable more linters, but must enable at least these four.
 - **govulncheck**, run on its own: `go run golang.org/x/vuln/cmd/govulncheck@<version> ./...`, with the version from the table.
-- **semgrep**, run on its own, with the `p/golang` ruleset plus the repository's own rules in `.semgrep/` at its root, when that directory exists. semgrep's default ignore list skips test files (`*_test.go`) and test directories. Add a `.semgrepignore` at the repository root, which replaces that list, and leave those entries out of it, so that semgrep scans the tests too.
+- **semgrep**, run on its own, with the `p/golang` ruleset plus the repository's own rules in `.semgrep/` at its root, when that directory exists. By default, semgrep skips test files (`*_test.go`) and test directories. Add a `.semgrepignore` at the repository root. That file replaces the default list. Leave the test entries out of it, so that semgrep scans the tests too.
 - **Tests with the race detector and coverage**: `go test -race -coverprofile=coverage.out ./...`, then `go tool cover -func=coverage.out` to report coverage. There is no coverage threshold.
 - **Fuzz targets**: a function that parses or decodes untrusted input must have a Fuzz target. Untrusted input is bytes from outside the process, such as a request body, a file, or a message. Give each target a seed corpus with `f.Add`. CI runs only the seed corpus, through plain `go test`. It never runs `-fuzz`. CI cannot tell that a Fuzz target is missing, so code review enforces this rule.
 

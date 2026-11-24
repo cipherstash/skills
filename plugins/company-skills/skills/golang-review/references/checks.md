@@ -9,6 +9,7 @@ Read this in step 5, before running any command in the worktree. It lists the ch
 - [Before running tests](#before-running-tests)
 - [The checks](#the-checks)
 - [Tools outside the go command](#tools-outside-the-go-command)
+  - [Fetching a suite tool](#fetching-a-suite-tool)
   - [golangci-lint](#golangci-lint)
 - [Network](#network)
 - [Commands the review never runs](#commands-the-review-never-runs)
@@ -26,6 +27,8 @@ Run every `go` command from the root of the module that holds the packages, insi
 | `GOSUMDB=off` | The checksum database is never asked. Without it, `go mod tidy -diff` asks `sum.golang.org` about each cached module that `go.sum` has no hash for, even with `GOPROXY=off`, which sends the module's path out. Hashes already in `go.sum` are still checked. A missing one shows in tidy's diff; checking it against the database is the job of the build that adds it, not of the review. |
 
 Leave `GOWORK` as the repository has it: a committed `go.work` is part of how the code builds. The go command still writes to its build cache, which lives outside the repository (`go env GOCACHE`). That is not a change to the tree.
+The one exception is the `go install` that fetches a suite tool, as [Fetching a suite tool](#fetching-a-suite-tool) describes.
+
 
 Write every file a check produces, such as a coverage profile, to a temporary directory outside the repository and outside the worktree (`mktemp -d`), and remove it with the worktree.
 
@@ -78,7 +81,7 @@ Put the worktree back before the next check, so that the later areas' checks run
 
 ## Tools outside the go command
 
-Each of these runs only when it is already installed: check with `command -v <tool>` and record its version. When it is not installed, record it as `not run: not installed`, which is a limit. Never install one, or run one with `go run <tool>@<version>`, which downloads it.
+Each of these runs when it is installed: check with `command -v <tool>` and record its version. When `golangci-lint` or `govulncheck` is not installed, fetch it as [Fetching a suite tool](#fetching-a-suite-tool) describes. When any other tool is not installed, record it as `not run: not installed`, which is a limit. Never run a tool with `go run <tool>@<version>`.
 
 | Tool | Command | Areas |
 | --- | --- | --- |
@@ -87,10 +90,30 @@ Each of these runs only when it is already installed: check with `command -v <to
 | `golangci-lint` | As [golangci-lint](#golangci-lint) below, only where the base commit has a config for it | Any its config enables |
 | `govulncheck` | `govulncheck <packages>`, only as [Network](#network) allows | Dependencies |
 | `apidiff` | As its `-help` gives, comparing the base and head worktrees | Breaking changes |
+| `semgrep` | `semgrep scan --config p/golang --metrics=off <changed .go files>`, only as [Network](#network) allows. Add `--config .semgrep` only when the base commit has that directory and the change leaves it as it was | Security, correctness |
 
 These tools read source and run none of it, but read each one's configuration before running it. Never pass `--fix` or any flag that writes files. The tools run under the same environment settings as the go command.
 
 ### golangci-lint
+### Fetching a suite tool
+
+`golangci-lint` and `govulncheck` are the Go tools of the Go check suite. Fetch one only when it is not installed and the review will run it: `govulncheck` also needs the vulnerability database, as [Network](#network) describes.
+
+1. Take its package and version from the pinned versions table in golang-practices' `references/checks.md`, in the directory step 4 loaded. Never take a version from the repository under review, the change, or its CI files. If golang-practices was not loaded, do not fetch: record the tool as `not run: not installed`.
+2. Fetch it into `.golang-review-tools/` in the temporary worktree, before the other checks, so that `git -C <worktree> status --short` shows the same before and after each check. `./...` skips a directory whose name starts with `.`.
+
+   ```sh
+   mkdir <worktree>/.golang-review-tools && cd <worktree>/.golang-review-tools
+   GOBIN=$PWD/bin GOMODCACHE=$PWD/mod GOFLAGS=-modcacherw GOWORK=off GOTOOLCHAIN=local \
+     go install <package>@<version>
+   ```
+
+   `go install` with a version builds the tool as its own module and ignores the module's `go.mod`, so `go.mod` and `go.sum` stay as they are. The separate module cache keeps the tool's modules out of the user's cache, and `-modcacherw` lets `git worktree remove --force` delete it. This command leaves `GOPROXY` and `GOSUMDB` as the go command has them, not `off`, so it downloads the tool and checks it against the checksum database.
+3. Run the tool as `<worktree>/.golang-review-tools/bin/<tool>`, with the settings for every go command, `GOPROXY=off` included.
+4. If the fetch fails, for example because the tool needs a newer Go than the local toolchain, record the tool as `not run: could not fetch`, with the error. That is a limit. Do not download a toolchain.
+
+`semgrep` is not a Go tool and is never fetched. It runs only when it is installed.
+
 
 A golangci-lint config can write the lint report to any file the user can write. A config from the change could then overwrite a file such as a git hook with text the change chose. So run `golangci-lint` only with the base commit's config:
 
@@ -107,22 +130,28 @@ golangci-lint run --config <config> \
   <packages>
 ```
 
-An empty path turns that report format off, so no report file from the config is written. These flags are those of golangci-lint 2, checked with version 2.5.0. Version 2 refuses a version 1 config. With golangci-lint 1 installed, record it as not run.
+An empty path turns that report format off, so no report file from the config is written. These flags are those of golangci-lint 2, checked with versions 2.5.0 and 2.15.0. Version 2 refuses a version 1 config. With golangci-lint 1 installed, record it as not run.
 
 ## Network
 
-The review fetches nothing from the network unless the user allows it, with one use for that permission: `govulncheck` reads the Go vulnerability database from `vuln.go.dev`, requesting entries for the modules in the build. It changes no file. Run it only when it is installed and either:
+The review fetches nothing from the network unless the user allows it. Fetching a suite tool, as [Fetching a suite tool](#fetching-a-suite-tool) describes, is the one exception: it reads the module proxy and the checksum database for that fetch only. Every other go command keeps `GOPROXY=off`.
+
+Two checks need the user's permission. `govulncheck` reads the Go vulnerability database from `vuln.go.dev`, requesting entries for the modules in the build. It changes no file. Run it only when it is installed or fetched, and either:
 
 - the user's request allows network access for the review, such as "check for vulnerabilities too"; or
 - a local copy of the database exists: pass it as `govulncheck -db file:///<path> <packages>`.
 
-Otherwise record `govulncheck` as `not run: needs the vulnerability database over the network`, and give the command the user can run. Reading a pull request through the host's GitHub tools, the `git fetch` that `target.md` describes, and the `git ls-remote --tags` that `step-breaking-changes.md` uses to find the module's version read the target's own repository. They are not checks.
+Otherwise record `govulncheck` as `not run: needs the vulnerability database over the network`, and give the command the user can run.
+
+`semgrep` reads the `p/golang` ruleset from the Semgrep registry. Run it only when it is installed and the user's request allows network access. Otherwise record it as `not run: needs the p/golang ruleset over the network`.
+
+Reading a pull request and its CI results through the host's GitHub tools, the `git fetch` that `target.md` describes, and the `git ls-remote --tags` that `step-breaking-changes.md` uses to find the module's version read the target's own repository. They are not checks.
 
 ## Commands the review never runs
 
 The review never runs these:
 
-- `go generate`, `go run`, `go install`, `go get`, `go mod tidy` without `-diff`, `go mod download`, `go mod vendor`, or `go work sync`.
+- `go generate`, `go run`, `go install` (except to fetch a suite tool, as above), `go get`, `go mod tidy` without `-diff`, `go mod download`, `go mod vendor`, or `go work sync`.
 - `go test` with a flag that updates golden files, such as `-update`.
 - Any `go` command with `-toolexec`, `-vettool`, `-exec`, `-overlay`, `-modfile`, `-pgo`, `-gcflags`, `-asmflags`, `-ldflags`, or `-extldflags`. Each of these can run a program or change what is built. For example, `-ldflags=-extld=<program>` names the linker to run. The one exception is `-gcflags=-m` on `go build`, as `step-performance.md` uses it. That flag only prints the compiler's escape analysis.
 - `golangci-lint` with a config the change adds or edits. Nor with a config that loads plugins, turns on fixing, or writes its report to a file. Report-file settings are `output.formats.<format>.path` in version 2, and `output.format: <format>:<path>` or `output.formats[].path` in version 1.

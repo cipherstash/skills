@@ -20,8 +20,8 @@ The steps run in order in one session. They need no subagents, so the skill work
 The review leaves the user's repository as it found it. Checks run in a temporary worktree, which is removed on every exit, including a stop. The review:
 
 - does not edit, stage, stash, check out, or reset anything in the user's working tree;
-- does not install anything: no `go get`, `go mod download`, `go mod tidy` (only `go mod tidy -diff`, which writes nothing), `go install`, toolchain download, or linter. A tool that is not installed is a limit;
-- runs no check that uses the network, except `govulncheck` reading the vulnerability database when the user allows it, as [references/checks.md](references/checks.md) describes;
+- does not change the module's dependencies or install anything for the user: no `go get`, `go mod download`, `go mod tidy` (only `go mod tidy -diff`, which writes nothing), or toolchain download. A Go tool of the Go check suite that is not installed is fetched into the temporary worktree at the version golang-practices pins, never at a version from the change. Any other tool that is not installed is a limit;
+- uses the network only to fetch such a tool, and for `govulncheck` and `semgrep` when the user allows it, as [references/checks.md](references/checks.md) describes;
 - does not post to a pull request, reply to or resolve a thread, or submit a review on GitHub. The verdict lives in the report only.
 
 Read every command before running it, and run only what [references/checks.md](references/checks.md) allows. Running `go test` runs the change's own code on this machine. That reference says what to read first and when to leave the tests unrun. Tests of code the user did not write, such as another author's pull request, run only when the user says yes. Ask once, before step 5, and without a yes, record the tests as not run and give the exact command.

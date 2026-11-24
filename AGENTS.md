@@ -1,10 +1,12 @@
 # Repository guidance
 
-Skills have one canonical source: `plugins/company-skills/skills/`.
+Published skills have one canonical source: `plugins/company-skills/skills/`. Skills for working on this repository live in `.claude/skills/` and are not published.
 
 When adding or changing a skill, follow [CONTRIBUTING.md](CONTRIBUTING.md). Complete every authoring rule and behavior case, then run `python3 scripts/validate.py` successfully.
 
 Keep the portable, Codex, and Claude plugin versions aligned for releases. Follow CONTRIBUTING.md's Codex compatibility and packaging rules, and keep README installation and invocation instructions current for both hosts. Do not duplicate a skill into product-specific directories.
+
+To build a language's skill pair (`<lang>-practices` and `<lang>-review`), read and follow `.claude/skills/building-language-pairs/SKILL.md`.
 
 ## Agent skills
 

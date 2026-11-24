@@ -3,6 +3,7 @@ package project_test
 import (
 	"context"
 	"errors"
+	"runtime/debug"
 	"strings"
 	"testing"
 	"time"
@@ -92,7 +93,20 @@ func TestRevisionAndVersion(t *testing.T) {
 	if project.Version != "dev" {
 		t.Errorf("Version = %q, want the default dev without -ldflags", project.Version)
 	}
-	if project.Revision() == "" {
+	// A test binary records no vcs.revision, so Revision gives "unknown"
+	// here. RevisionOf checks the lookup itself.
+	if got := project.Revision(); got == "" {
 		t.Error("Revision() is empty")
+	}
+	info := &debug.BuildInfo{Settings: []debug.BuildSetting{
+		{Key: "vcs", Value: "git"},
+		{Key: "vcs.revision", Value: "4f2a9c1"},
+		{Key: "vcs.modified", Value: "false"},
+	}}
+	if got := project.RevisionOf(info); got != "4f2a9c1" {
+		t.Errorf("RevisionOf(vcs.revision=4f2a9c1) = %q, want 4f2a9c1", got)
+	}
+	if got := project.RevisionOf(&debug.BuildInfo{}); got != "unknown" {
+		t.Errorf("RevisionOf(no settings) = %q, want unknown", got)
 	}
 }

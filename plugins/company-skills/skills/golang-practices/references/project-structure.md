@@ -272,6 +272,13 @@ func Revision() string {
 	if !ok {
 		return "unknown"
 	}
+	return RevisionOf(info)
+}
+
+// RevisionOf returns the revision recorded in info, or "unknown" if there is
+// none. It also reads the build information of another binary, from
+// debug/buildinfo.ReadFile.
+func RevisionOf(info *debug.BuildInfo) string {
 	for _, s := range info.Settings {
 		if s.Key == "vcs.revision" {
 			return s.Value

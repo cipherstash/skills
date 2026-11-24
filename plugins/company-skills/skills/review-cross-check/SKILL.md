@@ -1,6 +1,6 @@
 ---
 name: review-cross-check
-description: Verify new code review findings — this session's review or ones pasted from parallel agents — against a pull request's head, cross-check the confirmed ones against the PR's existing review feedback, and report which findings are new, which materially add to existing ones, and which are already covered or refuted. Use after reviewing a PR, or when asked to check findings against existing PR comments or drop findings reviewers already raised. Takes a PR number or URL. Does not perform the review, fix code, or post to the PR (review-post).
+description: Verifies new code review findings (this session's or pasted from parallel agents) against a pull request's head and its existing review feedback, and reports which are new, which add to existing threads, and which are covered or refuted. Use after reviewing a PR, or when asked to check findings against existing PR comments or drop findings reviewers already raised. Takes a PR number or URL. Does not perform the review, fix code, or post to the PR (review-post).
 argument-hint: "<PR number or URL> [pasted findings]"
 ---
 

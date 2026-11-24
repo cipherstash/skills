@@ -1,6 +1,6 @@
 ---
 name: vanta-remediate
-description: Patches the dependency vulnerabilities tracked by Vanta Linear issues — for each "[Vanta] Remediate {package} to {version} ({repo})" issue, finds every lockfile location that resolves a vulnerable version, bumps it with the right package manager, verifies the fix landed, opens a GitHub PR, and moves the Linear issue to In Review. Also assesses "[Vanta] Assess" container OS-package issues on request. Use when asked to fix, patch, remediate, or open PRs for Vanta or Dependabot vulnerability findings, work a CIP Remediate issue from the AppSec project, or run the scheduled Vanta remediation, including unattended routine runs. Does not query Vanta or file issues (vanta-triage does that), review existing PRs, fix AWS configuration findings, or perform feature upgrades.
+description: Patches dependency vulnerabilities tracked by Vanta Linear issues: bumps every vulnerable lockfile entry, verifies the fix, opens a GitHub PR, and moves the issue to In Review; also assesses container OS-package issues on request. Use when asked to fix or open PRs for Vanta or Dependabot vulnerability findings, work a CIP Remediate issue, or run the scheduled Vanta remediation. Does not query Vanta or file issues (vanta-triage), review PRs, fix AWS configuration findings, or perform feature upgrades.
 argument-hint: "[CIP-XXXX ...] [dry run]"
 ---
 

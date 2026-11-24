@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"strings"
 	"testing"
@@ -152,5 +153,52 @@ func TestDescribe(t *testing.T) {
 		if got := interfaces.Describe(tt.in); got != tt.want {
 			t.Errorf("Describe(%#v) = %q, want %q", tt.in, got, tt.want)
 		}
+	}
+}
+
+// memStore is a fake UserStore backed by a map.
+type memStore struct {
+	users map[string]interfaces.User
+	err   error
+}
+
+func (m *memStore) User(_ context.Context, id string) (interfaces.User, error) {
+	u, ok := m.users[id]
+	if !ok {
+		return interfaces.User{}, fmt.Errorf("user %s not found", id)
+	}
+	return u, nil
+}
+
+func (m *memStore) SaveUser(_ context.Context, u interfaces.User) error {
+	if m.err != nil {
+		return m.err
+	}
+	m.users[u.ID] = u
+	return nil
+}
+
+func TestEmailOfAndChangeEmail(t *testing.T) {
+	ctx := context.Background()
+	store := &memStore{users: map[string]interfaces.User{"7": {ID: "7", Email: "ada@example.com"}}}
+
+	if got, err := interfaces.EmailOf(ctx, store, "7"); err != nil || got != "ada@example.com" {
+		t.Fatalf("EmailOf(7) = %q, %v", got, err)
+	}
+	if _, err := interfaces.EmailOf(ctx, store, "8"); err == nil {
+		t.Fatal("EmailOf(8) found a user that does not exist")
+	}
+
+	if err := interfaces.ChangeEmail(ctx, store, "7", "ada@example.org"); err != nil {
+		t.Fatalf("ChangeEmail: %v", err)
+	}
+	if got := store.users["7"].Email; got != "ada@example.org" {
+		t.Fatalf("saved email = %q, want ada@example.org", got)
+	}
+
+	boom := errors.New("disk full")
+	store.err = boom
+	if err := interfaces.ChangeEmail(ctx, store, "7", "x@example.org"); !errors.Is(err, boom) {
+		t.Fatalf("ChangeEmail error = %v, want it to wrap %v", err, boom)
 	}
 }

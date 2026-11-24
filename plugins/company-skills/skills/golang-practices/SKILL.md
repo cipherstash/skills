@@ -55,7 +55,7 @@ Rules for writing Go. Apply them to every Go change, and read the reference for 
 
 - Write table-driven tests with named subtests. Stop with `t.Fatalf` before a step that would panic, such as indexing a slice that may be empty.
 - Copy the loop variable for a parallel subtest (`tt := tt`) only when the `go` line is below 1.22.
-- Use hand-written fakes over mocking libraries, and `//go:build` lines, never `// +build`.
+- Use hand-written fakes over mocking libraries, unless the project already generates mocks with `go.uber.org/mock`. Use `//go:build` lines, never `// +build`.
 
 ### Security
 

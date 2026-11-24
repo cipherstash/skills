@@ -17,7 +17,7 @@ The examples target Go 1.22, the `go` line in [`examples/go.mod`](../examples/go
 ## Rules
 
 - Check every returned error. Handle it, return it with context, or, rarely, ignore it on purpose with a comment that says why: `_ =` for most calls, or a deferred `Close` on something you only read.
-- Add context when you return an error: what this function was doing and the key values involved, followed by `%w` and the error. The exception is a sentinel that an interface's contract says to return as it is, such as `io.EOF` from `Read`: callers compare it with `==`, so wrapping it breaks them.
+- Add context when you return an error: what this function was doing and the key values involved, followed by `%w` and the error. The exceptions: a sentinel that an interface's contract says to return as it is, such as `io.EOF` from `Read`, because callers compare it with `==` and wrapping it breaks them; and a thin `io.Reader` or `io.Writer` that wraps another and returns the inner error unchanged, as `io.TeeReader` and `bufio` do (see `interfaces.md`).
 - Handle an error once. Either return it or deal with it (log it, retry, use a fallback). Logging and then returning it reports the same failure twice.
 - Match errors with `errors.Is` and `errors.As`. Both see through wrapping. Comparing with `==` or a type assertion on the error misses a wrapped error.
 - Start error strings in lower case, unless they begin with a proper noun or acronym, and end them without punctuation. Leave out "failed to" and "error:" prefixes. Error strings are joined into longer messages, and these words only add noise there.

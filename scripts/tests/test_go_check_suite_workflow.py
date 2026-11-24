@@ -76,6 +76,9 @@ class CheckSuiteWorkflowTests(unittest.TestCase):
             with self.subTest(step=step.get("name") or step.get("uses") or step.get("run")):
                 self.assertNotIn("continue-on-error", step)
                 self.assertNotIn("if", step)
+        # A shell set without -e, such as `bash +e {0}`, would let a failing line pass.
+        self.assertNotIn("defaults", WORKFLOW)
+        self.assertEqual(SUITE["defaults"], {"run": {"working-directory": EXAMPLES}})
 
     def test_uses_the_latest_stable_go_release(self):
         self.assertEqual(step_using("actions/setup-go")["with"]["go-version"], "stable")
@@ -106,15 +109,22 @@ class CheckSuiteWorkflowTests(unittest.TestCase):
         self.assertEqual(config["version"], "2")
         self.assertLessEqual({"govet", "staticcheck", "gosec"}, set(config["linters"]["enable"]))
         self.assertIn("gofumpt", config["formatters"]["enable"])
+        # Exclusions or skipped test files would hide files from the suite.
+        self.assertNotIn("exclusions", config["linters"])
+        self.assertNotIn("exclusions", config["formatters"])
+        self.assertNotEqual(config.get("run", {}).get("tests"), False)
 
     def test_govulncheck_runs_at_the_pinned_version(self):
-        self.assertRuns(rf"go run golang\.org/x/vuln/cmd/govulncheck@{re.escape(PINS['govulncheck'])} \./\.\.\.")
+        self.assertRuns(rf"^go run golang\.org/x/vuln/cmd/govulncheck@{re.escape(PINS['govulncheck'])} \./\.\.\.$")
 
     def test_semgrep_runs_p_golang_and_the_local_rules_at_the_pinned_version(self):
         self.assertRuns(rf"pip install semgrep=={re.escape(PINS['semgrep'])}$", directory=".")
         # From the repository root, so the optional .semgrep/ directory is found there.
         self.assertRuns(r"if \[ -d \.semgrep \]; then .*--config \.semgrep", directory=".")
-        self.assertRuns(rf"semgrep scan --config p/golang .*--error .*{EXAMPLES}$", directory=".")
+        self.assertRuns(
+            rf'^semgrep scan --config p/golang "\$\{{local_rules\[@\]\}}" --error --metrics=off {EXAMPLES}$',
+            directory=".",
+        )
 
     def test_runs_the_tests_with_the_race_detector_and_reports_coverage(self):
         self.assertRuns(r"^go test -race -coverprofile=coverage\.out \./\.\.\.$")

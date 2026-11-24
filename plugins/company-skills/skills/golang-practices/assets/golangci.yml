@@ -1,0 +1,25 @@
+# Canonical golangci-lint v2 configuration for the Go check suite.
+# Copy it to the repository root as .golangci.yml. You may enable more
+# linters and add exclusions with a reason; do not disable the linters,
+# formatter or settings below. See references/checks.md.
+version: "2"
+
+linters:
+  default: standard # errcheck, govet, ineffassign, staticcheck, unused
+  enable:
+    - gosec
+  settings:
+    errcheck:
+      exclude-functions:
+        # Closing a response body you only read cannot lose data.
+        # A file you wrote to is an *os.File, which is still checked.
+        - (io.ReadCloser).Close
+  exclusions:
+    rules:
+      # Golden-file paths and Close in tests are low risk; see security.md.
+      - path: _test\.go
+        linters: [gosec]
+
+formatters:
+  enable:
+    - gofumpt

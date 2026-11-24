@@ -20,7 +20,7 @@ The commands target Go 1.22, the `go` line in [`examples/go.mod`](../examples/go
 
 - Prefer the standard library. Add a dependency only when it saves real work, and say so in the change.
 - Run `go mod tidy` after changing imports or dependencies, and commit `go.mod` and `go.sum` together.
-- Run `govulncheck ./...` when dependencies change, and fix the vulnerabilities it reports in code the module calls.
+- CI runs `govulncheck` on every pull request, as the [check suite](checks.md) says. Fix the vulnerabilities it reports in code the module calls.
 - Update dependencies one at a time, to a version you chose, with the tests run after each. Do not run `go get -u ./...` as a routine step.
 - Do not commit a `replace` that points at a path outside the repository, because no other checkout can see it. A `replace` to a directory inside the repository is fine. Do not commit a `go.work` file the repository does not already track.
 - Treat a new major version as an API migration, not an update.
@@ -69,11 +69,11 @@ go list -m all           # every module in the build, with its version
 
 `govulncheck` checks the module's dependencies and the Go standard library against the Go vulnerability database. It analyses the code. It lists first the vulnerabilities in functions the code calls, because those matter most.
 
-```sh
-go run golang.org/x/vuln/cmd/govulncheck@latest ./...
-```
+CI runs it on every pull request at a pinned version, as [`checks.md`](checks.md) shows. To see a report before pushing:
 
-`@latest` gets the newest release each run. Where results must be repeatable, pin a version, or track the tool in `go.mod` with the `tool` directive (Go 1.24) and run `go tool govulncheck ./...`.
+```sh
+go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+```
 
 For each reported vulnerability:
 
@@ -102,8 +102,7 @@ Updating every dependency at once (`go get -u ./...`) changes many modules in on
 ```sh
 go get example.com/some/module@v1.5.0   # or @latest for that one module
 go mod tidy
-go build ./... && go vet ./... && go test -race ./...
-go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+go build ./... && go test ./...          # CI runs the full check suite
 git diff -- go.mod go.sum                # review what else moved
 ```
 

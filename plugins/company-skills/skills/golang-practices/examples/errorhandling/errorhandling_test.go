@@ -175,7 +175,7 @@ func TestMustParsePortPanicsOnBadInput(t *testing.T) {
 func TestRunSafelyTurnsAPanicIntoAnError(t *testing.T) {
 	err := errorhandling.RunSafely(func() error {
 		var m map[string]int
-		m["boom"] = 1 // panics: assignment to entry in nil map
+		m["boom"] = 1 //nolint:staticcheck // SA5000: the panic is what this test needs
 		return nil
 	})
 	var perr *errorhandling.PanicError

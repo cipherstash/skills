@@ -17,6 +17,7 @@ REFERENCES = SKILL / "references"
 
 # The areas the skill must cover (cipherstash/skills#56). Each has one reference.
 EXPECTED_REFERENCES = {
+    "checks.md",
     "concurrency.md",
     "dependencies.md",
     "error-handling.md",
@@ -218,8 +219,11 @@ class QuotedSnippetsTest(unittest.TestCase):
                 self.assertEqual(parse_fences(path.read_text(encoding="utf-8"))[1], [])
 
     def test_each_reference_states_the_go_version(self):
+        # checks.md quotes no examples, so it has no examples version to state.
         version = go_version()
         for path in self.references():
+            if path.name == "checks.md":
+                continue
             with self.subTest(reference=path.name):
                 self.assertIn(f"Go {version}", path.read_text(encoding="utf-8"))
 

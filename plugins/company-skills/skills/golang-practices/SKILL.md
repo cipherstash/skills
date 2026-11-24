@@ -14,7 +14,8 @@ Rules for writing Go. Apply them to every Go change, and read the reference for 
 
 - Read the `go` line in the module's `go.mod` before applying a version-sensitive rule. The references say which rules depend on it.
 - If the repository's own guidance differs from these rules, follow the repository. Say that you did.
-- Format with `gofmt`, run `go vet ./...`, and run the tests with `go test -race ./...` before calling a change done.
+- Run `go build ./...` and `go test ./...` on your change before calling it done. CI runs the rest of the [Go check suite](references/checks.md); you do not run it.
+- When you create or edit a repository's CI, make sure every check in the suite is in place, as `checks.md` defines it.
 
 ### Errors
 
@@ -62,7 +63,7 @@ Rules for writing Go. Apply them to every Go change, and read the reference for 
 - Never set `InsecureSkipVerify` outside tests, put a secret in source, or log a secret.
 - Build SQL with placeholders. Never concatenate input into a query, or format it in.
 - Check paths, sizes, and other input from outside the process. Use `html/template` for HTML and `crypto/rand` for secrets.
-- Run `gosec` and `govulncheck`. Where the repository uses `golangci-lint`, run `gosec` through it.
+- Give a function that parses or decodes input from outside the process a fuzz target.
 
 ### Performance
 
@@ -80,6 +81,7 @@ Read the reference for each area the change touches. Each one states the Go vers
 
 | Read | When the change involves |
 | --- | --- |
+| [references/checks.md](references/checks.md) | Creating or editing a repository's CI, or a check it runs: formatting, linters, `govulncheck`, semgrep, race-enabled tests, coverage |
 | [references/error-handling.md](references/error-handling.md) | Returning, wrapping, matching or joining errors, sentinel errors and error types, `Close` errors, `panic` and `recover` |
 | [references/concurrency.md](references/concurrency.md) | Goroutines, channels, `select`, `context` cancellation and timeouts, worker pools, pipelines, mutexes, `sync.Once`, semaphores, rate limits |
 | [references/interfaces.md](references/interfaces.md) | Defining or implementing an interface, `io.Reader` and `io.Writer`, embedding, functional options, type assertions and switches, pointer or value receivers |

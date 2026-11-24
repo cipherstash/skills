@@ -22,7 +22,7 @@ The examples target Go 1.22, the `go` line in [`examples/go.mod`](../examples/go
 ## Rules
 
 - Write table-driven tests with named cases and `t.Run`, so a failure names its case and `-run` can select it.
-- Run `go test -race ./...`. A data race is a bug even when the test passes.
+- CI runs the tests with `-race`, as part of the [check suite](checks.md). A data race is a bug even when the test passes.
 - Use `t.Fatalf` when the rest of the test cannot run, such as before indexing a slice that may be empty. Use `t.Errorf` to report a failure and keep checking.
 - Say what was wrong in the message: the call, what it returned, and what was wanted. `Reverse("ab") = "ab", want "ba"`.
 - Mark helpers with `t.Helper()`, and use `t.Cleanup` and `t.TempDir` for clean-up.
@@ -30,7 +30,7 @@ The examples target Go 1.22, the `go` line in [`examples/go.mod`](../examples/go
 - Prefer a small hand-written fake to a mocking library.
 - Wait for a condition, not a fixed time. `time.Sleep` to wait for a server makes tests slow and still flaky.
 - Put the build constraint for tagged tests above the `package` clause, as `//go:build integration`, followed by a blank line.
-- A test that is missing, such as a fuzz test or a doctest-style example, is not a defect in itself. Add one when it would catch a plausible regression.
+- A function that parses or decodes input from outside the process has a fuzz target. Any other missing test, such as a doctest-style example, is not a defect in itself. Add one when it would catch a plausible regression.
 
 ## Table-driven tests
 
@@ -344,7 +344,7 @@ go tool cover -func=cover.out   # coverage per function
 go tool cover -html=cover.out   # annotated source in a browser
 ```
 
-Coverage shows which lines no test runs. It does not show whether the tests check the right things. Look at uncovered new code and decide whether a regression there would go unnoticed. A percentage target is not a goal in itself.
+CI reports coverage per function as part of the [check suite](checks.md), with no percentage gate. Coverage shows which lines no test runs. It does not show whether the tests check the right things. Look at uncovered new code and decide whether a regression there would go unnoticed. A percentage target is not a goal in itself.
 
 ## Quick reference
 

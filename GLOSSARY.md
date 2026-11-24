@@ -59,3 +59,21 @@ A claim in a run's output that the run's own deviation log contradicts.
 
 **Run date**:
 The calendar date a run started, in the timezone its prompt names, or labelled as UTC when the prompt names none.
+
+## Language skill checks
+
+**Go check suite**:
+The checks every Go repository runs in CI on each pull request: format, lint, known vulnerabilities, pattern scan, race-enabled tests, and a coverage report. CI runs them; agents do not. Profiling and benchmarks are not part of it.
+_Avoid_: Go toolchain (Go uses that for the compiler release), linters (too narrow)
+
+**In place**:
+Said of a check in the suite: a blocking, version-pinned CI step that runs on every pull request and covers every Go module, or a check that an exemption covers.
+_Avoid_: Configured, enabled
+
+**Exemption**:
+An ADR on the default branch, approved through an issue and a merged pull request, that excuses a repository from named checks in the suite and says why.
+_Avoid_: Waiver, skip
+
+**Repository standards**:
+The part of a review that checks the repository's CI against the suite, reported apart from findings about the change itself.
+_Avoid_: Standards (alone: the code-review skill's Standards axis means coding standards)

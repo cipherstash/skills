@@ -32,6 +32,7 @@ This is a background convention skill: it is applied while the agent writes Go, 
 - Tests are table-driven with named subtests. They copy the loop variable for parallel subtests only below Go 1.22, and stop with `t.Fatalf` before indexing a slice that may be empty.
 - The agent never turns off TLS verification, writes a secret into source, or builds SQL by concatenating input.
 - A dependency update changes one module to a chosen version, and runs `go mod tidy` and the tests. It does not run `go get -u ./...`.
-- The agent runs `gofmt`, `go vet ./...`, and `go test -race ./...`, or says which it could not run.
+- The agent runs `go build ./...` and `go test ./...` on its change, or says why it could not. It does not run the linters, `govulncheck` or semgrep itself; CI does.
+- When the agent creates or edits CI, every check in `references/checks.md` is in place: on `pull_request`, blocking, pinned, and covering every module.
 - The agent does not invent packages, helpers, or repository paths that are not in the user's codebase.
 - The agent adds a third-party dependency, such as `errgroup`, only when it says so.

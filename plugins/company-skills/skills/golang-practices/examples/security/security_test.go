@@ -145,11 +145,13 @@ func TestOpenUpload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenUpload(a.txt): %v", err)
 	}
-	f.Close()
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
 
 	for _, name := range []string{"../a.txt", "/etc/passwd", "sub/../../a.txt", ""} {
 		if f, err := security.OpenUpload(dir, name); err == nil {
-			f.Close()
+			_ = f.Close() // only opened to show the check failed
 			t.Errorf("OpenUpload(%q) succeeded, want it rejected", name)
 		}
 	}

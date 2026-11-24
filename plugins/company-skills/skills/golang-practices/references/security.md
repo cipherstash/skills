@@ -247,6 +247,6 @@ Use MD5 (Message Digest 5) and SHA-1 only for checksums that face no attacker. N
 
 `gosec` also reports false positives. To suppress one, put `// #nosec G304 -- <reason>` on the line, naming the rule. Both `gosec` and golangci-lint honour it; `gosec` alone ignores `//nolint:gosec`.
 
-A function that takes a path from its caller, such as a library's `WriteLines(path, ...)`, gets G304 although the caller owns the check. In test code, findings such as G304 on a golden-file path or G104 on `Close` are low risk; many repositories exclude `_test.go` files from `gosec` instead of suppressing each one.
+A function that takes a path from its caller, such as a library's `WriteLines(path, ...)`, gets G304 although the caller owns the check. In test code, findings such as G304 on a golden-file path or G104 on `Close` are low risk. Suppress each one with a reason. The Go check suite lints the tests too, so do not exclude `_test.go` files from `gosec`.
 
 Updating dependencies after `govulncheck` reports one is in `dependencies.md`.

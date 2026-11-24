@@ -144,10 +144,13 @@ class CheckSuiteWorkflowTests(unittest.TestCase):
         self.assertEqual(config["version"], "2")
         self.assertLessEqual({"govet", "staticcheck", "gosec"}, set(config["linters"]["enable"]))
         self.assertIn("gofumpt", config["formatters"]["enable"])
-        # Exclusions or skipped test files would hide files from the suite.
-        self.assertNotIn("exclusions", config["linters"])
-        self.assertNotIn("exclusions", config["formatters"])
-        self.assertNotEqual(config.get("run", {}).get("tests"), False)
+        # Any other key can switch suite checks off: exclusions or `run.tests: false` hide files, linter settings such
+        # as `gosec.excludes` or `staticcheck.checks` drop rules, and `issues.new-from-rev` drops existing findings. So
+        # the template holds only the keys that enable the suite.
+        self.assertEqual(set(config), {"version", "linters", "formatters"})
+        self.assertEqual(set(config["linters"]), {"default", "enable"})
+        self.assertEqual(config["linters"]["default"], "none")
+        self.assertEqual(set(config["formatters"]), {"enable"})
 
     def test_govulncheck_runs_at_the_pinned_version(self):
         self.assertRuns(rf"^go run golang\.org/x/vuln/cmd/govulncheck@{re.escape(PINS['govulncheck'])} \./\.\.\.$")

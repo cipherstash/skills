@@ -89,6 +89,23 @@ func TestLoadConfigErrorsLeaveValuesOut(t *testing.T) {
 	}
 }
 
+// LoadConfig parses environment variables, so it has a Fuzz target.
+func FuzzLoadConfig(f *testing.F) {
+	f.Add(":8080", "3s", "postgres://db")
+	f.Add("", "0s", "")
+	f.Add(":9090", "soon", "postgres://db")
+	f.Fuzz(func(t *testing.T, addr, timeout, dbURL string) {
+		vars := map[string]string{"ADDR": addr, "READ_TIMEOUT": timeout, "DATABASE_URL": dbURL}
+		cfg, err := project.LoadConfig(env(vars))
+		if err != nil {
+			return
+		}
+		if cfg.Addr == "" || cfg.ReadTimeout <= 0 || cfg.DatabaseURL == "" {
+			t.Fatalf("LoadConfig(%q) = %+v with no error, want every setting valid", vars, cfg)
+		}
+	})
+}
+
 func TestRevisionAndVersion(t *testing.T) {
 	if project.Version != "dev" {
 		t.Errorf("Version = %q, want the default dev without -ldflags", project.Version)

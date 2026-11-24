@@ -66,6 +66,25 @@ func TestParsePort(t *testing.T) {
 	}
 }
 
+// ParsePort parses input from outside the process, so it has a Fuzz target.
+func FuzzParsePort(f *testing.F) {
+	for _, seed := range []string{"8080", "0", "65536", "-1", "+80", "http", ""} {
+		f.Add(seed)
+	}
+	f.Fuzz(func(t *testing.T, s string) {
+		port, err := errorhandling.ParsePort(s)
+		if err != nil {
+			if port != 0 {
+				t.Fatalf("ParsePort(%q) = %d with error %v, want 0", s, port, err)
+			}
+			return
+		}
+		if port < 1 || port > 65535 {
+			t.Fatalf("ParsePort(%q) = %d, want a port from 1 to 65535", s, port)
+		}
+	})
+}
+
 func TestValidateServerReportsEveryProblem(t *testing.T) {
 	err := errorhandling.ValidateServer("", 0)
 	if err == nil {
@@ -142,7 +161,7 @@ func TestWriteLines(t *testing.T) {
 	if err := errorhandling.WriteLines(path, []string{"a", "b"}); err != nil {
 		t.Fatalf("WriteLines: %v", err)
 	}
-	got, err := os.ReadFile(path)
+	got, err := os.ReadFile(path) // #nosec G304 -- the test chose the path, in t.TempDir
 	if err != nil {
 		t.Fatalf("read back: %v", err)
 	}
@@ -174,9 +193,7 @@ func TestMustParsePortPanicsOnBadInput(t *testing.T) {
 
 func TestRunSafelyTurnsAPanicIntoAnError(t *testing.T) {
 	err := errorhandling.RunSafely(func() error {
-		var m map[string]int
-		m["boom"] = 1 // panics: assignment to entry in nil map
-		return nil
+		panic("boom")
 	})
 	var perr *errorhandling.PanicError
 	if !errors.As(err, &perr) {

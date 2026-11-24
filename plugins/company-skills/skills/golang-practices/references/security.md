@@ -99,22 +99,7 @@ func RenameUser(ctx context.Context, db Execer, id int64, name string) error {
 }
 ```
 
-Never format or concatenate input into the query. A test in the module shows the name below adding a `DROP TABLE` to the query:
-
-From [`examples/security/sql.go`](../examples/security/sql.go):
-
-```go
-// RenameUserFormatted shows the mistake RenameUser avoids: it formats the
-// name into the SQL text, so a name containing a quote ends the string and
-// the rest runs as SQL. Never build queries like this.
-func RenameUserFormatted(ctx context.Context, db Execer, id int64, name string) error {
-	query := fmt.Sprintf("UPDATE users SET name = '%s' WHERE id = %d", name, id) // wrong: injectable
-	if _, err := db.ExecContext(ctx, query); err != nil {
-		return fmt.Errorf("rename user %d: %w", id, err)
-	}
-	return nil
-}
-```
+Never format or concatenate input into the query, as in `fmt.Sprintf("UPDATE users SET name = '%s' ...", name)`. A name containing a quote ends the string, and the rest of the name runs as SQL.
 
 Placeholders work only for values. A table or column name, or a sort direction, cannot be a placeholder. Map the caller's choice onto a fixed list, so only strings from the source reach the query:
 

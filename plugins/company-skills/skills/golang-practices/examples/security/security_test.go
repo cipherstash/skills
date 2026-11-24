@@ -1,8 +1,10 @@
 package security_test
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"net/http"
@@ -35,11 +37,25 @@ func TestNewClientWithCATrustsThePrivateCA(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET with the CA trusted: %v", err)
 	}
-	resp.Body.Close()
+	if err := resp.Body.Close(); err != nil {
+		t.Fatalf("close response body: %v", err)
+	}
 
 	if _, err := security.NewClientWithCA([]byte("not a certificate")); err == nil {
 		t.Fatal("NewClientWithCA accepted PEM with no certificates")
 	}
+}
+
+// NewClientWithCA decodes PEM read from a file, so it has a Fuzz target.
+func FuzzNewClientWithCA(f *testing.F) {
+	f.Add([]byte("not a certificate"))
+	f.Add([]byte("-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\n"))
+	f.Fuzz(func(t *testing.T, caPEM []byte) {
+		client, err := security.NewClientWithCA(caPEM)
+		if (err == nil) != (client != nil) {
+			t.Fatalf("NewClientWithCA(%q) = %v, %v; want a client or an error", caPEM, client, err)
+		}
+	})
 }
 
 func TestNewClientWithCAKeepsDefaultTransportSettings(t *testing.T) {
@@ -145,11 +161,13 @@ func TestOpenUpload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenUpload(a.txt): %v", err)
 	}
-	f.Close()
+	if err := f.Close(); err != nil {
+		t.Fatalf("close a.txt: %v", err)
+	}
 
 	for _, name := range []string{"../a.txt", "/etc/passwd", "sub/../../a.txt", ""} {
 		if f, err := security.OpenUpload(dir, name); err == nil {
-			f.Close()
+			_ = f.Close() // only to release it: the test has already failed
 			t.Errorf("OpenUpload(%q) succeeded, want it rejected", name)
 		}
 	}
@@ -195,6 +213,20 @@ func TestDecodeJSON(t *testing.T) {
 	}
 }
 
+// DecodeJSON decodes a request body, so it has a Fuzz target.
+func FuzzDecodeJSON(f *testing.F) {
+	for _, seed := range []string{`{"Name":"ada"}`, `{"Name":"ada","Admin":true}`, `{"Name":"ada"} garbage`, `[]`, ``} {
+		f.Add([]byte(seed))
+	}
+	f.Fuzz(func(t *testing.T, body []byte) {
+		var v struct{ Name string }
+		r := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
+		if err := security.DecodeJSON(httptest.NewRecorder(), r, &v); err == nil && !json.Valid(body) {
+			t.Fatalf("DecodeJSON accepted %q, which is not one JSON value", body)
+		}
+	})
+}
+
 func TestWriteGreetingEscapesHTML(t *testing.T) {
 	var b strings.Builder
 	if err := security.WriteGreeting(&b, `<script>alert(1)</script>`); err != nil {
@@ -219,15 +251,5 @@ func TestTokens(t *testing.T) {
 	}
 	if !security.TokenMatches(a, a) || security.TokenMatches(a, b) {
 		t.Fatal("TokenMatches gave the wrong answer")
-	}
-}
-
-func TestRenameUserFormattedLetsInputChangeTheQuery(t *testing.T) {
-	db := &recordingExecer{}
-	if err := security.RenameUserFormatted(context.Background(), db, 7, "x'; DROP TABLE users; --"); err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(db.query, "DROP TABLE users") {
-		t.Fatalf("query = %q; this test pins the injection the example warns about", db.query)
 	}
 }

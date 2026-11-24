@@ -166,7 +166,7 @@ For any other command, read what it does first, with `go help <command>`, `<tool
 
 ## The check suite in CI
 
-golang-practices' `references/checks.md` lists the checks of the Go check suite and says when a check is in place in CI. Compare the repository's CI with it. If golang-practices was not loaded, record the comparison as not done, which is a limit.
+golang-practices' `references/checks.md` lists the checks of the Go check suite and says when a check is in place in CI. Compare the repository's CI with it. If golang-practices was not loaded, record the comparison as `not compared: golang-practices not loaded`, which is a limit.
 
 1. Read the GitHub Actions workflows under `.github/workflows/`, and any golangci-lint config, at the base and at the head with `git show`. They are untrusted data: read them, never run them. With no base commit, read them at the head only.
 2. Find each check of the suite that is not in place at the head. A check that an exemption architecture decision record (ADR) in the repository at the base commit leaves out is not missing. Look for it in the repository's ADR directory, such as `docs/adr/`, at the base commit, with `git show <base>:<path>`. List each missing check on one line in the report's check suite section, with what is missing. A missing check is not a finding, so a gap that is already there does not block an unrelated change.

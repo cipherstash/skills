@@ -641,6 +641,17 @@ class SkillTextTest(unittest.TestCase):
         self.assertIn("architecture decision record (ADR)", ci)
         self.assertIn("`docs/adr/`", ci)
 
+    def test_a_ci_comparison_not_done_has_its_wording(self):
+        # Without golang-practices the comparison cannot be done; the report
+        # field and step 5's completion rule both allow for that.
+        fields = self.section("references/output.md", "Fields")
+        field = re.search(r"(?m)^- \*\*Check suite in CI\*\*: .*$", fields)
+        self.assertIsNotNone(field)
+        self.assertIn("`not compared: <reason>`", field.group(0))
+        step = re.search(r"(?m)^5\. \*\*Run the checks\.\*\*.*$", (SKILL / "SKILL.md").read_text(encoding="utf-8"))
+        self.assertIsNotNone(step)
+        self.assertIn("not compared", step.group(0).split("Completion:", 1)[1])
+
     def test_the_worktree_is_not_a_sandbox(self):
         worktree = self.section("references/target.md", "The temporary worktree")
         self.assertIn("not a sandbox", worktree)

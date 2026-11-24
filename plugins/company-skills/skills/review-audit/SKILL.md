@@ -1,6 +1,6 @@
 ---
 name: review-audit
-description: Collate a pull request's existing review feedback — inline threads, review bodies, and conversation comments from people and bots — verify each finding against the PR's head commit, and report which remain unresolved and which are addressed and can be resolved. Use when asked what review feedback is still outstanding on a PR, which review threads can be resolved, or to audit PR comments against the code. Takes a PR number or URL. Does not fix findings (review-fix), run a new review, or cross-check new findings against the PR (review-cross-check).
+description: Audits a pull request's existing review feedback (threads, review bodies, and comments from people and bots) against the PR's head commit, and reports which findings remain unresolved and which can be resolved. Use when asked what review feedback is outstanding on a PR, which threads can be resolved, or to audit PR comments against the code. Takes a PR number or URL. Does not fix findings (review-fix), run a new review, or cross-check new findings (review-cross-check).
 argument-hint: "<PR number or URL>"
 ---
 

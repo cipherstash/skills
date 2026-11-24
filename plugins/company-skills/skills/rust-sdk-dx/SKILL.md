@@ -1,6 +1,6 @@
 ---
 name: rust-sdk-dx
-description: Applies CipherStash conventions for public Rust APIs in libraries, SDKs, and shared crates — thiserror error enums, typestate builders, required derives, newtype identifiers, ergonomic signatures, rustdoc sections, tokio async, crate layout, and feature flags. Use when writing or changing Rust library code that other developers consume, such as a crate with lib.rs, a public type or function, an error type, a builder, or module structure. Does not apply to application binaries, internal scripts, or non-Rust files, and defers secret handling to rust-security.
+description: Applies CipherStash conventions for public Rust APIs in libraries, SDKs, and shared crates: error enums, builders, derives, newtype identifiers, signatures, rustdoc, async, crate layout, and feature flags. Use when writing or changing Rust library code that other developers consume, such as a crate with lib.rs, a public type or function, an error type, a builder, or module structure. Does not apply to application binaries, internal scripts, or non-Rust files, and defers secret handling to rust-security.
 user-invocable: false
 ---
 

@@ -17,10 +17,10 @@ jobs:
         with:
           python-version: "3.13"
       - run: python3 -m pip install pyyaml==6.0.2
-      # golang-practices tests its Go examples with go vet and go test -race.
+      # The golang-practices and golang-review script tests run Go.
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.24.7"
+          go-version: stable
           cache: false
       - run: python3 scripts/validate.py
       - run: python3 -m unittest discover -s scripts/tests
@@ -32,3 +32,50 @@ jobs:
               python3 -m unittest discover -s "$d"
             fi
           done
+
+  # The Go check suite, listed with its pinned versions in golang-practices'
+  # references/checks.md, over the golang-practices examples module.
+  # scripts/tests/test_go_check_suite_workflow.py checks this job against that
+  # list. The golang-review fixture is left out: it holds planted defects.
+  go-check-suite:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: plugins/company-skills/skills/golang-practices/examples
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: false
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.15.0
+          working-directory: plugins/company-skills/skills/golang-practices/examples
+          args: --config=../assets/golangci.yml
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.10.0 ./...
+      - name: Tests with the race detector and coverage
+        run: |
+          go test -race -coverprofile=coverage.out ./...
+          go tool cover -func=coverage.out
+      # Files behind a build constraint compile only when it holds.
+      - name: Vet for Windows
+        run: GOOS=windows go vet ./...
+      - name: Vet and test behind the integration tag
+        run: |
+          go vet -tags integration ./...
+          go test -race -tags integration ./...
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install semgrep
+        working-directory: .
+        run: python3 -m pip install semgrep==1.186.0
+      # From the repository root, where the optional .semgrep/ rules live.
+      - name: semgrep
+        working-directory: .
+        run: |
+          local_rules=()
+          if [ -d .semgrep ]; then local_rules=(--config .semgrep); fi
+          semgrep scan --config p/golang "${local_rules[@]}" --error --metrics=off plugins/company-skills/skills/golang-practices/examples

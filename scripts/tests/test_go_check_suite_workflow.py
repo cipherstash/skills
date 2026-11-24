@@ -1,0 +1,120 @@
+"""Tests that the Go check suite gates pull requests in .github/workflows/validate.yml.
+
+The suite and its pinned versions are listed in golang-practices' references/checks.md. These tests check that each
+suite check is in place over the golang-practices examples module, and that each pinned version matches that list.
+"""
+
+from pathlib import Path
+import re
+import unittest
+
+import yaml
+
+
+REPO = Path(__file__).resolve().parents[2]
+PRACTICES = REPO / "plugins/company-skills/skills/golang-practices"
+EXAMPLES = "plugins/company-skills/skills/golang-practices/examples"
+WORKFLOW = yaml.safe_load((REPO / ".github/workflows/validate.yml").read_text())
+# PyYAML reads the bare key `on` as the boolean true.
+TRIGGERS = WORKFLOW.get("on", WORKFLOW.get(True))
+SUITE = WORKFLOW["jobs"]["go-check-suite"]
+STEPS = SUITE["steps"]
+
+
+def pinned_versions():
+    """Return {tool: version} from the pinned versions table in references/checks.md."""
+    text = (PRACTICES / "references/checks.md").read_text(encoding="utf-8")
+    section = text.split("## Pinned versions", 1)[1].split("\n## ", 1)[0]
+    rows = re.findall(r"^\| *`?([\w-]+)`? *\| *`([^`]+)` *\|", section, re.MULTILINE)
+    return dict(rows)
+
+
+PINS = pinned_versions()
+
+
+def run_lines():
+    """Yield (working directory, command line with whitespace collapsed) for each line of each run step."""
+    default = SUITE.get("defaults", {}).get("run", {}).get("working-directory", ".")
+    for step in STEPS:
+        for line in step.get("run", "").splitlines():
+            if line.strip():
+                yield step.get("working-directory", default), re.sub(r"\s+", " ", line).strip()
+
+
+def step_using(action):
+    matches = [step for step in STEPS if step.get("uses", "").startswith(action + "@")]
+    if len(matches) != 1:
+        raise AssertionError(f"want one step that uses {action}, found {len(matches)}")
+    return matches[0]
+
+
+def commands_in(directory):
+    return [command for cwd, command in run_lines() if cwd == directory]
+
+
+class CheckSuiteWorkflowTests(unittest.TestCase):
+    def assertRuns(self, pattern, directory=EXAMPLES):
+        commands = commands_in(directory)
+        self.assertTrue(
+            any(re.search(pattern, command) for command in commands),
+            f"no step in {directory} runs {pattern!r}; steps there run: {commands}",
+        )
+
+    def test_runs_on_every_pull_request(self):
+        self.assertIn("pull_request", TRIGGERS)
+        # A branch or path filter would let some pull requests skip the suite.
+        self.assertFalse(TRIGGERS["pull_request"])
+        self.assertNotIn("if", SUITE)
+
+    def test_no_check_may_fail_without_failing_the_job(self):
+        self.assertNotIn("continue-on-error", SUITE)
+        for step in STEPS:
+            with self.subTest(step=step.get("name") or step.get("uses") or step.get("run")):
+                self.assertNotIn("continue-on-error", step)
+                self.assertNotIn("if", step)
+
+    def test_uses_the_latest_stable_go_release(self):
+        self.assertEqual(step_using("actions/setup-go")["with"]["go-version"], "stable")
+
+    def test_leaves_out_the_golang_review_fixture(self):
+        # The fixture holds planted defects, so the suite would fail on it.
+        self.assertNotIn("golang-review", yaml.safe_dump(SUITE))
+
+    def test_reference_pins_every_suite_tool(self):
+        self.assertEqual(set(PINS), {"golangci-lint", "govulncheck", "semgrep"})
+
+    def test_golangci_lint_runs_the_template_config_at_the_pinned_version(self):
+        step = step_using("golangci/golangci-lint-action")
+        self.assertEqual(step["with"]["version"], PINS["golangci-lint"])
+        self.assertEqual(step["with"]["working-directory"], EXAMPLES)
+        self.assertEqual(step["with"]["args"], "--config=../assets/golangci.yml")
+        self.assertNotIn("only-new-issues", step["with"])
+
+    def test_config_template_enables_the_suite_linters_and_gofumpt(self):
+        config = yaml.safe_load((PRACTICES / "assets/golangci.yml").read_text())
+        self.assertEqual(config["version"], "2")
+        self.assertLessEqual({"govet", "staticcheck", "gosec"}, set(config["linters"]["enable"]))
+        self.assertIn("gofumpt", config["formatters"]["enable"])
+
+    def test_govulncheck_runs_at_the_pinned_version(self):
+        self.assertRuns(rf"go run golang\.org/x/vuln/cmd/govulncheck@{re.escape(PINS['govulncheck'])} \./\.\.\.")
+
+    def test_semgrep_runs_p_golang_and_the_local_rules_at_the_pinned_version(self):
+        self.assertRuns(rf"pip install semgrep=={re.escape(PINS['semgrep'])}$", directory=".")
+        # From the repository root, so the optional .semgrep/ directory is found there.
+        self.assertRuns(r"if \[ -d \.semgrep \]; then .*--config \.semgrep", directory=".")
+        self.assertRuns(rf"semgrep scan --config p/golang .*--error .*{EXAMPLES}$", directory=".")
+
+    def test_runs_the_tests_with_the_race_detector_and_reports_coverage(self):
+        self.assertRuns(r"^go test -race -coverprofile=coverage\.out \./\.\.\.$")
+        self.assertRuns(r"^go tool cover -func=coverage\.out$")
+
+    def test_vets_for_windows_and_vets_and_tests_behind_the_integration_tag(self):
+        # Files behind a build constraint compile only when it holds, so the default runs miss them.
+        self.assertRuns(r"^GOOS=windows go vet \./\.\.\.$")
+        self.assertRuns(r"^go vet -tags integration \./\.\.\.$")
+        self.assertRuns(r"^go test -race -tags integration \./\.\.\.$")
+
+
+if __name__ == "__main__":
+    unittest.main()

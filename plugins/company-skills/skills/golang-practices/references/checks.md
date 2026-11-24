@@ -20,7 +20,7 @@ Two things float by choice. CI uses the latest stable Go release, through `actio
 
 - **golangci-lint**, as the runner for `govet`, `staticcheck`, `gosec`, and the `gofumpt` formatter. Use `gofumpt`, not `gofmt`. Start from the template [assets/golangci.yml](../assets/golangci.yml). A repository's own config may enable more linters, but must enable at least these four.
 - **govulncheck**, run on its own: `go run golang.org/x/vuln/cmd/govulncheck@<version> ./...`, with the version from the table.
-- **semgrep**, run on its own, with the `p/golang` ruleset plus the repository's own rules in `.semgrep/` at its root, when that directory exists.
+- **semgrep**, run on its own, with the `p/golang` ruleset plus the repository's own rules in `.semgrep/` at its root, when that directory exists. By default, semgrep skips test files (`*_test.go`), so it does not scan the tests.
 - **Tests with the race detector and coverage**: `go test -race -coverprofile=coverage.out ./...`, then `go tool cover -func=coverage.out` to report coverage. There is no coverage threshold.
 - **Fuzz targets**: a function that parses or decodes untrusted input must have a Fuzz target. Untrusted input is bytes from outside the process, such as a request body, a file, or a message. Give each target a seed corpus with `f.Add`. CI runs only the seed corpus, through plain `go test`. It never runs `-fuzz`. CI cannot tell that a Fuzz target is missing, so code review enforces this rule.
 

@@ -2,7 +2,7 @@
 # Run: python3 -m unittest discover -s tests (from the skill directory).
 #
 # The fixture is a Go module before (base/) and after (head/) a sample change
-# with one planted defect in each of the ten checklist areas.
+# with at least one planted defect in each of the ten checklist areas.
 # expected-findings.md lists what a correct review must report. These tests keep
 # the fixture honest: every location in expected-findings.md is exactly the line
 # it quotes, the base is clean, each planted defect comes from the change, and,
@@ -59,7 +59,7 @@ READ_ONLY_ENV = {"GOFLAGS": "-mod=readonly", "GOTOOLCHAIN": "local", "GOPROXY": 
 
 
 def expected_findings():
-    """Return {area: dict(id, severity, side, path, line, deleted, quoted)} from expected-findings.md."""
+    """Return {id: dict(area, severity, side, path, line, deleted, quoted, body)} from expected-findings.md."""
     text = EXPECTED.read_text(encoding="utf-8")
     headings = list(FINDING_RE.finditer(text))
     findings = {}
@@ -68,23 +68,34 @@ def expected_findings():
         body = text[heading.end() : end]
         location = LOCATION_RE.search(body)
         quoted = LINE_RE.search(body)
-        area = heading.group(3).strip()
-        if area in findings:
-            raise AssertionError(f"expected-findings.md lists {area} twice")
-        findings[area] = {
-            "id": heading.group(1),
+        if heading.group(1) in findings:
+            raise AssertionError(f"expected-findings.md lists {heading.group(1)} twice")
+        findings[heading.group(1)] = {
+            "area": heading.group(3).strip(),
             "severity": heading.group(2),
             "side": location.group(1) if location else None,
             "path": location.group(2) if location else None,
             "line": int(location.group(3)) if location else None,
             "deleted": bool(location and location.group(4)),
             "quoted": quoted.group(1) if quoted else None,
+            "body": body,
         }
     return findings
 
 
 def finding(area):
-    return expected_findings()[area.lower()]
+    """Return the first finding listed for area."""
+    return next(f for f in expected_findings().values() if f["area"] == area.lower())
+
+
+def fuzz_finding():
+    """Return the testing finding for a new decoder with no Fuzz target."""
+    found = [
+        f for f in expected_findings().values() if f["area"] == "testing and coverage" and "Fuzz target" in f["body"]
+    ]
+    if len(found) != 1:
+        raise AssertionError(f"expected-findings.md has {len(found)} testing findings about a Fuzz target, not 1")
+    return found[0]
 
 
 # The exported API as checks.md compares it: every declaration go doc -all
@@ -310,24 +321,24 @@ class SettingsTableTest(unittest.TestCase):
 
 
 class ExpectedFindingsTest(unittest.TestCase):
-    def test_lists_one_finding_per_area(self):
-        self.assertEqual(sorted(expected_findings()), sorted(area.lower() for area in AREAS))
+    def test_lists_a_finding_for_every_area(self):
+        self.assertEqual({f["area"] for f in expected_findings().values()}, {area.lower() for area in AREAS})
 
     def test_each_finding_quotes_the_line_it_names(self):
-        for area, f in expected_findings().items():
-            with self.subTest(area=area):
-                self.assertIsNotNone(f["path"], f"{f['id']}: no '- Location: `head/<path>:<line>`'")
-                self.assertIsNotNone(f["quoted"], f"{f['id']}: no '- Line: `<text>`'")
-                self.assertEqual(f["side"] == "base", f["deleted"], f"{f['id']}: only a deleted line sits in base/")
+        for id, f in expected_findings().items():
+            with self.subTest(id=id):
+                self.assertIsNotNone(f["path"], f"{id}: no '- Location: `head/<path>:<line>`'")
+                self.assertIsNotNone(f["quoted"], f"{id}: no '- Line: `<text>`'")
+                self.assertEqual(f["side"] == "base", f["deleted"], f"{id}: only a deleted line sits in base/")
                 root = BASE if f["side"] == "base" else HEAD
                 lines = (root / f["path"]).read_text(encoding="utf-8").splitlines()
-                self.assertLessEqual(f["line"], len(lines), f"{f['id']}: {f['path']} has {len(lines)} lines")
+                self.assertLessEqual(f["line"], len(lines), f"{id}: {f['path']} has {len(lines)} lines")
                 # The whole line, not a substring: a fix that keeps the call on the
                 # same line (`errs[i] = json.Unmarshal(raw, &l)`) must fail here.
                 self.assertEqual(
                     lines[f["line"] - 1].strip(),
                     f["quoted"],
-                    f"{f['id']}: {f['path']}:{f['line']} is {lines[f['line'] - 1]!r}",
+                    f"{id}: {f['path']}:{f['line']} is {lines[f['line'] - 1]!r}",
                 )
                 if f["deleted"]:
                     head_file = HEAD / f["path"]
@@ -336,8 +347,8 @@ class ExpectedFindingsTest(unittest.TestCase):
 
     def test_findings_point_at_changed_files(self):
         changed = changed_files()
-        for area, f in expected_findings().items():
-            with self.subTest(area=area):
+        for id, f in expected_findings().items():
+            with self.subTest(id=id):
                 self.assertIn(f["path"], changed)
 
     def test_the_change_touches_only_the_planted_files(self):
@@ -351,9 +362,23 @@ class ExpectedFindingsTest(unittest.TestCase):
                 "orders/report.go",
                 "orders/report_test.go",
                 "orders/units.go",
+                "orders/upload.go",
+                "orders/upload_test.go",
                 "pricing/go.mod",
             ],
         )
+
+    def test_a_new_decoder_has_no_fuzz_target(self):
+        # Testing and coverage, second finding: the change adds a function
+        # that decodes untrusted input, and no Fuzz target for it.
+        f = fuzz_finding()
+        self.assertEqual((f["severity"], f["side"]), ("minor", "head"))
+        name = re.match(r"func (\w+)\(", f["quoted"])
+        self.assertIsNotNone(name, f"{f['quoted']!r} does not declare a function")
+        for path in BASE.rglob("*.go"):
+            self.assertNotIn(f"func {name.group(1)}(", path.read_text(encoding="utf-8"), "the base already has it")
+        for path in HEAD.rglob("*_test.go"):
+            self.assertNotRegex(path.read_text(encoding="utf-8"), r"(?m)^func Fuzz", f"{path.name} has a Fuzz target")
 
     def test_changed_files_compares_contents(self):
         # A same-size edit with a matching mtime, as after extracting an archive,
@@ -392,7 +417,7 @@ COMMON_WORDS = {"Empty", "Line", "Lines", "Merge", "Quantity", "SKU", "Units", "
 
 # Values from the fixture's code and expected results that are not declared
 # names but would still give its answers away.
-FIXTURE_LITERALS = ["B2", "AUD", "price_cents", "order_lines", "1299", "2400", "433", "95.8%"]
+FIXTURE_LITERALS = ["B2", "AUD", "price_cents", "order_lines", "1299", "2400", "433", "97.1%"]
 
 
 def fixture_terms():

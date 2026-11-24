@@ -137,7 +137,7 @@ golangci-lint run --config <config> \
   <packages>
 ```
 
-An empty path turns that report format off, so no report file from the config is written. These flags are those of golangci-lint 2, checked with versions 2.5.0 and 2.15.0. Version 2 refuses a version 1 config. With golangci-lint 1 installed, record it as not run.
+An empty path turns that report format off, so no report file from the config is written. These flags are those of golangci-lint 2, checked with version 2.5.0 and the version golang-practices pins. Version 2 refuses a version 1 config. With golangci-lint 1 installed, record it as not run.
 
 ## Network
 

@@ -38,4 +38,4 @@ Plan for these up front. Items marked **criterion** belong in the acceptance cri
 - **Run repository commands in the checkout.** In a project thread the shell starts in `/home/user`, not the repository, so the repository's slash commands fail there. Change into the checkout first.
 
 - **Dependency plugins block a local load.** `claude -p --plugin-dir plugins/company-skills` loads no skills unless every dependency plugin is installed. Test from a scratch copy of the plugin with `dependencies` removed from its manifest.
-- **Codex may be missing.** Cloud sessions have no Codex CLI. For Go, a maintainer ran the Codex cases, and their results are in #71's body. Ask the person to run them, and record their results in the release ticket PR body.
+- **Codex may be missing.** Run the Codex cases yourself when the runner has a working Codex CLI. Cloud sessions usually have none. Then ask the person to run them, and record their results in the release ticket PR body. For Go, a maintainer ran them, and their results are in #71's body.

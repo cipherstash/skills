@@ -12,7 +12,7 @@ type discard struct{}
 
 func (discard) Log(string) {}
 
-// Importer embeds a Logger, so its Log method is promoted: imp.Log(...)
+// Importer embeds a Logger, so its Log method is promoted: im.Log(...)
 // calls the embedded logger.
 type Importer struct {
 	Logger
@@ -28,6 +28,6 @@ func NewImporter(logger Logger) *Importer {
 }
 
 // Import records that it imported n rows.
-func (imp *Importer) Import(n int) {
-	imp.Log(fmt.Sprintf("imported %d rows", n))
+func (im *Importer) Import(n int) {
+	im.Log(fmt.Sprintf("imported %d rows", n))
 }

@@ -185,7 +185,7 @@ type discard struct{}
 
 func (discard) Log(string) {}
 
-// Importer embeds a Logger, so its Log method is promoted: imp.Log(...)
+// Importer embeds a Logger, so its Log method is promoted: im.Log(...)
 // calls the embedded logger.
 type Importer struct {
 	Logger

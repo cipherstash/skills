@@ -151,13 +151,14 @@ Each skill is authored once under `plugins/company-skills/skills/`. The portable
 | `rust-sdk-dx` | Conventions for public Rust APIs in libraries and SDKs | Automatic while writing Rust library code |
 | `rust-security` | Rules for Rust code that handles secrets, cryptography, and authentication | Automatic while writing Rust that touches secrets |
 | `rust-testing` | Conventions for Rust tests: nextest, scenario modules, fake data, mocktail, paused time | Automatic while writing Rust tests |
+| `golang-practices` | Conventions for writing Go: error handling and concurrency, with examples that compile and pass the race detector | Automatic while writing Go |
 | `filing-github-issues` | Draft and file well-structured GitHub issues on CipherStash repos | Explicit or automatic |
 | `authoring-pull-requests` | Branch, commit, and open draft pull requests with a consistent structure | Explicit or automatic |
 | `plain-language` | Write, rewrite, and review prose in plain language (ISO 24495 and GOV.UK), with a bundled checker | Explicit or automatic |
 
 Code review skills (`review-*`) work with the findings of a code review: auditing a PR's existing feedback, cross-checking new findings against it, posting them, and fixing them. None of them performs the review itself.
 
-Rust convention skills (`rust-*`) carry coding rules rather than a workflow. Claude Code applies them automatically and hides them from the `/` menu; Codex selects them implicitly.
+Convention skills (`rust-*` and `golang-practices`) carry coding rules rather than a workflow. Claude Code applies them automatically and hides them from the `/` menu; Codex selects them implicitly.
 
 `review-audit` and `review-cross-check` require Python 3, Git, and `gh` authenticated for the target repository; `review-post` requires `gh` and `python3` or `jq`. These are local CLI dependencies; the plugin does not bundle an MCP server.
 
@@ -180,7 +181,7 @@ The Vanta skills also need the Linear connector, read-only Vanta API credentials
 
 ## Contribute
 
-Follow [CONTRIBUTING.md](CONTRIBUTING.md) to add or change a skill: naming, progressive disclosure, required behavior cases, releases, and the validation commands to run. Pull requests run `python3 scripts/validate.py`, `python3 -m unittest discover -s scripts/tests`, and each skill's `tests/` suite in GitHub Actions; the `claude plugin validate --strict` checks run locally only.
+Follow [CONTRIBUTING.md](CONTRIBUTING.md) to add or change a skill: naming, progressive disclosure, required behavior cases, releases, and the validation commands to run. Pull requests run `python3 scripts/validate.py`, `python3 -m unittest discover -s scripts/tests`, and each skill's `tests/` suite in GitHub Actions; the `claude plugin validate --strict` checks run locally only. The `golang-practices` suite runs `go vet` and `go test -race` over the skill's examples module. Without Go it is skipped locally, and it fails in CI.
 
 See the official [Codex skills documentation](https://developers.openai.com/codex/skills/) and [Claude Code plugin marketplace documentation](https://code.claude.com/docs/en/plugin-marketplaces) for current publishing and installation options.
 
@@ -188,4 +189,4 @@ See the official [Codex skills documentation](https://developers.openai.com/code
 
 The repository is licensed under the MIT License; see [LICENSE](LICENSE).
 
-`plugins/company-skills/skills/plain-language` is licensed under the Apache License 2.0, and some of its content is public sector information under the Open Government Licence v3.0. See its [LICENSE](plugins/company-skills/skills/plain-language/LICENSE) and [NOTICE](plugins/company-skills/skills/plain-language/NOTICE). The plugin manifests declare the combined SPDX expression `MIT AND Apache-2.0 AND OGL-UK-3.0`.
+`plugins/company-skills/skills/plain-language` is licensed under the Apache License 2.0, and some of its content is public sector information under the Open Government Licence v3.0. See its [LICENSE](plugins/company-skills/skills/plain-language/LICENSE) and [NOTICE](plugins/company-skills/skills/plain-language/NOTICE). `plugins/company-skills/skills/golang-practices` adapts MIT-licensed material from [Jeffallan/claude-skills](https://github.com/Jeffallan/claude-skills); see its [LICENSE](plugins/company-skills/skills/golang-practices/LICENSE) and [NOTICE](plugins/company-skills/skills/golang-practices/NOTICE). The plugin manifests declare the combined SPDX expression `MIT AND Apache-2.0 AND OGL-UK-3.0`.

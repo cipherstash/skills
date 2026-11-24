@@ -60,6 +60,7 @@ Any other language that already has convention skills needs a decision like this
 - Keep reference examples as real source that CI builds and tests. Put them in a small module under the practices skill's `examples/`, with tests. Quote each code block in a reference word for word from that source, with a link to the file on the line before it.
 - Keep each example to the smallest code that shows one rule the reference states. Where prose can state the rule, write no code. Add no features, error paths, or tests beyond what shows the example works. The pair's spec lists the examples each reference needs, and a reviewer flags any example not on that list.
 - Aim to keep each reference under 100 lines. The spec names any reference planned to run longer, and why.
+- The examples-list and reference-length rules start with the next pair. Go's references and spec #56 predate them, so do not copy Go's sizes.
 - Run the language's check suite over the examples in CI, in the validate workflow. Add a workflow test under `scripts/tests/` that checks each suite check is in place there and that its pinned version matches the reference.
 - Add a script test to the practices skill that checks every quoted block matches its source. It runs none of the suite's checks. golang-practices' test also runs each benchmark once, because benchmarks are not a suite check. CI runs it with the other skill script tests.
 - State in each reference the language version its examples target.

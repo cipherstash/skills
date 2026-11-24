@@ -60,7 +60,7 @@ func NewClientWithCA(caPEM []byte) (*http.Client, error) {
 }
 ```
 
-- Start from a clone of `http.DefaultTransport` and change only `TLSClientConfig`. Assert its type with the two-value form and return an error when it is not an `*http.Transport`: a program can replace it with a wrapper for tracing or tests, and the one-value form then panics. A new `&http.Transport{}` ignores `HTTPS_PROXY` and `NO_PROXY`, has no dial, handshake, or idle timeouts, and, with a custom `TLSClientConfig`, does not use HTTP/2.
+- Start from a clone of `http.DefaultTransport` and change only `TLSClientConfig`. A program can replace it with a wrapper for tracing or tests. Check its type with the two-value form, and return an error when it is not an `*http.Transport`. A new `&http.Transport{}` ignores `HTTPS_PROXY` and `NO_PROXY`, has no dial, handshake, or idle timeouts, and, with a custom `TLSClientConfig`, does not use HTTP/2.
 - Set `MinVersion: tls.VersionTLS12` or higher. Go's default minimum for clients has been TLS 1.2 since Go 1.18, but stating it guards against older toolchains and copied configs.
 - Leave cipher suites at their defaults unless a policy requires otherwise; Go chooses safe ones.
 - In tests, use `httptest.NewTLSServer` and its `Client()` instead of turning verification off. That client trusts the test certificate.
@@ -268,6 +268,8 @@ go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 | G404 | `math/rand` used for secrets |
 | G112 | HTTP server with no header timeout |
 
-`gosec` also reports false positives. To suppress one, put `// #nosec G304 -- <reason>` on the line, naming the rule. Both `gosec` and golangci-lint honour it. `gosec` run alone ignores `//nolint:gosec`. A function that takes a path from its caller, such as a library's `WriteLines(path, ...)`, gets G304 although the caller owns the check. In test code, findings such as G304 on a golden-file path or G104 on `Close` are low risk; many repositories exclude `_test.go` files from `gosec` instead of suppressing each one.
+`gosec` also reports false positives. To suppress one, put `// #nosec G304 -- <reason>` on the line, naming the rule. Both `gosec` and golangci-lint honour it; `gosec` alone ignores `//nolint:gosec`.
+
+A function that takes a path from its caller, such as a library's `WriteLines(path, ...)`, gets G304 although the caller owns the check. In test code, findings such as G304 on a golden-file path or G104 on `Close` are low risk; many repositories exclude `_test.go` files from `gosec` instead of suppressing each one.
 
 `go run tool@latest` downloads and runs the latest release. Pin a version, or use the module's `tool` directive (Go 1.24), where the repository needs repeatable results. Updating dependencies after `govulncheck` reports one is in `dependencies.md`.

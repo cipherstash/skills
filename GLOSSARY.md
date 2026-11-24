@@ -67,5 +67,5 @@ The canonical set of checks that gate every pull request, run in CI, in every re
 _Avoid_: Toolchain, the language's checks
 
 **Untrusted input**:
-Bytes that come from outside the process, such as a request body, a file, or a message. A function that parses or decodes untrusted input must have a fuzz target.
+Bytes that come from outside the process, such as a request body, a file, or a message. A function that parses or decodes untrusted input must have a Fuzz target.
 _Avoid_: User input, external data

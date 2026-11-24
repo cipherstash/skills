@@ -380,6 +380,31 @@ class ExpectedFindingsTest(unittest.TestCase):
         for path in HEAD.rglob("*_test.go"):
             self.assertNotRegex(path.read_text(encoding="utf-8"), r"(?m)^func Fuzz", f"{path.name} has a Fuzz target")
 
+    def test_names_each_missing_ci_check(self):
+        # The fixture has no CI, so every check of the suite that CI can show
+        # is a missing line. The Fuzz target rule is enforced by the review,
+        # not CI, so it is not one of them. Read the suite from golang-practices.
+        suite = (PRACTICES / "references" / "checks.md").read_text(encoding="utf-8")
+        listed = suite.split("\n## The checks\n", 1)[1].split("\n## ", 1)[0]
+        checks = re.findall(r"(?m)^- \*\*([^*]+)\*\*", listed)
+        self.assertIn("Fuzz targets", checks)
+        self.assertIn("CI cannot tell that a Fuzz target is missing", listed)
+        text = EXPECTED.read_text(encoding="utf-8")
+        line = re.search(r"(?m)^- The check suite section .*$", text)
+        self.assertIsNotNone(line)
+        prompts = (SKILL / "tests" / "prompts.md").read_text(encoding="utf-8")
+        case = re.search(r"(?m)^- On the fixture, which has no CI, .*$", prompts)
+        self.assertIsNotNone(case)
+        for page, found in (("expected-findings.md", line.group(0)), ("prompts.md", case.group(0))):
+            for check in checks:
+                with self.subTest(page=page, check=check):
+                    if check == "Fuzz targets":
+                        self.assertRegex(found, r"Fuzz target[^.]*not a (missing|line)")
+                    elif " " in check:
+                        self.assertIn("race-enabled tests with coverage", found)
+                    else:
+                        self.assertIn(f"`{check}`", found)
+
     def test_changed_files_compares_contents(self):
         # A same-size edit with a matching mtime, as after extracting an archive,
         # must still count as a change.

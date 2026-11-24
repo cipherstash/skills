@@ -4,6 +4,7 @@ The suite and its pinned versions are listed in golang-practices' references/che
 suite check is in place over the golang-practices examples module, and that each pinned version matches that list.
 """
 
+import fnmatch
 from pathlib import Path
 import re
 import unittest
@@ -125,6 +126,25 @@ class CheckSuiteWorkflowTests(unittest.TestCase):
             rf'^semgrep scan --config p/golang "\$\{{local_rules\[@\]\}}" --error --metrics=off {EXAMPLES}$',
             directory=".",
         )
+
+    def test_semgrep_scans_the_test_files(self):
+        # Without a .semgrepignore at the repository root, semgrep uses its default list, which skips *_test.go files
+        # and test directories. A root .semgrepignore replaces that list.
+        ignore = REPO / ".semgrepignore"
+        self.assertTrue(ignore.is_file(), "no .semgrepignore at the repository root, so semgrep skips test files")
+        patterns = [
+            line.strip()
+            for line in ignore.read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+        test_files = sorted((REPO / EXAMPLES).rglob("*_test.go"))
+        self.assertTrue(test_files)
+        for path in test_files:
+            parts = path.relative_to(REPO).parts
+            for pattern in patterns:
+                with self.subTest(file="/".join(parts), pattern=pattern):
+                    glob = pattern.strip("/")
+                    self.assertFalse(any(fnmatch.fnmatchcase(part, glob) for part in parts))
 
     def test_runs_the_tests_with_the_race_detector_and_reports_coverage(self):
         self.assertRuns(r"^go test -race -coverprofile=coverage\.out \./\.\.\.$")

@@ -1,0 +1,9 @@
+# semgrep's default ignore list, which this file replaces, skips test files (*_test.go) and test directories. The Go
+# check suite scans the tests too, so this list keeps only the version control and dependency entries.
+# scripts/tests/test_go_check_suite_workflow.py checks that no entry here matches a test file in the examples module.
+.git
+.svn
+_darcs
+vendor/
+node_modules/
+.venv/

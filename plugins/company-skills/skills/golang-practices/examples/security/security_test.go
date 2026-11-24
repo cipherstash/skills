@@ -70,6 +70,38 @@ func TestNewClientWithCAKeepsDefaultTransportSettings(t *testing.T) {
 	}
 }
 
+// wrappedTransport stands in for a tracing or recording RoundTripper that a
+// program installs as http.DefaultTransport.
+type wrappedTransport struct{ next http.RoundTripper }
+
+func (w wrappedTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	return w.next.RoundTrip(r)
+}
+
+// Not parallel: it replaces http.DefaultTransport for its duration.
+func TestNewClientWithCAWithWrappedDefaultTransport(t *testing.T) {
+	orig := http.DefaultTransport
+	http.DefaultTransport = wrappedTransport{next: orig}
+	t.Cleanup(func() { http.DefaultTransport = orig })
+
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	defer srv.Close()
+	caPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: srv.Certificate().Raw})
+
+	var err error
+	func() {
+		defer func() {
+			if p := recover(); p != nil {
+				t.Fatalf("NewClientWithCA panicked with a wrapped DefaultTransport: %v", p)
+			}
+		}()
+		_, err = security.NewClientWithCA(caPEM)
+	}()
+	if err == nil {
+		t.Fatal("NewClientWithCA returned no error when http.DefaultTransport is not an *http.Transport")
+	}
+}
+
 type recordingExecer struct {
 	query string
 	args  []any
@@ -153,6 +185,13 @@ func TestDecodeJSON(t *testing.T) {
 	var tooBig *http.MaxBytesError
 	if err := security.DecodeJSON(httptest.NewRecorder(), r, &v); !errors.As(err, &tooBig) {
 		t.Fatalf("DecodeJSON(2 MiB) error = %v, want *http.MaxBytesError", err)
+	}
+
+	// The limit can be hit after the first value, while looking for more.
+	padded := `{"Name":"ada"}` + strings.Repeat(" ", 2<<20)
+	r = httptest.NewRequest(http.MethodPost, "/", strings.NewReader(padded))
+	if err := security.DecodeJSON(httptest.NewRecorder(), r, &v); !errors.As(err, &tooBig) {
+		t.Fatalf("DecodeJSON(value + 2 MiB of spaces) error = %v, want *http.MaxBytesError", err)
 	}
 }
 

@@ -43,8 +43,13 @@ func NewClientWithCA(caPEM []byte) (*http.Client, error) {
 		return nil, errors.New("new client: no certificates found in CA PEM")
 	}
 	// Clone the default transport to keep its proxy settings, HTTP/2, and
-	// timeouts. A bare &http.Transport{} has none of them.
-	transport := http.DefaultTransport.(*http.Transport).Clone()
+	// timeouts. A bare &http.Transport{} has none of them. A program may have
+	// replaced DefaultTransport with a wrapper, so check its type.
+	base, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		return nil, fmt.Errorf("new client: http.DefaultTransport is %T, not *http.Transport", http.DefaultTransport)
+	}
+	transport := base.Clone()
 	transport.TLSClientConfig = &tls.Config{
 		RootCAs:    pool,
 		MinVersion: tls.VersionTLS12,
@@ -55,7 +60,7 @@ func NewClientWithCA(caPEM []byte) (*http.Client, error) {
 }
 ```
 
-- Start from `http.DefaultTransport.(*http.Transport).Clone()` and change only `TLSClientConfig`. A new `&http.Transport{}` ignores `HTTPS_PROXY` and `NO_PROXY`, has no dial, handshake, or idle timeouts, and, with a custom `TLSClientConfig`, does not use HTTP/2.
+- Start from a clone of `http.DefaultTransport` and change only `TLSClientConfig`. Assert its type with the two-value form and return an error when it is not an `*http.Transport`: a program can replace it with a wrapper for tracing or tests, and the one-value form then panics. A new `&http.Transport{}` ignores `HTTPS_PROXY` and `NO_PROXY`, has no dial, handshake, or idle timeouts, and, with a custom `TLSClientConfig`, does not use HTTP/2.
 - Set `MinVersion: tls.VersionTLS12` or higher. Go's default minimum for clients has been TLS 1.2 since Go 1.18, but stating it guards against older toolchains and copied configs.
 - Leave cipher suites at their defaults unless a policy requires otherwise; Go chooses safe ones.
 - In tests, use `httptest.NewTLSServer` and its `Client()` instead of turning verification off. That client trusts the test certificate.
@@ -180,9 +185,13 @@ func DecodeJSON(w http.ResponseWriter, r *http.Request, v any) error {
 		return fmt.Errorf("decode request body: %w", err)
 	}
 	// Decode reads one value and leaves the rest. Only io.EOF shows there
-	// was nothing after it.
-	if err := dec.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+	// was nothing after it. Keep any other error, such as
+	// *http.MaxBytesError, so the caller can answer 413.
+	switch err := dec.Decode(&struct{}{}); {
+	case err == nil:
 		return errors.New("decode request body: unexpected data after the JSON value")
+	case !errors.Is(err, io.EOF):
+		return fmt.Errorf("decode request body: %w", err)
 	}
 	return nil
 }

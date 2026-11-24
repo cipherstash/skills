@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 )
@@ -20,8 +21,13 @@ func NewClientWithCA(caPEM []byte) (*http.Client, error) {
 		return nil, errors.New("new client: no certificates found in CA PEM")
 	}
 	// Clone the default transport to keep its proxy settings, HTTP/2, and
-	// timeouts. A bare &http.Transport{} has none of them.
-	transport := http.DefaultTransport.(*http.Transport).Clone()
+	// timeouts. A bare &http.Transport{} has none of them. A program may have
+	// replaced DefaultTransport with a wrapper, so check its type.
+	base, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		return nil, fmt.Errorf("new client: http.DefaultTransport is %T, not *http.Transport", http.DefaultTransport)
+	}
+	transport := base.Clone()
 	transport.TLSClientConfig = &tls.Config{
 		RootCAs:    pool,
 		MinVersion: tls.VersionTLS12,

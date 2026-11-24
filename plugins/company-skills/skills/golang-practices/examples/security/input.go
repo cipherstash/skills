@@ -40,9 +40,13 @@ func DecodeJSON(w http.ResponseWriter, r *http.Request, v any) error {
 		return fmt.Errorf("decode request body: %w", err)
 	}
 	// Decode reads one value and leaves the rest. Only io.EOF shows there
-	// was nothing after it.
-	if err := dec.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+	// was nothing after it. Keep any other error, such as
+	// *http.MaxBytesError, so the caller can answer 413.
+	switch err := dec.Decode(&struct{}{}); {
+	case err == nil:
 		return errors.New("decode request body: unexpected data after the JSON value")
+	case !errors.Is(err, io.EOF):
+		return fmt.Errorf("decode request body: %w", err)
 	}
 	return nil
 }

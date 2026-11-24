@@ -138,6 +138,19 @@ From [`examples/interfaces/io.go`](../examples/interfaces/io.go):
 type UpperReader struct {
 	R io.Reader
 }
+
+// Read reads from the underlying reader, then upper-cases the n bytes read.
+// It returns the underlying reader's n and error unchanged, so io.EOF and
+// short reads behave as the io.Reader contract says.
+func (u *UpperReader) Read(p []byte) (int, error) {
+	n, err := u.R.Read(p)
+	for i, b := range p[:n] {
+		if 'a' <= b && b <= 'z' {
+			p[i] = b - ('a' - 'A')
+		}
+	}
+	return n, err
+}
 ```
 
 Follow the `io.Reader` contract:
@@ -153,6 +166,14 @@ From [`examples/interfaces/io.go`](../examples/interfaces/io.go):
 type CountingWriter struct {
 	W io.Writer
 	N int64
+}
+
+// Write writes p to the underlying writer and adds the bytes it accepted,
+// which may be fewer than len(p) on error, to N.
+func (c *CountingWriter) Write(p []byte) (int, error) {
+	n, err := c.W.Write(p)
+	c.N += int64(n)
+	return n, err
 }
 ```
 

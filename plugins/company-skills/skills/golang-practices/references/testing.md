@@ -275,7 +275,7 @@ func (c *Counter) Value() int {
 
 Slow tests or tests that need outside services can sit behind a build tag.
 
-From Go 1.17, the syntax is `//go:build`. It must come before the `package` clause, with only blank lines and other `//` comments, such as a licence header, above it, and it must be followed by a blank line. Otherwise Go treats it as an ordinary comment and the constraint does nothing.
+From Go 1.17, the syntax is `//go:build`. It must come before the `package` clause, with only blank lines and other `//` comments, such as a licence header, above it. Otherwise Go treats it as an ordinary comment and the constraint does nothing. Leave a blank line after it, as `gofmt` does.
 
 A file has at most one `//go:build` line. That line combines conditions with `&&`, `||`, and `!`. The old `// +build` lines are not needed from Go 1.17. `go fix` removes them in modules that declare Go 1.18 or later.
 

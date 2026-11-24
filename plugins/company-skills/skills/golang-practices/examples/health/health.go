@@ -3,6 +3,7 @@ package health
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 )
 
@@ -23,8 +24,12 @@ func Check(ctx context.Context, client *http.Client, url string) error {
 		return fmt.Errorf("check health: %w", err)
 	}
 	defer resp.Body.Close() // read-only: a close error cannot lose data
+	// Read what is left of the body, up to a limit, so the connection goes
+	// back to the pool. Closing an unread body closes the connection.
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4<<10))
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("check health %s: status %d", url, resp.StatusCode)
+		// Redacted hides a password in the URL.
+		return fmt.Errorf("check health %s: status %d", req.URL.Redacted(), resp.StatusCode)
 	}
 	return nil
 }

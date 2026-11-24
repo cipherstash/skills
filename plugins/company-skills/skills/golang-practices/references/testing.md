@@ -30,7 +30,7 @@ The examples target Go 1.22, the `go` line in [`examples/go.mod`](../examples/go
 - Prefer a small hand-written fake to a mocking library.
 - Wait for a condition, not a fixed time. `time.Sleep` to wait for a server makes tests slow and still flaky.
 - Put the build constraint for tagged tests above the `package` clause, as `//go:build integration`, followed by a blank line.
-- A test that is missing, such as a fuzz test or a doctest-style example, is not a defect in itself. Add one when it would catch a plausible regression. The exception: a function that parses or decodes untrusted input must have a Fuzz target, as [checks.md](checks.md) says.
+- A test that is missing, such as a Fuzz target or a doctest-style example, is not a defect in itself. Add one when it would catch a plausible regression. The exception: a function that parses or decodes untrusted input must have a Fuzz target, as [checks.md](checks.md) says.
 
 ## Table-driven tests
 
@@ -350,11 +350,10 @@ Coverage shows which lines no test runs. It does not show whether the tests chec
 
 | Command | What it does |
 | --- | --- |
-| `go test -race ./...` | Run every test with the race detector |
+| [checks.md](checks.md) | The test command CI runs: every test with the race detector, writing a coverage profile |
 | `go test -run 'TestReverse/ascii' ./textutil` | Run one subtest |
 | `go test -count=1 ./...` | Run without the test cache |
 | `go test -short ./...` | Skip tests that check `testing.Short()` |
 | `go test -tags=integration ./...` | Include files behind `//go:build integration` |
 | `go test -fuzz=FuzzReverse ./textutil` | Fuzz one target in one package |
-| `go test -coverprofile=coverage.out ./...` | Write a coverage profile |
 | `go test -bench=. -benchmem ./...` | Run benchmarks; see `performance.md` |

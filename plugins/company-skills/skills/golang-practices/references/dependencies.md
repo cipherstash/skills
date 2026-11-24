@@ -98,8 +98,8 @@ Updating every dependency at once (`go get -u ./...`) changes many modules in on
 ```sh
 go get example.com/some/module@v1.5.0   # or @latest for that one module
 go mod tidy
-go build ./... && go vet ./... && go test -race ./...
-# then run govulncheck at the version pinned in checks.md
+go build ./...
+# then run the checks in checks.md, with govulncheck at its pinned version
 git diff -- go.mod go.sum                # review what else moved
 ```
 

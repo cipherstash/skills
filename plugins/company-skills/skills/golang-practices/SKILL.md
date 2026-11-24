@@ -14,7 +14,7 @@ Rules for writing Go. Apply them to every Go change, and read the reference for 
 
 - Read the `go` line in the module's `go.mod` before applying a version-sensitive rule. The references say which rules depend on it.
 - If the repository's own guidance differs from these rules, follow the repository. Say that you did.
-- The Go check suite in [references/checks.md](references/checks.md) lists the checks CI runs on every pull request. CI is the gate. Run any suite tool that helps you get a change right.
+- The Go check suite in [references/checks.md](references/checks.md) lists the checks CI runs on every pull request. Before calling a change done, run any suite tool that helps you get it right. CI is the gate.
 - Format with `gofumpt`, through the suite.
 
 ### Errors

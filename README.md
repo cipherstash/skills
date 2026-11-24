@@ -167,7 +167,7 @@ Each skill is authored once under `plugins/company-skills/skills/`. The portable
 | `rust-security` | Rules for Rust code that handles secrets, cryptography, and authentication | Automatic while writing Rust that touches secrets |
 | `rust-testing` | Conventions for Rust tests: nextest, scenario modules, fake data, mocktail, paused time | Automatic while writing Rust tests |
 | `golang-practices` | Conventions for writing Go: errors, concurrency, naming, interfaces, generics, testing, project structure, security, performance, dependencies and embedding wazero, with examples that compile and pass the race detector | Automatic while writing Go |
-| `golang-review` | Review a Go change for error handling and concurrency defects, with `go vet` and race-enabled tests as evidence, ending in a verdict | Explicit or automatic |
+| `golang-review` | Review a Go change against a ten-area checklist, from error handling and concurrency to security, dependencies and breaking changes, with `go vet`, race-enabled tests with coverage, `gofmt`, `go mod tidy -diff` and an exported-API comparison as evidence, ending in a verdict | Explicit or automatic |
 | `filing-github-issues` | Draft and file well-structured GitHub issues on CipherStash repos | Explicit or automatic |
 | `authoring-pull-requests` | Branch, commit, and open draft pull requests with a consistent structure | Explicit or automatic |
 | `plain-language` | Write, rewrite, and review prose in plain language (ISO 24495 and GOV.UK), with a bundled checker | Explicit or automatic |

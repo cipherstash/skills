@@ -26,3 +26,12 @@ func TestSummariseRejectsABadRecord(t *testing.T) {
 		t.Fatal("Summarise accepted a record whose quantity is not a number")
 	}
 }
+
+func TestSummaryEmpty(t *testing.T) {
+	if !(Summary{}).Empty() {
+		t.Error("Summary{}.Empty() = false, want true")
+	}
+	if (Summary{Lines: 1}).Empty() {
+		t.Error("Summary{Lines: 1}.Empty() = true, want false")
+	}
+}

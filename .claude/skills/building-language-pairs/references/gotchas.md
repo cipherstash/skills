@@ -9,10 +9,10 @@ Plan for these up front. Items marked **criterion** belong in the acceptance cri
 
 ## The stack
 
-- **Merge, never rebase.** Fixes move through the stack by merging the fixed branch into every branch that contains it. The same files conflict again and again. On Go these were the references' Rules sections, the example checker's fence regex, `golang-review`'s SKILL.md and references, CONTRIBUTING.md, and README.md. Keep both sides, then rerun the checks.
+- **Merge, never rebase.** Fixes move through the stack by merging the fixed branch into every branch stacked on it. The same files conflict again and again. On Go these were the references' Rules sections, the example checker's fence regex, `golang-review`'s SKILL.md and references, CONTRIBUTING.md, and README.md. Keep both sides, then rerun the checks.
 - **Fix where the line was added.** Run `git blame` on the line and fix it on the branch whose commit added it, then merge up. That branch may differ from the one where the file first appeared.
 - **Review the stack tip for security before the release.** Before opening the release ticket PR, run a security review on the tip of the stack. On Go it found ways for the change under review to run code. The per-PR reviews had missed them.
-- **Retarget as the stack merges.** When the person merges a PR into the integration branch, retarget every PR based on its branch to the integration branch. When ticket 1 merges, that is the PRs for tickets 2 and 3. Until ticket 2 merges, ticket 4's diff also shows ticket 2's changes, so review only ticket 4's own commits. Go never reached this point, so treat it as untested.
+- **Check the base branch right before each merge.** When a PR merges into the integration branch, change the base branch of every PR based on its branch to the integration branch. When ticket 1 merges, that is the PRs for tickets 2 and 3. GitHub usually changes the base itself, but not at once. On Go, #78 merged into #75's branch 23 seconds after #75 merged, before its base changed, and #91 had to carry it across. Until ticket 2 merges, ticket 4's diff also shows ticket 2's changes, so review only ticket 4's own commits.
 
 ## Examples
 
@@ -42,4 +42,4 @@ Plan for these up front. Items marked **criterion** belong in the acceptance cri
 - **Run repository commands in the checkout.** In a project thread the shell starts in `/home/user`, not the repository, so the repository's slash commands fail there. Change into the checkout first.
 
 - **Dependency plugins block a local load.** `claude -p --plugin-dir plugins/company-skills` loads no skills unless every dependency plugin is installed. Test from a scratch copy of the plugin with `dependencies` removed from its manifest.
-- **Codex may be missing.** Run the Codex cases yourself when the runner has a working Codex CLI. Cloud sessions usually have none. Then ask the person to run them, and record their results in the release ticket PR body. For Go, a maintainer ran them, and their results are in #71's body.
+- **Codex may be missing.** Run the Codex cases yourself when the runner has a working Codex CLI. Cloud sessions usually have none. Then ask the person to run them, and record their results in the release ticket PR body. For Go, a maintainer ran only the `golang-review` cases, and the results went in #71's body by exception. Record new results for both skills in the release ticket PR body.

@@ -7,7 +7,7 @@ description: Builds a language's skill pair in this repository, `<lang>-practice
 
 This skill is the process. The rules a pair must meet live in the **Language skills** section of [CONTRIBUTING.md](../../../CONTRIBUTING.md#language-skills). Read that section before step 1, and check every change against it.
 
-The Go pair is the worked example to copy: spec #56, tickets #57 to #62, PRs #70 to #75, and the skills `golang-practices` and `golang-review`. Go stacked each PR on the one before, and its PR to `main` was not open when this skill was written. Steps 6 and 11 are the intended flow, not yet a tested one.
+The Go pair is the worked example to copy: spec #56, tickets #57 to #62, PRs #70 to #75, and the skills `golang-practices` and `golang-review`. Go stacked each PR on the one before, and its PR to `main` was not open when this skill was written. Step 11 is the intended flow, not yet a tested one. Go's references and spec predate the examples-list and reference-length rules in CONTRIBUTING.md, so follow those rules, not Go's sizes.
 
 The work has two phases with a person between them. **Design** turns a high-level language ticket, such as #64 for Python, into an audit and buildable tickets, then stops. Design may start on a parent ticket labelled `ready-for-human`, because it ends in a proposal for the person. **Build** turns approved tickets into a stack of draft PRs and a PR to `main`.
 
@@ -61,7 +61,7 @@ When the person starts an unattended run of this skill, that approves commits an
 
 8. **Review each PR independently.** The author of a PR does not review it. A separate agent or session reviews it against its ticket with `code-review`. Without subagents, start a fresh session for the review. Then work the findings with `review-fix`, red first. When a person or bot review lands later, run `review-audit`, then `review-fix`. Done when no finding is open, or each open one is reported to the person with the reason.
 
-9. **Merge fixes through the stack.** After any push to a branch, merge it into every branch that contains it, in stack order. Rerun the checks on each. Done when every branch that contains the fixed one has the fix and passes its checks.
+9. **Merge fixes through the stack.** After any push to a branch, merge it into every branch stacked on it, in stack order. Rerun the checks on each. Done when every branch stacked on the fixed one has the fix and passes its checks.
 
 10. **Test on both hosts.** Run both skills' behaviour cases in Claude Code and in Codex, and run the review skill against its seeded-defect fixture. Give the reviewing agent a copy of the change without the skill's `tests/` folder, so it cannot read the expected findings. Compare the fixture review with `expected-findings.md`. Check that each run lists the references and step files it read. Record the host, version, and observed result for each case in the release ticket PR body. Fix a trigger miss in the skill's `description`, and add a behaviour case only when none covers the request. Fix a wrong finding red first. A host you cannot run is reported to the person by name. Done when every case has a recorded result on both hosts, or the missing host is reported.
 

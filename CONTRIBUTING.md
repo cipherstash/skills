@@ -46,7 +46,9 @@ A programming language gets a pair of skills with the language as the shared pre
 
 To build a new pair, follow the [`building-language-pairs`](.claude/skills/building-language-pairs/SKILL.md) project skill. It takes a language ticket through an audit and tickets to the main PR.
 
-Rust already has convention skills: `rust-sdk-dx`, `rust-security`, and `rust-testing`. Go is the first language pair, and Rust follows it. What the Go pair settles decides how far those three skills are refactored: whether they move under a `rust-practices` skill with an `examples/` module and script test, or stay as they are. The Rust design (#63) sets that scope once the Go pair is released. Until then, Rust is exempt from the practices-skill rules below, and a `rust-review` skill may read the three skills as they are. The exemption ends when a `rust-practices` skill is added.
+Rust already has convention skills: `rust-sdk-dx`, `rust-security`, and `rust-testing`. Go is the first language pair, and Rust follows it. What the Go pair settles decides how far those three skills are refactored. They may move under a `rust-practices` skill with an `examples/` module and script test, or stay as they are. The Rust design (#63) sets that scope once the Go pair is released.
+
+Until then, Rust is exempt from the practices-skill rules below, and a `rust-review` skill may read the three skills as they are. The exemption ends when a `rust-practices` skill is added.
 
 Any other language that already has convention skills needs a decision like this before you build its pair.
 
@@ -59,6 +61,7 @@ Any other language that already has convention skills needs a decision like this
 - Keep reference examples as real source that CI builds and tests. Put them in a small module under the practices skill's `examples/`, with tests. Quote each code block in a reference word for word from that source, with a link to the file on the line before it.
 - Keep each example to the smallest code that shows one rule the reference states. Where prose can state the rule, write no code. Add no features, error paths, or tests beyond what shows the example works. The pair's spec lists the examples each reference needs, and a reviewer flags any example not on that list.
 - Aim to keep each reference under 100 lines. The spec names any reference planned to run longer, and why.
+- The examples-list and reference-length rules start with the next pair. Go's references and spec #56 predate them, so do not copy Go's sizes.
 - Add a script test to the practices skill that runs the language's checks over the examples. For Go, these are `go vet`, `gofmt`, and `go test -race`. The test also checks that every quoted block matches its source. CI runs it with the other skill script tests, so install the language's toolchain in the validate workflow.
 - State in each reference the language version its examples target.
 - Include a seeded-defect fixture in the review skill, under `tests/fixtures/`. The fixture is a small change, as a `base/` tree and a `head/` tree, with one planted defect for each area the skill covers. The fixture's `expected-findings.md` lists the findings a correct review must report.

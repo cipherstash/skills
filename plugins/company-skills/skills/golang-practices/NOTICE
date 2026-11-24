@@ -94,8 +94,8 @@ CipherStash made these changes:
     that reports every problem and keeps secrets out of errors;
   - "go get -u ./..." as a routine update and the Makefile are dropped;
   - naming conventions for packages, identifiers and receivers are added.
-- references/security.md, references/performance.md and
-  references/dependencies.md are new.
+- references/security.md, references/performance.md,
+  references/dependencies.md and references/wazero.md are new.
 - SKILL.md is new: a rule list and an index of references. Its rule
   groups draw on the upstream SKILL.md constraints list. The upstream
   frontmatter metadata, persona line, workflow, output template and list of

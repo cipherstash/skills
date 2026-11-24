@@ -1,6 +1,6 @@
 ---
 name: golang-practices
-description: Applies CipherStash conventions for writing Go — error handling, concurrency and context, naming, interfaces, generics, tests, project layout and modules, security, performance, and dependencies. Use when writing or changing Go code (.go files, Go tests, go.mod), such as adding a goroutine, error type, interface, generic function, test, package, or dependency. Does not apply to other languages, or to reviewing a Go change, which golang-review does using this skill's references.
+description: Applies CipherStash conventions for writing Go — error handling, concurrency and context, naming, interfaces, generics, tests, project layout and modules, security, performance, dependencies, and embedding the wazero WebAssembly runtime. Use when writing or changing Go code (.go files, Go tests, go.mod), such as adding a goroutine, error type, interface, generic function, test, package, dependency, or wazero host function. Does not apply to other languages, or to reviewing a Go change, which golang-review does using this skill's references.
 user-invocable: false
 ---
 
@@ -74,6 +74,15 @@ Rules for writing Go. Apply them to every Go change, and read the reference for 
 - Prefer the standard library. Run `go mod tidy` after changing imports, and commit `go.mod` and `go.sum` together.
 - Update one dependency at a time to a chosen version, and test after each. Do not run `go get -u ./...` as a routine step.
 
+### wazero
+
+- A host function returns an expected failure to the guest. It never panics for one. Replace an instance after a trap.
+- Call into one module from one goroutine at a time, or give each goroutine its own instance. `Close` takes the same lock as the calls.
+- Copy bytes out of a `Memory().Read` view before anything else runs on the instance.
+- In production, set `WithRandSource(rand.Reader)` and the real clocks on the module config.
+- With `WithCloseOnContextDone(true)`, a cancel closes the module. Build a new instance for the next call.
+- A custom `MemoryAllocator` must follow sections 9 and 10 of the wazero reference: when to free the memory, and the cleanup order after a cancel.
+
 ## References
 
 Read the reference for each area the change touches. Each one states the Go version its examples target. Its examples are quoted from the [examples module](examples/go.mod), where they compile and pass their tests.
@@ -89,3 +98,4 @@ Read the reference for each area the change touches. Each one states the Go vers
 | [references/security.md](references/security.md) | TLS clients or servers, secrets and credentials, SQL, file paths, request bodies, HTML, shell commands, tokens and random values, security linters |
 | [references/performance.md](references/performance.md) | Code on a hot path, slice and map sizing, string building, allocation, benchmarks, profiling |
 | [references/dependencies.md](references/dependencies.md) | Adding, updating or removing a module, `go mod tidy`, vulnerability checks, outdated dependencies, major versions, raising the `go` line |
+| [references/wazero.md](references/wazero.md) | Code that imports `github.com/tetratelabs/wazero`: host functions, sharing or closing a module, context cancellation, reading and freeing guest memory, the module config, custom memory allocators |

@@ -72,7 +72,7 @@ go list -m all           # every module in the build, with its version
 CI runs it on every pull request at a pinned version, as [`checks.md`](checks.md) shows. To see a report before pushing:
 
 ```sh
-go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+go run golang.org/x/vuln/cmd/govulncheck@v1.10.0 ./...
 ```
 
 For each reported vulnerability:

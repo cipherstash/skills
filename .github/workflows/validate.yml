@@ -44,20 +44,21 @@ jobs:
         working-directory: plugins/company-skills/skills/golang-practices/examples
     steps:
       - uses: actions/checkout@v4
-      # The latest stable Go, so govulncheck sees a standard library with
-      # every released security fix.
+      # The latest patch of Go 1.26, so govulncheck sees a standard library
+      # with every released security fix. Raise the minor version when
+      # golangci-lint supports the next Go release.
       - uses: actions/setup-go@v5
         with:
-          go-version: stable
+          go-version: "1.26"
           check-latest: true
           cache: false
       - uses: golangci/golangci-lint-action@v8
         with:
-          version: v2.5.0
+          version: v2.15.0
           working-directory: plugins/company-skills/skills/golang-practices/examples
           args: --config ../assets/golangci.yml --build-tags integration
       - run: golangci-lint fmt --config ../assets/golangci.yml --diff ./...
-      - run: go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+      - run: go run golang.org/x/vuln/cmd/govulncheck@v1.10.0 ./...
       - run: go test -race -tags integration -coverprofile=cover.out ./...
       - run: go tool cover -func=cover.out
 

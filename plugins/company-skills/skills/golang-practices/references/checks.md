@@ -32,7 +32,7 @@ A check is in place when a GitHub Actions workflow step runs it, and the step:
 - runs on `pull_request`. A check that runs only on pushes to the main branch does not count.
 - blocks: no `continue-on-error: true`, and no `|| true` or other way of ignoring its exit status.
 - covers every Go module in the repository, including each module in a `go.work` workspace.
-- pins the tool's version, such as `version: v2.5.0` for `golangci-lint-action`, or `@v1.1.4` for `go run`. `@latest` does not count. In a module whose `go` line is 1.24 or later, a `tool` directive in `go.mod` run with `go tool` also counts as pinned.
+- pins the tool's version, such as `version: v2.15.0` for `golangci-lint-action`, or `@v1.10.0` for `go run`. `@latest` does not count. In a module whose `go` line is 1.24 or later, a `tool` directive in `go.mod` run with `go tool` also counts as pinned.
 
 Race-enabled tests are in place only in a job on Linux with `CGO_ENABLED=1`, because `-race` needs cgo. A repository whose test job sets `CGO_ENABLED=0`, for a static build for example, needs a second test job for `-race`.
 
@@ -54,7 +54,7 @@ A function that parses or decodes bytes from outside the process has a fuzz targ
 
 ## Workflow
 
-A job that runs the suite on a module in the repository root. Pin each tool's version, and keep them current with Dependabot or Renovate. `go-version-file` takes the `toolchain` line in `go.mod`, or the `go` line when there is none. Keep that toolchain on a current patch release: `govulncheck` fails on every standard-library vulnerability fixed in a later one.
+A job that runs the suite on a module in the repository root. Pin each tool's version, and keep them current with Dependabot or Renovate. `go-version-file` takes the `toolchain` line in `go.mod`, or the `go` line when there is none. Keep that toolchain on a current patch release: `govulncheck` fails on every standard-library vulnerability fixed in a later one. Keep it no newer than golangci-lint supports, too: a golangci-lint built with an older Go cannot read the newer standard library and fails with `export data version ... is greater than maximum supported`.
 
 ```yaml
 on: [pull_request]
@@ -71,9 +71,9 @@ jobs:
           go-version-file: go.mod
       - uses: golangci/golangci-lint-action@v8
         with:
-          version: v2.5.0
+          version: v2.15.0
       - run: golangci-lint fmt --diff ./...
-      - run: go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+      - run: go run golang.org/x/vuln/cmd/govulncheck@v1.10.0 ./...
       - run: go test -race -coverprofile=cover.out ./...
       - run: go tool cover -func=cover.out
   semgrep:

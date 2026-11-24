@@ -26,12 +26,13 @@ For each finding that depends on input, trace where the value comes from: a requ
 
 ## Evidence and tools
 
-Most findings here come from reading. Tools add evidence when they are installed, as `checks.md` describes:
+Most findings here come from reading. CI's results add evidence, as `checks.md` describes:
 
-- `gosec ./<packages>`, or `golangci-lint run` with `gosec` enabled when the base commit's config turns it on, as `checks.md` runs it. These gosec rules map to this area: G101 credentials, G112 server timeouts, G201 SQL, G202 SQL, G304 file paths, G402 TLS, and G404 weak random. G201 and G202 look only at the query argument of a `database/sql` call such as `Query` or `Exec`. They miss a function that builds the query and returns it. Only reading finds such a function. Quote the rule ID with the finding. A `#nosec` or `//nolint:gosec` comment with a valid reason is not a finding.
-- `go vet` finds none of these. A clean vet says nothing about security.
+- gosec, through CI's lint check. These gosec rules map to this area: G101 credentials, G112 server timeouts, G201 SQL, G202 SQL, G304 file paths, G402 TLS, and G404 weak random. G201 and G202 look only at the query argument of a `database/sql` call such as `Query` or `Exec`. They miss a function that builds the query and returns it. Only reading finds such a function. Quote the rule ID with the finding. A `#nosec` or `//nolint:gosec` comment with a valid reason is not a finding.
+- semgrep, through CI's pattern scan: quote the rule ID with the finding.
+- govet finds none of these. A clean lint says nothing about security.
 
-If no security linter is installed, record it under checks as not run and review by reading.
+Without CI results for the head, record them as not run and review by reading.
 
 ## Severity
 

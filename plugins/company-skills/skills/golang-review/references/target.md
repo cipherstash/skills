@@ -1,6 +1,6 @@
 # Resolving the target and preparing the tree
 
-Read this in steps 1 and 2: how each kind of target becomes a base and a head, what to do when there is none, and how to build and remove the temporary worktree the checks run in.
+Read this in steps 1 and 2: how each kind of target becomes a base and a head, what to do when there is none, and how to build and remove the temporary worktree the probes run in.
 
 ## Contents
 
@@ -49,7 +49,7 @@ Resolve each name with `git rev-parse --verify <name>^{commit}`. A name that doe
 ## Diff
 
 - **Uncommitted changes** ("my changes", "what I have here"): the base is `HEAD`, the changes are `git diff HEAD` plus untracked files from `git ls-files --others --exclude-standard`. The reviewed state is a snapshot.
-- **A patch file or pasted diff**: review the patch as the change. To run checks, find the commit it applies to: the commit the user names, or `HEAD`. In the temporary worktree at that commit, run `GIT_LFS_SKIP_SMUDGE=1 git -c core.hooksPath=/dev/null apply --check` and then the same without `--check`. If it does not apply cleanly, review the patch by reading alone and record that no checks could run as a limit.
+- **A patch file or pasted diff**: review the patch as the change. To run the probes, find the commit it applies to: the commit the user names, or `HEAD`. In the temporary worktree at that commit, run `GIT_LFS_SKIP_SMUDGE=1 git -c core.hooksPath=/dev/null apply --check` and then the same without `--check`. If it does not apply cleanly, review the patch by reading alone and record that no probes could run as a limit.
 
 ## No target named
 
@@ -70,11 +70,11 @@ Outside a git repository, with no PR URL or diff given, the report says that too
 
 ## The temporary worktree
 
-Checks run in a worktree made with `git worktree add`, so that the user's working tree, index, and branch stay as they were. A `git archive` export, a copy of the files, or a checkout in the user's tree is not a substitute. An archive leaves out files marked `export-ignore` and rewrites `export-subst` ones. The checks would then not run on the reviewed commit. A checkout in the user's tree would change it.
+Probes run in a worktree made with `git worktree add`, so that the user's working tree, index, and branch stay as they were. A `git archive` export, a copy of the files, or a checkout in the user's tree is not a substitute. An archive leaves out files marked `export-ignore` and rewrites `export-subst` ones. The probes would then not run on the reviewed commit. A checkout in the user's tree would change it.
 
-The worktree is not a sandbox. Code that runs in it, such as a test, runs as the user and can write anywhere the user can. Writable places include the main repository's `.git` directory, named in the worktree's `.git` file. Reading the code first, and the rules in `checks.md` on when tests run, are what protect the user.
+The worktree is not a sandbox. Code that ran in it would run as the user and could write anywhere the user can. Writable places include the main repository's `.git` directory, named in the worktree's `.git` file. The rule in `checks.md` that the review links and runs none of the change's code is what protects the user.
 
-Checking out the change's code must run none of it. Run every git command that checks out or updates files in the worktree (`worktree add`, and `apply` in it) with `GIT_LFS_SKIP_SMUDGE=1 git -c core.hooksPath=/dev/null …`. Without them, `worktree add` runs the repository's `post-checkout` hook, and any hook manager it starts, before the change has been read, and Git LFS downloads large files over the network. Files stored in LFS stay as pointer files; a test that loads one fails, which is a limit, not a finding.
+Checking out the change's code must run none of it. Run every git command that checks out or updates files in the worktree (`worktree add`, and `apply` in it) with `GIT_LFS_SKIP_SMUDGE=1 git -c core.hooksPath=/dev/null …`. Without them, `worktree add` runs the repository's `post-checkout` hook, and any hook manager it starts, before the change has been read, and Git LFS downloads large files over the network. Files stored in LFS stay as pointer files.
 
 1. Record `git status --porcelain` for the user's tree.
 2. Choose a directory outside the repository: the host's scratch directory, or one from `mktemp -d`.

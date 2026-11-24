@@ -23,14 +23,14 @@ Report text the change makes wrong:
 
 - a doc comment on a changed function that no longer matches what it does, its parameters, its errors, or its concurrency safety;
 - README, `doc.go`, or other documentation in the repository that describes the changed behaviour, flags, configuration, or API as it was before the change. Search the repository's Markdown files and doc comments for the changed identifiers, flags, and settings by name;
-- a testable example (`ExampleX`) whose `// Output:` the change makes wrong. The test run shows that as a failure.
+- a testable example (`ExampleX`) whose `// Output:` the change makes wrong. CI's test run shows that as a failure.
 
 A stale comment is a finding when a reader would be misled: quote the stale text and the line that contradicts it. When the stale text describes a defect another step reports, mention it there instead.
 
 ## Evidence
 
 - `go doc -all <package>` in the temporary worktree prints each exported identifier with its comment. An identifier with no indented text under it has none. It runs no code.
-- `staticcheck`, when installed, does not report missing comments by default. `golangci-lint` with `revive`'s `exported` rule does, where the base commit's config turns it on, as `checks.md` runs it.
+- CI's lint does not report missing comments with the suite's config. A repository config that adds `revive`'s `exported` rule does: quote CI's output, as `checks.md` describes.
 - Reading the diff and searching the repository's documentation.
 
 ## Not a finding

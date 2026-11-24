@@ -19,17 +19,17 @@ Report a test the change deletes or weakens, such as a removed case or a loosene
 
 ## The race detector
 
-Tests run with `-race`, as `checks.md` sets out. The run is shared with the concurrency step. A race-enabled pass covers only the paths the tests ran. When the change adds concurrent code that no test runs concurrently, say so here: the race detector cannot see it.
+CI runs the tests with `-race`, and the review reads that result, as `checks.md` sets out. The result is shared with the concurrency step. A race-enabled pass covers only the paths the tests ran. When the change adds concurrent code that no test runs concurrently, say so here: the race detector cannot see it.
 
 ## Coverage figure and untested functions
 
-`checks.md` runs the tests with `-coverprofile` into a file in a temporary directory outside the repository, then `go tool cover -func=<file>`. From that output, report:
+CI's coverage report is `go tool cover -func` output for the profile its race-enabled tests wrote. From that output, report:
 
 - the total, from its `total:` line, as the coverage figure, with the packages it covers;
 - every function in a changed file at `0.0%`, by name and `file:line`, which is the first line of the function;
-- for a changed function that is partly covered, whether the changed lines are among those run, when that matters to a finding. `go tool cover -html` shows this, but it opens a browser: read the profile's lines for that file instead, where each block ends with a count of `0` when it never ran.
+- for a changed function that is partly covered, whether the changed lines are among those run, when that matters to a finding and CI publishes the profile.
 
-A profile is still written when tests fail, so the figure stands with the failure noted beside it. If the tests were not run, the coverage figure is a limit: write `not run` and the reason. Coverage is a figure, not a verdict: a percentage below some target is not a finding.
+Without a CI coverage report for the head, the coverage figure is a limit: write `not run` and the reason, and find untested code by reading: search the tests for calls to each changed function. Coverage is a figure, not a verdict: a percentage below some target is not a finding.
 
 ## Tests that cannot fail
 
@@ -43,9 +43,9 @@ Report a test the change adds that cannot fail for the defect it names:
 
 ## Evidence
 
-- The coverage profile and `go tool cover -func` output: quote the lines for the functions you name.
+- CI's coverage report: quote the lines for the functions you name, or the search that found no test calling a function.
 - The diff of the test files: quote a deleted case or a weakened assertion.
-- To show that a test cannot fail, you may break the code in the temporary worktree and run the test, then put the code back, as `checks.md` describes. Say that you did.
+- To show that a test cannot fail, name the change to the code that it would still pass, such as a `Backoff` that stopped capping the delay. The review does not make that change or run the test.
 
 ## Not a finding
 

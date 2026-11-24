@@ -29,16 +29,9 @@ With an older local toolchain, `go mod tidy -diff` does not exist. Record the ti
 
 ## Known vulnerabilities
 
-`govulncheck` checks the module's dependencies and the standard library against the Go vulnerability database, which it reads over the network from `vuln.go.dev`. The review fetches nothing unasked, so `checks.md` runs it only when:
+CI runs `govulncheck` as part of the Go check suite; the review never runs it. Read its result for the head as `checks.md` describes. When it failed, report each vulnerability in a function the code calls as a finding, with its ID, the module and version, the "Fixed in" version, and the call path it prints. Vulnerabilities only in imported packages or required modules, which the code does not call, go under the checks as context. A standard-library vulnerability fixed in a newer Go than the local toolchain is caused by the build's toolchain, not by the change, unless the change lowers the `toolchain` line: report it under the checks.
 
-- it is already installed (`command -v govulncheck`), and
-- the user has allowed network access for this review, or a local copy of the database is available to pass as `-db file:///<path>`.
-
-Otherwise record it as not run, with the reason, and the command the user can run: `govulncheck ./...`. Never install it, or run it with `go run ...@latest`, which downloads it.
-
-When it runs, report each vulnerability in a function the code calls as a finding, with its ID, the module and version, the "Fixed in" version, and the call path it prints. Vulnerabilities only in imported packages or required modules, which the code does not call, go under the checks as context. A standard-library vulnerability fixed in a newer Go than the local toolchain is caused by the build's toolchain, not by the change, unless the change lowers the `toolchain` line: report it under the checks.
-
-Without `govulncheck`, review a change that adds or updates a dependency by reading: name the module and version, and say the vulnerability check is a limit.
+Without a CI `govulncheck` result for the head, review a change that adds or updates a dependency by reading: name the module and version, and say the vulnerability check is a limit.
 
 ## Severity
 

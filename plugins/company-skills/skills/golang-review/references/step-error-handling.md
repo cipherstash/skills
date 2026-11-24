@@ -41,7 +41,7 @@ The practices reference also covers these. Report them when the change introduce
 
 ## Evidence
 
-No standard tool finds every ignored error. Most findings in this area come from reading the change, so quote the line and the code path that shows the consequence. `go vet` helps in a few places: misused `%w` in `fmt.Errorf`, and `errors.As` given a non-pointer. Cite its output when it reports one. Run `errcheck` or `staticcheck` only if already installed.
+No standard tool finds every ignored error. Most findings in this area come from reading the change, so quote the line and the code path that shows the consequence. CI's lint helps: govet reports misused `%w` in `fmt.Errorf` and `errors.As` given a non-pointer, and errcheck reports unchecked errors. Cite CI's output when it reports one, as `checks.md` describes.
 
 ## Version-sensitive rules
 

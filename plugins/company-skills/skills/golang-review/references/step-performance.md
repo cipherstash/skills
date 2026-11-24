@@ -29,8 +29,8 @@ State why the code runs often: it is in a loop over records or requests, a doc c
 ## Evidence
 
 - Reading: quote the line and the loop or caller that makes it hot.
-- A benchmark or allocation count, where cheap: you may add a benchmark or a `testing.AllocsPerRun` test in the temporary worktree, as `checks.md` describes, and quote its numbers. Say that it was written for the review. Run benchmarks only with a short `-benchtime`, such as `-benchtime=100x`.
-- `go build -gcflags=-m <package>` prints escape analysis. It compiles and runs nothing of the change, so it is safe; quote the line for the value in question.
+- A benchmark or allocation count from the repository's own results, when the change or its pull request includes them. The review runs no benchmark; to ask for one, name it in the fix.
+- `go build -gcflags=-m <package>`, the escape-analysis probe in `checks.md`. It compiles and runs nothing of the change; quote the line for the value in question.
 
 ## Severity
 

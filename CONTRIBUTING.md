@@ -60,8 +60,9 @@ Any other language that already has convention skills needs a decision like this
 - Report each finding with a severity of `critical`, `major`, or `minor`. Those are the values `review-cross-check`, `review-post`, and `review-fix` take unchanged. Copy their meanings from the [Finding contract](plugins/company-skills/skills/golang-review/SKILL.md#finding-contract) in `golang-review`. Change only the Go-specific examples. Do not paraphrase them.
 - End the review report with a verdict of `APPROVE` or `REQUEST_CHANGES`. The verdict stays in the report: the review skill never submits an approving or blocking review on GitHub.
 - Keep the review skill read-only. `review-fix` fixes findings and `review-post` posts them, so the review skill does neither. Write the review steps to run in sequence, so the skill works on hosts without subagents.
-- Run the checks in a temporary worktree. The checkout must run none of the change. The review must remove the worktree on every exit. The review must never remove the records of the user's other worktrees. Copy the steps from `golang-review`'s [target.md](plugins/company-skills/skills/golang-review/references/target.md#the-temporary-worktree).
-- Read all the changed code the tests will run before you run them. If that code does more than the change needs, record the tests as not run and say why. Copy the steps from `golang-review`'s [checks.md](plugins/company-skills/skills/golang-review/references/checks.md#before-running-tests).
+- Agents run none of the language's check suite: CI runs it, the practices skill lists it, and the review skill quotes CI's results and reports any suite check the repository's CI is missing. See [ADR 0001](docs/adr/0001-ci-runs-the-go-check-suite.md).
+- Run the review's read-only probes in a temporary worktree. The checkout must run none of the change. The review must remove the worktree on every exit. The review must never remove the records of the user's other worktrees. Copy the steps from `golang-review`'s [target.md](plugins/company-skills/skills/golang-review/references/target.md#the-temporary-worktree).
+- Run no probe that links or runs the change's code. Copy the list from `golang-review`'s [checks.md](plugins/company-skills/skills/golang-review/references/checks.md#the-probes).
 
 ### Taking in upstream material
 

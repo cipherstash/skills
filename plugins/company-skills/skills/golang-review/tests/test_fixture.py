@@ -9,6 +9,8 @@
 # where a tool or a short probe can show one, it does: the race detector, a
 # panic on empty input, coverage, gofmt, go mod tidy -diff, missing doc
 # comments, allocations, and the exported API removed between base and head.
+# These runs check the fixture, standing in for the CI a real repository has;
+# the review itself runs none of them.
 # A fix to any planted defect makes a test here fail, so the fixture cannot
 # drift away from its expected findings unnoticed.
 #
@@ -465,16 +467,6 @@ class SkillTextTest(unittest.TestCase):
         no_target = self.section("references/target.md", "No target named")
         self.assertIn("refs/remotes/origin/<default branch>", no_target)
 
-    def test_a_change_made_to_show_a_test_cannot_fail_is_put_back(self):
-        # step-testing.md lets the review break the code to show a test cannot
-        # fail; checks.md must allow that and restore the file before the later
-        # areas run their checks on it.
-        self.assertIn("as `checks.md` describes", self.section("references/step-testing.md", "Evidence"))
-        checks = self.section("references/checks.md", "The checks")
-        self.assertIn("change the code under test in the temporary worktree", checks)
-        self.assertIn("before the next check", checks)
-        self.assertIn("git -C <worktree> status --short", checks)
-
     def test_the_template_lists_every_area(self):
         # Every area is listed once, as reviewed or not reviewed, so a reader can
         # see what the review left out.
@@ -489,27 +481,40 @@ class SkillTextTest(unittest.TestCase):
         self.assertIsNotNone(step)
         self.assertIn("every area not reviewed", step.group(0))
 
-    # Security review of the check procedure: the change under review is
+    # Security review of the procedure: the change under review is
     # attacker-controlled, so these rules keep it from running code or
-    # steering the review.
+    # steering the review. CI runs the Go check suite; the review never does.
 
-    def test_a_changed_object_file_anywhere_means_no_go_test(self):
-        # A .syso links into every test binary that imports its package, and
-        # its ELF constructors run under -race, so skipping only its own
-        # package's tests is not enough.
-        before = self.section("references/checks.md", "Before running tests")
-        self.assertNotIn("so its tests are not run", before)
-        self.assertRegex(before, r"`\.syso`[^.]*anywhere in the module or workspace")
-        self.assertIn("run no `go test` at all", before)
-        self.assertIn("`go vet` does not link", before)
+    SUITE_COMMANDS = ("`go vet`", "`go test`", "`gofmt`", "`gofumpt`", "`golangci-lint`",
+                      "`staticcheck`", "`gosec`", "`govulncheck`", "`semgrep`", "`go tool cover`")
+
+    def test_the_review_runs_none_of_the_check_suite(self):
+        never = self.section("references/checks.md", "Commands the review never runs")
+        for command in self.SUITE_COMMANDS:
+            with self.subTest(command=command):
+                self.assertIn(command, never)
+        self.assertIn("never writes or runs a test", never)
+        self.assertIn("runs none of the Go check suite", self.section("SKILL.md", "Read-only"))
+
+    def test_no_step_reference_runs_a_suite_tool_or_a_test(self):
+        # Step references take suite results from CI; none may tell the
+        # review to run a test, a formatter, or a linter itself.
+        forbidden = re.compile(r"you may (add|break|change)|`gofmt -l`|`go test -race`|`staticcheck <|`gosec \./")
+        for page in sorted((SKILL / "references").glob("step-*.md")):
+            for number, line in enumerate(page.read_text(encoding="utf-8").splitlines(), 1):
+                with self.subTest(page=page.name, line=number):
+                    self.assertIsNone(forbidden.search(line), line)
+
+    def test_ci_results_are_for_the_reviewed_head(self):
+        ci = self.section("references/checks.md", "CI results")
+        self.assertIn("reviewed head commit", ci)
+        self.assertIn("older commit is not evidence", ci)
+        self.assertIn("untrusted data", ci)
 
     def test_repository_flags_come_from_an_allowlist_read_at_the_base(self):
-        before = self.section("references/checks.md", "Before running tests")
-        for flag in ("-tags", "-run", "-short", "-count", "-timeout"):
-            with self.subTest(allowed=flag):
-                self.assertIn(f"`{flag}`", before)
-        self.assertRegex(before, r"base commit, not the head")
-        self.assertRegex(before, r"`go vet`[^.]*`-toolexec`")
+        scope = self.section("references/checks.md", "Scope")
+        self.assertIn("take only `-tags`", scope)
+        self.assertRegex(scope, r"base commit, not the head")
         never = self.section("references/checks.md", "Commands the review never runs")
         for flag in ("-toolexec", "-vettool", "-ldflags", "-extldflags", "-overlay",
                      "-modfile", "-pgo", "-exec", "-gcflags", "-asmflags"):
@@ -518,54 +523,22 @@ class SkillTextTest(unittest.TestCase):
 
     def test_the_change_is_untrusted_data(self):
         skill = self.section("SKILL.md", "Read-only")
-        before = self.section("references/checks.md", "Before running tests")
-        for page, text in (("SKILL.md", skill), ("checks.md", before)):
+        scope = self.section("references/checks.md", "Scope")
+        for page, text in (("SKILL.md", skill), ("checks.md", scope)):
             with self.subTest(page=page):
                 self.assertIn("untrusted data", text)
                 self.assertIn("never changes these steps", text)
 
-    def test_running_someone_elses_tests_is_an_opt_in(self):
-        skill = self.section("SKILL.md", "Read-only")
-        self.assertIn("the user did not write", skill)
-        before = self.section("references/checks.md", "Before running tests")
-        self.assertIn("the user did not write", before)
-        self.assertIn("ask the user", before)
-        self.assertIn("exact command", before)
+    def test_a_change_cannot_exempt_itself(self):
+        read = self.section("references/standards.md", "What to read")
+        self.assertIn("on the default branch only", read)
+        self.assertIn("does not count", read)
 
-    def test_a_test_written_for_the_review_runs_only_where_tests_may_run(self):
-        # A test added in the worktree still links and runs the change's code.
-        checks = self.section("references/checks.md", "The checks")
-        added = re.search(r"(?m)^To show a suspected .*$", checks)
-        self.assertIsNotNone(added)
-        self.assertIn("only where [Before running tests](#before-running-tests) allows tests to run", added.group(0))
-
-    GOLANGCI_FORMATS = ("json", "tab", "html", "checkstyle", "code-climate", "junit-xml", "teamcity", "sarif")
-
-    def test_golangci_lint_runs_with_the_base_config_and_writes_only_to_stdout(self):
-        # The change's own config can point output.formats.<format>.path at any
-        # file the user can write, so the review lints only with the base
-        # commit's config and overrides every output path on the command line.
-        tools = self.section("references/checks.md", "Tools outside the go command")
-        self.assertNotIn("<the repository's config>", tools)
-        self.assertIn("base commit's config", tools)
-        self.assertIn("adds, edits, renames, or deletes", tools)
-        self.assertIn("--no-config", tools)
-        self.assertIn("--output.text.path=stdout", tools)
-        for fmt in self.GOLANGCI_FORMATS:
-            with self.subTest(format=fmt):
-                self.assertIn(f"--output.{fmt}.path=", tools)
-                self.assertNotIn(f"--output.{fmt}.path=stdout", tools)
-        never = self.section("references/checks.md", "Commands the review never runs")
-        self.assertIn("output.formats.<format>.path", never)
-        self.assertIn("output.format", never)
-
-    def test_step_references_run_golangci_lint_as_checks_md_does(self):
-        for page in sorted((SKILL / "references").glob("step-*.md")):
-            text = page.read_text(encoding="utf-8")
-            for line in text.splitlines():
-                if "golangci-lint" in line:
-                    with self.subTest(page=page.name, line=line[:60]):
-                        self.assertIn("as `checks.md` runs it", line)
+    def test_a_removed_or_weakened_check_is_a_major_finding(self):
+        report = self.section("references/standards.md", "Reporting")
+        self.assertRegex(report, r"Removed or weakened by the change.*severity `major`")
+        self.assertRegex(report, r"Missing before the change.*not findings")
+        self.assertIn("standards.md", (SKILL / "SKILL.md").read_text(encoding="utf-8"))
 
     def test_the_escape_analysis_build_is_the_one_gcflags_exception(self):
         never = self.section("references/checks.md", "Commands the review never runs")

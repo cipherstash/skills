@@ -36,19 +36,17 @@ cp -R "$fixture/head/." "$work"
 git add -A && git commit -qm "orders: decode records concurrently and add reporting helpers"
 ```
 
-Then, in a session started in `$work`, ask for a review of the last commit, for example "Review my last commit for Go problems." The review can also take the diff `git diff --no-index "$fixture/base" "$fixture/head"`, but with a pasted diff and no checkout it cannot run the checks.
+Then, in a session started in `$work`, ask for a review of the last commit, for example "Review my last commit for Go problems." The review can also take the diff `git diff --no-index "$fixture/base" "$fixture/head"`, but with a pasted diff and no checkout it cannot run the probes.
 
 ## Checks a correct review reports
 
-With Go 1.24 and no linters installed. The skill runs the checks over the changed package, `./orders`, and adds `./...` for `go vet`, because the change touches `go.mod` and exported identifiers. A review that runs every check over `./...` is also correct: in this module the two scopes hold the same package, since `pricing/` is a separate module with no packages.
+The built repository has no CI, so the review has no CI results and runs none of the Go check suite. It runs only the probes, over the changed package `./orders`, with Go 1.24.
 
-- `go vet ./orders ./...` passes. It detects none of the planted defects, so a clean vet is not a clean review.
-- `go test -race -count=1 -timeout 5m -coverprofile=<temp dir>/cover.out ./orders` fails with `WARNING: DATA RACE`: writes in `(*Summary).add` (`orders/orders.go:43` to `:45`) from goroutines started at `orders/orders.go:31`, reached through `orders/orders.go:35`. The profile is still written: coverage 95.8% of statements, and `go tool cover -func` shows `Merge` (`orders/report.go:13`) at 0.0%.
-- `gofmt -l` on the changed files lists `orders/units.go`.
+- Every suite check (format, lint, known vulnerabilities, pattern scan, race-enabled tests, coverage report) is recorded as `not run: no CI run for the reviewed state`, which is a limit. The review runs no `go vet`, `go test`, formatter, linter, `govulncheck` or semgrep itself, and installs nothing.
+- Repository standards: the repository has no `.github/workflows/`, so every suite check is listed as missing before the change. None is a finding, because the change did not remove one.
 - `go mod tidy -diff` fails and prints a diff that removes `require example.com/pricing v0.0.0` from `go.mod`.
 - The exported API, compared with `go doc -all ./orders` at the base and the head, has lost `func (s Summary) Empty() bool`, and gained `DefaultCurrency`, `AverageCents`, `Merge`, `SKUs`, `LinesQuery`, and `UnitsPerLine`. The repository has no remote and no version tags.
-- `govulncheck` is not run: it needs the Go vulnerability database over the network, which the review does not fetch unless the user allows it. This is a limit. With network allowed and `govulncheck` installed, it finds nothing in the module's dependencies, since `example.com/pricing` is a local directory with no code. It may report standard-library vulnerabilities fixed in a newer Go release than the local toolchain; those are not caused by the change.
-- `staticcheck`, `gosec`, and `apidiff` are each recorded as not run because they are not installed, or run and quoted if they are. `gosec` reports G104 (unhandled error) at `orders/orders.go:34`, which is G1, and nothing at `orders/query.go:6`: its SQL rules, G201 and G202, look only at `database/sql` call sites, and `LinesQuery` only returns the query, so G6 comes from reading.
+- For reference, `tests/test_fixture.py` stands in for the CI this repository lacks. It shows that `go vet` passes, that `go test -race` reports a data race in `(*Summary).add` (`orders/orders.go:43` to `:45`) reached through `orders/orders.go:35`, that coverage is 95.8% with `Merge` at 0.0%, and that `gofmt -l` lists `orders/units.go`. With those results in CI, a review quotes them. Without them, it finds the same defects by reading.
 - The Go version, read from `go.mod`, is 1.22.
 - The `golang-practices` references read, one or more for each area, as SKILL.md's areas table names them. If the skill could not be loaded, the review says so as a limit instead.
 
@@ -61,7 +59,7 @@ The verdict is `REQUEST_CHANGES`: G6 is critical, and G1, G2, and G4 are major.
 - Cause: the change drops the error from `json.Unmarshal`. The base returned `decode record <i>: <cause>`.
 - Trigger and consequence: a record that does not decode, such as `{"sku":"B2","quantity":"one"}`, is still counted as a line. `json.Unmarshal` keeps decoding after the type error, so the line has SKU `B2` and a zero quantity and price. `Summarise` returns a `Summary` with `Lines` one too high and a `nil` error, so the caller cannot tell that the totals are wrong. The change also deleted `TestSummariseRejectsABadRecord`, the test that caught this.
 - Rule: golang-practices, error handling: check every returned error.
-- Evidence: reading the diff. `go vet` passes, so tools do not show it.
+- Evidence: reading the diff. CI's lint would not show it either: `go vet` passes.
 - A correct fix sends each goroutine's error back to `Summarise`, which returns it with the record's index, and restores the deleted test.
 
 ## G2 · major · correctness and edge cases
@@ -79,7 +77,7 @@ The verdict is `REQUEST_CHANGES`: G6 is critical, and G1, G2, and G4 are major.
 - Line: `func (s Summary) Merge(o Summary) Summary {`
 - Cause: the change adds the exported method `Merge` with no test.
 - Rule: golang-practices, testing: look at uncovered new code and decide whether a regression there would go unnoticed. A `Merge` that dropped one of its three fields would pass every test.
-- Evidence: `go tool cover -func` shows `Merge` at 0.0%, the only function at 0.0%. Coverage is 95.8% of statements.
+- Evidence: no test calls `Merge`; a search of the `_test.go` files finds no call. CI's coverage report, where there is one, shows it at 0.0%.
 - A correct fix adds a table test for `Merge`, including merging with an empty summary.
 
 ## G4 · major · concurrency safety
@@ -89,7 +87,7 @@ The verdict is `REQUEST_CHANGES`: G6 is critical, and G1, G2, and G4 are major.
 - Cause: every goroutine calls `s.add` on the shared `Summary` with no lock, so the `+=` and `++` in `add` race.
 - Trigger and consequence: any call with two or more records. Updates are lost, so `Lines`, `Units`, and `TotalCents` can come back too low, with no error. It is major, not critical: the wrong totals are `Summarise`'s result, and nothing in the change stores or sends them.
 - Rule: golang-practices, concurrency: a data race is a bug even when the test passes.
-- Evidence: `go test -race -count=1 -timeout 5m ./orders` reports `WARNING: DATA RACE` at `orders.go:43` through `orders.go:35`.
+- Evidence: reading `Summarise` and `add`: each goroutine started at `orders.go:31` calls `s.add` at `orders.go:35`, which writes the shared totals at `orders.go:43` with no lock. CI's race-enabled tests, where there are any, report `WARNING: DATA RACE` there.
 - A correct fix guards the totals with a mutex, or has each goroutine send its line to one goroutine that adds them.
 
 ## G5 · minor · naming and style
@@ -98,8 +96,8 @@ The verdict is `REQUEST_CHANGES`: G6 is critical, and G1, G2, and G4 are major.
 - Line: `func (this Summary) UnitsPerLine() float64{`
 - Cause: the new method's receiver is named `this`, where every other `Summary` method uses `s`, and the file is not formatted: `gofmt` adds a space before the `{`.
 - Rule: golang-practices, naming: a receiver is one or two letters from its type, the same on every method, never `this` or `self`; and format with `gofmt`.
-- Evidence: `gofmt -l` lists `orders/units.go`, and `gofmt -d` changes this line.
-- A correct fix renames the receiver to `s` and runs `gofmt -w orders/units.go`.
+- Evidence: reading the line, which has no space before the `{`. CI's format check, where there is one, lists `orders/units.go`.
+- A correct fix renames the receiver to `s` and formats the file.
 
 ## G6 · critical · security
 
@@ -108,7 +106,7 @@ The verdict is `REQUEST_CHANGES`: G6 is critical, and G1, G2, and G4 are major.
 - Cause: `LinesQuery` builds SQL by concatenating `sku`, which its doc comment says is what the customer typed.
 - Trigger and consequence: a SKU such as `x' OR '1'='1` returns `... WHERE sku = 'x' OR '1'='1'`, which selects every order line; other input can change the statement further. The doc comment says the search handler passes the SKU as the customer typed it, so an attacker controls the input. `step-security.md` makes SQL injection from attacker-controlled input critical. That rule is more specific than the finding contract's, so it decides the severity, though nothing in the change runs the query yet.
 - Rule: golang-practices, security: build SQL with placeholders and pass values as arguments.
-- Evidence: reading the function. `gosec` does not report it, because nothing in the change passes the query to a `database/sql` call.
+- Evidence: reading the function. gosec, in CI's lint, would not report it, because nothing in the change passes the query to a `database/sql` call.
 - A correct fix returns the query with a placeholder (`WHERE sku = $1`, or `?` for the driver in use) and passes `sku` as an argument to `QueryContext`.
 
 ## G7 · minor · performance
@@ -117,7 +115,7 @@ The verdict is `REQUEST_CHANGES`: G6 is critical, and G1, G2, and G4 are major.
 - Line: `var skus []string`
 - Cause: `SKUs` appends one SKU per line to a slice declared with no capacity, though the final length, `len(lines)`, is known. Its doc comment says it runs for every batch.
 - Rule: golang-practices, performance: when the final length is known, make a slice with that capacity.
-- Evidence: reading the function. For 100 lines, `testing.AllocsPerRun` measures several allocations where `make([]string, 0, len(lines))` needs one.
+- Evidence: reading the function: `skus` starts empty and grows by `append` in a loop of known length.
 - A correct fix declares `skus := make([]string, 0, len(lines))`.
 
 ## G8 · minor · dependency management
@@ -167,5 +165,5 @@ Each of these would be a false finding.
 - `SKUs` returning `nil` for no lines. Its doc comment promises no non-nil slice, and `len` and `range` treat `nil` as empty.
 - `AverageCents` rounding down. Its doc comment says it does.
 - Missing tests for `DefaultCurrency`. A constant has no statements to cover.
-- A known vulnerability in a dependency. The module has none to scan, and without network the review cannot run `govulncheck` at all: that is a limit, not a finding.
+- A known vulnerability in a dependency. The module has none, and with no CI the `govulncheck` result is a limit, not a finding.
 - Anything in `base/` that the change does not touch.

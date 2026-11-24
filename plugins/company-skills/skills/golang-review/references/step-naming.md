@@ -26,7 +26,7 @@ Group repeats of one problem into one finding that lists every location.
 
 ## Formatting
 
-Run `gofmt -l` over the changed `.go` files that still exist at the head, as `checks.md` describes. Each file it lists is a finding: quote the lines `gofmt -d` changes. Never run `gofmt -w`: the review changes no file. If the repository uses `goimports` or `gofumpt` and it is installed, its `-l` output counts the same way; if not installed, `gofmt` alone is the check.
+CI's format check (gofumpt) covers formatting; the review never runs a formatter. Each changed file CI's format check lists is a finding: quote the lines its diff changes. Without a CI result for the head, report only formatting you can see by reading, such as a missing space before `{`, and record the format check as not run.
 
 ## Severity
 

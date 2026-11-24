@@ -61,8 +61,8 @@ Report a wait that can never end:
 
 ## Evidence
 
-- `go test -race`: a race report is direct evidence. Quote the write and the earlier access with their file and line, and the line in the change that reaches them. A race-enabled pass covers only the paths the tests ran, so for changed code that no test reaches, report the race from reading and say no test exercises it. To show it, you may add a test in the temporary worktree, as `checks.md` describes.
-- `go vet`: quote `copylocks`, `lostcancel`, and, below Go 1.22, `loopclosure` reports.
+- CI's race-enabled tests: a race report is direct evidence. Quote the write and the earlier access with their file and line, and the line in the change that reaches them. A race-enabled pass covers only the paths the tests ran, so for changed code that no test reaches, or with no CI result for the head, report the race from reading and say no test exercises it. Name the test that would show it in the fix.
+- CI's lint (govet): quote `copylocks`, `lostcancel`, and, below Go 1.22, `loopclosure` reports.
 - A deadlock shows as `fatal error: all goroutines are asleep - deadlock!`, or as a test timeout whose goroutine dump shows the blocked calls.
 - Leaks and missing contexts are usually shown by reading. Name the path that never ends and the line it blocks on. Cite a leak checker's output only if the repository already uses one, such as `goleak`.
 

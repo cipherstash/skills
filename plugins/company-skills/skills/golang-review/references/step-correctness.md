@@ -33,9 +33,9 @@ The trigger is the input; the consequence is what the function returns or does t
 ## Evidence
 
 - Reading: quote the doc comment or caller that states the contract, and the line that breaks it.
-- A failing test in the temporary worktree: to show an edge case, you may add a test there that calls the function with that input, as `checks.md` describes, and quote its output. Say that the test was written for the review.
-- `go vet` reports some of these: unreachable code, impossible comparisons, and `printf` mismatches. `staticcheck`, when installed, reports more, such as a nil dereference after a nil check.
-- Coverage from the testing step shows which branches no test runs. An edge case on an untested branch is more likely to be wrong; it is not a finding by itself.
+- The input that shows the edge case, traced through the code by reading. Name the test that would fail with it in the finding's fix; the review does not write or run it.
+- CI's lint reports some of these: govet finds unreachable code, impossible comparisons, and `printf` mismatches, and staticcheck finds more, such as a nil dereference after a nil check.
+- CI's coverage report, from the testing step, shows which branches no test runs. An edge case on an untested branch is more likely to be wrong; it is not a finding by itself.
 
 ## Not a finding
 

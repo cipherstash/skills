@@ -14,6 +14,10 @@ Plan for these up front. Items marked **criterion** belong in the acceptance cri
 - **Review the stack tip for security before the release.** Before opening the release ticket PR, run a security review on the tip of the stack. On Go it found ways for the change under review to run code. The per-PR reviews had missed them.
 - **Retarget as the stack merges.** When the person merges a PR into the integration branch, retarget every PR based on its branch to the integration branch. When ticket 1 merges, that is the PRs for tickets 2 and 3. Until ticket 2 merges, ticket 4's diff also shows ticket 2's changes, so review only ticket 4's own commits. Go never reached this point, so treat it as untested.
 
+## Examples
+
+- **Examples grew past the rules.** Go's tickets set no size limit. About 40% of the 6,500 lines Go shipped went beyond any defect or acceptance criterion, mostly in concurrency, error handling, security, performance, and dependencies. Most fixes upstream needed were 1 to 10 lines. Reviews kept finding defects in the extra code. Each practices ticket lists the examples it builds, copied from the spec's examples list, and builds no others. **Criterion** for tickets 1 and 2.
+
 ## The example checker
 
 - **Parse fences by CommonMark rules.** A closing fence may be longer than the opening one or less indented, and a fence may use tildes. Go's first checker used one regex, `FENCE_RE`, that demanded the same indent and length, and it skipped valid blocks silently. A CommonMark fence parser replaced it. **Criterion** for ticket 1.

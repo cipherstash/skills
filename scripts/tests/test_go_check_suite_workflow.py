@@ -77,7 +77,9 @@ class CheckSuiteWorkflowTests(unittest.TestCase):
             with self.subTest(step=step.get("name") or step.get("uses") or step.get("run")):
                 self.assertNotIn("continue-on-error", step)
                 self.assertNotIn("if", step)
-        # A shell set without -e, such as `bash +e {0}`, would let a failing line pass.
+                # A shell set without -e, such as `bash {0}`, would let a failing line pass if a later line passes.
+                self.assertNotIn("shell", step)
+        # The same goes for a shell set in the workflow's or the job's defaults.
         self.assertNotIn("defaults", WORKFLOW)
         self.assertEqual(SUITE["defaults"], {"run": {"working-directory": EXAMPLES}})
 

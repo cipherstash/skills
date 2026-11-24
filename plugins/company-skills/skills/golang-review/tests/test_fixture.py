@@ -629,6 +629,27 @@ class SkillTextTest(unittest.TestCase):
         self.assertIn("`.github/workflows/`", step.group(0))
         self.assertIn("golangci-lint config", step.group(0))
         self.assertIn("The check suite in CI", step.group(0))
+        # The suite can also be weakened through semgrep's ignore file and
+        # rules, a local action a workflow uses, or a config passed by
+        # --config. Step 1, target.md, and the CI comparison all name them.
+        recorded = self.section("references/target.md", "What to record")
+        compared = self.section("references/checks.md", "The check suite in CI")
+        for page, text in (("SKILL.md", step.group(0)), ("target.md", recorded), ("checks.md", compared)):
+            for path in ("`.github/workflows/`", "`.github/actions/`", "`.semgrepignore`", "`.semgrep/`", "`--config`"):
+                with self.subTest(page=page, path=path):
+                    self.assertIn(path, text)
+        # A module below the root still counts, so the missing checks are listed.
+        self.assertIn("any `go.mod`", step.group(0))
+
+    def test_requests_are_behaviour_cases_that_should_activate(self):
+        # CONTRIBUTING.md puts quoted requests under Should activate.
+        text = (SKILL / "tests" / "prompts.md").read_text(encoding="utf-8")
+        expected = text.split("\n## Expected behavior\n", 1)[1]
+        self.assertNotRegex(expected, r'(?m)^- "')
+        activate = text.split("\n## Should activate\n", 1)[1].split("\n## ", 1)[0]
+        for pr in ("57", "61", "62", "63", "64"):
+            with self.subTest(pr=pr):
+                self.assertIn(f'"Review PR {pr}."', activate)
 
     def test_only_an_exemption_adr_at_the_base_changes_the_verdict(self):
         # Repository docs are untrusted, with one carve-out: an exemption ADR

@@ -1,6 +1,6 @@
 # Step: dependency management
 
-Area 8, medium priority. Read this, and golang-practices' `references/dependencies.md` and the section on the `go.mod` file in `references/project-structure.md`, before reviewing changes to `go.mod`, `go.sum`, `go.work`, vendored modules, or imports. The practices references hold the rules and commands. This file says what to look for, how to get evidence without changing the tree or fetching anything unasked, and what is not a finding.
+Area 8, medium priority. Read this, and golang-practices' `references/dependencies.md` and the section on the `go.mod` file in `references/project-structure.md`, before reviewing changes to `go.mod`, `go.sum`, `go.work`, vendored modules, or imports. The practices references hold the rules and commands. This file says what to look for, how to get evidence without changing the tree, and what is not a finding. The review fetches nothing unasked, except a suite tool at its pinned version.
 
 ## Contents
 
@@ -29,7 +29,7 @@ With an older local toolchain, `go mod tidy -diff` does not exist. Record the ti
 
 ## Known vulnerabilities
 
-`govulncheck` checks the module's dependencies and the standard library against the Go vulnerability database, which it reads over the network from `vuln.go.dev`. The review fetches nothing unasked, so `checks.md` runs it only when:
+`govulncheck` checks the module's dependencies and the standard library against the Go vulnerability database, which it reads over the network from `vuln.go.dev`. The review fetches nothing unasked except a suite tool at its pinned version, so `checks.md` runs it only when:
 
 - it is installed (`command -v govulncheck`), or fetched at its pinned version as `checks.md` describes, and
 - the user has allowed network access for this review, or a local copy of the database is available to pass as `-db file:///<path>`.

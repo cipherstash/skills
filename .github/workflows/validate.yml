@@ -85,7 +85,8 @@ jobs:
       - name: Install semgrep
         working-directory: .
         run: python3 -m pip install semgrep==1.186.0
-      # From the repository root, where the optional .semgrep/ rules live.
+      # From the repository root, where the optional .semgrep/ rules live, and the
+      # .semgrepignore that keeps the test files in the scan.
       - name: semgrep
         working-directory: .
         run: |

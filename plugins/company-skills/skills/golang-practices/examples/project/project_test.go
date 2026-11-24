@@ -89,7 +89,7 @@ func TestLoadConfigErrorsLeaveValuesOut(t *testing.T) {
 	}
 }
 
-var loadConfigErrors = map[string]bool{
+var loadConfigMessages = map[string]bool{
 	"ADDR is set but empty":                      true,
 	"READ_TIMEOUT is not a duration such as 30s": true,
 	"READ_TIMEOUT must be more than zero":        true,
@@ -122,7 +122,7 @@ func FuzzLoadConfig(f *testing.F) {
 				t.Fatalf("error %q does not start with load config:", err)
 			}
 			for _, msg := range strings.Split(msgs, "\n") {
-				if !loadConfigErrors[msg] {
+				if !loadConfigMessages[msg] {
 					t.Fatalf("error %q has the line %q, want only fixed messages", err, msg)
 				}
 			}

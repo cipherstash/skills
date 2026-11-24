@@ -84,8 +84,11 @@ def expected_findings():
 
 
 def finding(area):
-    """Return the first finding listed for area."""
-    return next(f for f in expected_findings().values() if f["area"] == area.lower())
+    """Return the one finding listed for area; an area with several is chosen by id instead."""
+    found = [f for f in expected_findings().values() if f["area"] == area.lower()]
+    if len(found) != 1:
+        raise AssertionError(f"expected-findings.md has {len(found)} {area.lower()} findings; select one by id")
+    return found[0]
 
 
 def fuzz_finding():
@@ -860,7 +863,7 @@ func TestEmptyAverageProbe(t *testing.T) {
     # Testing and coverage.
 
     def test_coverage_shows_one_untested_function(self):
-        f = finding("Testing and coverage")
+        f = expected_findings()["G3"]
         with tempfile.TemporaryDirectory() as tmp:
             profile = Path(tmp) / "cover.out"
             # The race fails the run, but the profile is still written.

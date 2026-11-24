@@ -44,9 +44,12 @@ jobs:
         working-directory: plugins/company-skills/skills/golang-practices/examples
     steps:
       - uses: actions/checkout@v4
+      # The latest stable Go, so govulncheck sees a standard library with
+      # every released security fix.
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.24.7"
+          go-version: stable
+          check-latest: true
           cache: false
       - uses: golangci/golangci-lint-action@v8
         with:

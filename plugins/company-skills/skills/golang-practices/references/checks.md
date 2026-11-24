@@ -54,7 +54,7 @@ A function that parses or decodes bytes from outside the process has a fuzz targ
 
 ## Workflow
 
-A job that runs the suite on a module in the repository root. Pin each version, and keep them current with Dependabot or Renovate.
+A job that runs the suite on a module in the repository root. Pin each tool's version, and keep them current with Dependabot or Renovate. `go-version-file` takes the `toolchain` line in `go.mod`, or the `go` line when there is none. Keep that toolchain on a current patch release: `govulncheck` fails on every standard-library vulnerability fixed in a later one.
 
 ```yaml
 on: [pull_request]

@@ -211,7 +211,7 @@ func DebugHandler() http.Handler {
 }
 ```
 
-Then fetch a 30-second CPU profile with `go tool pprof http://localhost:6060/debug/pprof/profile?seconds=30`. Use `/debug/pprof/heap` for memory. Use `/debug/pprof/goroutine?debug=2` to see every goroutine's stack and find goroutine leaks.
+Then fetch a 30-second CPU profile with `go tool pprof 'http://localhost:6060/debug/pprof/profile?seconds=30'`. Use `/debug/pprof/heap` for memory. Use `/debug/pprof/goroutine?debug=2` to see every goroutine's stack and find goroutine leaks.
 
 From Go 1.21, profile-guided optimisation uses a CPU profile from production: put it at `default.pgo` in the main package's directory, and `go build` uses it.
 

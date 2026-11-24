@@ -2,13 +2,15 @@
 
 Read this in step 8. The review's output goes to the user in the conversation. It is not written to the repository or posted anywhere.
 
-Use this shape. Keep every section, even when it is empty, so a reader can see what the review covered.
-
 ## Contents
 
-- The report's shape, below
+- [Report shape](#report-shape)
 - [Fields](#fields)
 - [Handing on](#handing-on)
+
+## Report shape
+
+Use this shape. Keep every section, even when it is empty, so a reader can see what the review covered.
 
 ````markdown
 # Go review: <target as given>

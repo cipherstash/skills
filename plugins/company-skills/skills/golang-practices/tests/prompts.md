@@ -36,7 +36,7 @@ This is a background convention skill: it is applied while the agent writes Go, 
 - Tests are table-driven with named subtests. They copy the loop variable for parallel subtests only below Go 1.22, and stop with `t.Fatalf` before indexing a slice that may be empty.
 - The agent never turns off TLS verification, writes a secret into source, or builds SQL by concatenating input.
 - A dependency update changes one module to a chosen version, and runs `go mod tidy` and the tests. It does not run `go get -u ./...`.
-- The agent formats with `gofumpt` and runs the suite tools in `references/checks.md` that help, or says which it could not run. CI stays the gate.
+- The agent formats with `gofumpt`. The agent names each suite tool from `references/checks.md` that it ran, with its result, and each one it could not run, with the reason. CI stays the gate.
 - The agent does not invent packages, helpers, or repository paths that are not in the user's codebase.
 - A wazero host function the agent writes returns an expected failure through the guest's error path. It does not panic for one.
 - A wazero module config for production sets `WithRandSource(rand.Reader)` and the real clocks. The deterministic defaults stay only in tests that say why.

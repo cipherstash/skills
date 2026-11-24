@@ -59,3 +59,9 @@ A claim in a run's output that the run's own deviation log contradicts.
 
 **Run date**:
 The calendar date a run started, in the timezone its prompt names, or labelled as UTC when the prompt names none.
+
+## Language skills
+
+**Check suite**:
+The canonical set of checks that every repository in one programming language must have in place. Each language has its own, such as the Go check suite. Every language skill pair defines one.
+_Avoid_: Toolchain, the language's checks

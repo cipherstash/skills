@@ -20,7 +20,7 @@ Rules for writing Go. Apply them to every Go change, and read the reference for 
 
 - Check every returned error. Handle it or return it with context. Ignore one only on purpose, with a comment saying why it cannot matter: `_ =` for most calls, or a deferred `Close` on something you only read.
 - Wrap with `fmt.Errorf("what this function was doing: %w", err)`, naming the key values. Leave out what the wrapped error already says.
-- Return a sentinel that an interface's contract names, such as `io.EOF` from `Read`, unwrapped: callers compare it with `==`. A thin `io.Reader` or `io.Writer` that wraps another returns the inner error unchanged.
+- Return a sentinel that an interface's contract names, such as `io.EOF` from `Read`, unwrapped, because callers such as `io.ReadAll` compare it with `==`. In your own code, match it with `errors.Is`. A thin `io.Reader` or `io.Writer` that wraps another returns the inner error unchanged.
 - Handle an error once: return it, or log it and carry on, not both.
 - Match with `errors.Is` and `errors.As`. A `==` comparison or a type assertion misses a wrapped error.
 - Return the literal `nil` for no error, never a nil pointer of a concrete error type.

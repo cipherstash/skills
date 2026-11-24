@@ -4,9 +4,11 @@ The suite and its pinned versions are listed in golang-practices' references/che
 suite check is in place over the golang-practices examples module, and that each pinned version matches that list.
 """
 
-import fnmatch
+import os
 from pathlib import Path
 import re
+import subprocess
+import tempfile
 import unittest
 
 import yaml
@@ -40,6 +42,25 @@ def run_lines():
         for line in step.get("run", "").splitlines():
             if line.strip():
                 yield step.get("working-directory", default), re.sub(r"\s+", " ", line).strip()
+
+
+def semgrep_ignored(patterns, paths):
+    """Return the paths that a .semgrepignore holding patterns skips, matched with git's .gitignore rules."""
+    with tempfile.TemporaryDirectory() as scratch:
+        # An empty repository, so that only these patterns apply: not this repository's .gitignore or a global one.
+        subprocess.run(["git", "init", "-q", scratch], check=True)
+        Path(scratch, ".gitignore").write_text(patterns, encoding="utf-8")
+        result = subprocess.run(
+            ["git", "-c", f"core.excludesFile={os.devnull}", "check-ignore", "--no-index", "--stdin"],
+            cwd=scratch,
+            input="\n".join(paths) + "\n",
+            capture_output=True,
+            text=True,
+        )
+    # check-ignore exits 0 when it lists a path, 1 when it lists none, and higher on an error.
+    if result.returncode > 1:
+        raise AssertionError(f"git check-ignore failed: {result.stderr}")
+    return result.stdout.splitlines()
 
 
 def steps_using(action):
@@ -142,22 +163,13 @@ class CheckSuiteWorkflowTests(unittest.TestCase):
 
     def test_semgrep_scans_the_test_files(self):
         # Without a .semgrepignore at the repository root, semgrep uses its default list, which skips *_test.go files
-        # and test directories. A root .semgrepignore replaces that list.
+        # and test directories. A root .semgrepignore replaces that list. Its patterns follow .gitignore rules, so git
+        # matches each test file's repo-relative path against them, leading directories included.
         ignore = REPO / ".semgrepignore"
         self.assertTrue(ignore.is_file(), "no .semgrepignore at the repository root, so semgrep skips test files")
-        patterns = [
-            line.strip()
-            for line in ignore.read_text(encoding="utf-8").splitlines()
-            if line.strip() and not line.lstrip().startswith("#")
-        ]
-        test_files = sorted((REPO / EXAMPLES).rglob("*_test.go"))
+        test_files = sorted(path.relative_to(REPO).as_posix() for path in (REPO / EXAMPLES).rglob("*_test.go"))
         self.assertTrue(test_files)
-        for path in test_files:
-            parts = path.relative_to(REPO).parts
-            for pattern in patterns:
-                with self.subTest(file="/".join(parts), pattern=pattern):
-                    glob = pattern.strip("/")
-                    self.assertFalse(any(fnmatch.fnmatchcase(part, glob) for part in parts))
+        self.assertEqual(semgrep_ignored(ignore.read_text(encoding="utf-8"), test_files), [])
 
     def test_runs_the_tests_with_the_race_detector_and_reports_coverage(self):
         self.assertRuns(r"^go test -race -coverprofile=coverage\.out \./\.\.\.$")

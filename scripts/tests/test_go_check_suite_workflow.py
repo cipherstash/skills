@@ -41,8 +41,12 @@ def run_lines():
                 yield step.get("working-directory", default), re.sub(r"\s+", " ", line).strip()
 
 
+def steps_using(action):
+    return [step for step in STEPS if step.get("uses", "").startswith(action + "@")]
+
+
 def step_using(action):
-    matches = [step for step in STEPS if step.get("uses", "").startswith(action + "@")]
+    matches = steps_using(action)
     if len(matches) != 1:
         raise AssertionError(f"want one step that uses {action}, found {len(matches)}")
     return matches[0]
@@ -84,11 +88,18 @@ class CheckSuiteWorkflowTests(unittest.TestCase):
         self.assertEqual(set(PINS), {"golangci-lint", "govulncheck", "semgrep"})
 
     def test_golangci_lint_runs_the_template_config_at_the_pinned_version(self):
-        step = step_using("golangci/golangci-lint-action")
-        self.assertEqual(step["with"]["version"], PINS["golangci-lint"])
-        self.assertEqual(step["with"]["working-directory"], EXAMPLES)
-        self.assertEqual(step["with"]["args"], "--config=../assets/golangci.yml")
-        self.assertNotIn("only-new-issues", step["with"])
+        # Files behind a build constraint load only when it holds, so the default run misses them.
+        runs = set()
+        for step in steps_using("golangci/golangci-lint-action"):
+            with self.subTest(step=step):
+                self.assertEqual(step["with"]["version"], PINS["golangci-lint"])
+                self.assertEqual(step["with"]["working-directory"], EXAMPLES)
+                self.assertNotIn("only-new-issues", step["with"])
+                runs.add((step.get("env", {}).get("GOOS"), step["with"]["args"]))
+        config = "--config=../assets/golangci.yml"
+        self.assertEqual(
+            runs, {(None, config), (None, config + " --build-tags=integration"), ("windows", config)}
+        )
 
     def test_config_template_enables_the_suite_linters_and_gofumpt(self):
         config = yaml.safe_load((PRACTICES / "assets/golangci.yml").read_text())

@@ -63,5 +63,5 @@ The calendar date a run started, in the timezone its prompt names, or labelled a
 ## Language skills
 
 **Check suite**:
-The canonical set of checks that every repository in one programming language must have in place. Each language has its own, such as the Go check suite. Every language skill pair defines one.
+The canonical set of checks that CI must run in every repository in one programming language. Agents do not run it themselves. Each language has its own, such as the Go check suite. Every language skill pair defines one.
 _Avoid_: Toolchain, the language's checks

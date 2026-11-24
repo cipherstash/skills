@@ -604,6 +604,95 @@ class SkillTextTest(unittest.TestCase):
         self.assertIn("`.git` file", worktree)
 
 
+class FetchSuiteToolTest(unittest.TestCase):
+    """The change controls the worktree, so it can commit `.golang-review-tools/`.
+
+    A committed `bin/<tool>` or a prefilled `mod/` cache would then be run or
+    built, and a failed `mkdir` or `cd` would send `go install` to the agent's
+    working directory. These tests run the fetch block from checks.md with a
+    stand-in `go` that only records where it would install.
+    """
+
+    def setUp(self):
+        for tool in ("bash", "git"):
+            if shutil.which(tool) is None:
+                self.skipTest(f"{tool} is not on PATH")
+        text = (SKILL / "references" / "checks.md").read_text(encoding="utf-8")
+        section = text.split("\n### Fetching a suite tool\n", 1)[1].split("\n### ", 1)[0]
+        self.section = section
+        self.block = re.search(r"```sh\n(.*?)```", section, re.S).group(1)
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp)
+
+    def fetch(self, planted=None, untracked=None):
+        """Run the fetch block from cwd=user repo; return (exit, recorded GOBIN, cwd listing)."""
+        user = self.tmp / "user"
+        worktree = self.tmp / "review" / "wt"
+        git = ["git", "-c", "user.email=r@example.com", "-c", "user.name=r", "-c", "core.hooksPath=/dev/null"]
+        user.mkdir()
+        subprocess.run([*git, "init", "-q"], cwd=user, check=True)
+        (user / "go.mod").write_text("module example.com/m\n\ngo 1.22\n", encoding="utf-8")
+        if planted:
+            path = user / planted
+            path.parent.mkdir(parents=True)
+            path.write_text("#!/bin/sh\necho planted\n", encoding="utf-8")
+        subprocess.run([*git, "add", "-A", "-f"], cwd=user, check=True)
+        subprocess.run([*git, "commit", "-qm", "head"], cwd=user, check=True)
+        subprocess.run([*git, "worktree", "add", "-q", "--detach", str(worktree), "HEAD"], cwd=user, check=True)
+        if untracked:
+            (worktree / untracked).mkdir(parents=True)
+        fake = self.tmp / "fakebin"
+        fake.mkdir()
+        record = self.tmp / "go-install-called"
+        (fake / "go").write_text(f'#!/bin/sh\nprintf %s "$GOBIN" > {record}\n', encoding="utf-8")
+        (fake / "go").chmod(0o755)
+        script = self.block.replace("<worktree>", str(worktree)).replace(
+            "<package>@<version>", "example.com/tool@v1.0.0"
+        )
+        env = dict(os.environ, PATH=f"{fake}{os.pathsep}{os.environ['PATH']}")
+        result = subprocess.run(["bash", "-c", script], cwd=user, env=env, capture_output=True, text=True)
+        called = record.read_text(encoding="utf-8") if record.exists() else None
+        listing = sorted(p.name for p in user.iterdir())
+        return result.returncode, called, listing, worktree
+
+    def test_fetches_into_the_worktree_when_the_directory_is_absent(self):
+        code, called, listing, worktree = self.fetch()
+        self.assertEqual(code, 0)
+        self.assertEqual(called, str(worktree / ".golang-review-tools" / "bin"))
+        self.assertEqual(listing, [".git", "go.mod"])
+
+    def test_refuses_a_tools_directory_the_change_commits(self):
+        for planted in (".golang-review-tools/bin/golangci-lint", ".golang-review-tools/mod/cache/x"):
+            with self.subTest(planted=planted):
+                self.reset_tmp()
+                code, called, listing, _ = self.fetch(planted=planted)
+                self.assertNotEqual(code, 0)
+                self.assertIsNone(called, "go install ran")
+                self.assertEqual(listing, [".git", ".golang-review-tools", "go.mod"])
+
+    def test_refuses_a_tools_directory_already_on_disk(self):
+        # Uncommitted changes are copied into a worktree made at HEAD, so the
+        # head tree alone does not show everything on disk.
+        code, called, listing, _ = self.fetch(untracked=".golang-review-tools/mod")
+        self.assertNotEqual(code, 0)
+        self.assertIsNone(called, "go install ran")
+        self.assertEqual(listing, [".git", "go.mod"])
+
+    def reset_tmp(self):
+        for child in self.tmp.iterdir():
+            if child.is_dir():
+                shutil.rmtree(child)
+            else:
+                child.unlink()
+
+    def test_the_block_uses_absolute_paths_and_never_changes_directory(self):
+        self.assertNotIn("$PWD", self.block)
+        self.assertNotRegex(self.block, r"(?m)(^|&&|;)\s*cd ")
+        self.assertNotIn("mkdir -p", self.block)
+        self.assertIn("git -C <worktree> ls-tree HEAD .golang-review-tools", self.section)
+        self.assertIn("not run: ", self.section)
+
+
 class GoFixtureTest(unittest.TestCase):
     def setUp(self):
         self.go = shutil.which("go")

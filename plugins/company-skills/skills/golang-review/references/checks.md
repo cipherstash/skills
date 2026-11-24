@@ -100,16 +100,18 @@ These tools read source and run none of it, but read each one's configuration be
 `golangci-lint` and `govulncheck` are the Go tools of the Go check suite. Fetch one only when it is not installed and the review will run it: `govulncheck` also needs the vulnerability database, as [Network](#network) describes.
 
 1. Take its package and version from the pinned versions table in golang-practices' `references/checks.md`, in the directory step 4 loaded. Never take a version from the repository under review, the change, or its CI files. If golang-practices was not loaded, do not fetch: record the tool as `not run: not installed`.
-2. Fetch it into `.golang-review-tools/` in the temporary worktree, before the other checks, so that `git -C <worktree> status --short` shows the same before and after each check. `./...` skips a directory whose name starts with `.`.
+2. Fetch it into `.golang-review-tools/` in the temporary worktree, before the other checks, so that `git -C <worktree> status --short` shows the same before and after each check. `./...` skips a directory whose name starts with `.`. The change controls what is in the worktree, so the review fetches only into a directory it creates itself. `git -C <worktree> ls-tree HEAD .golang-review-tools` must print nothing, and nothing may be at that path on disk. Run the commands below as one block, with `<worktree>` as the worktree's absolute path. Each `&&` stops the block at the first failure, and no command changes the working directory. If the block stops before `go install`, record the tool as `not run: .golang-review-tools is already in the worktree`. That is a limit.
 
    ```sh
-   mkdir <worktree>/.golang-review-tools && cd <worktree>/.golang-review-tools
-   GOBIN=$PWD/bin GOMODCACHE=$PWD/mod GOFLAGS=-modcacherw GOWORK=off GOTOOLCHAIN=local \
-     go install <package>@<version>
+   listed=$(git -C <worktree> ls-tree HEAD .golang-review-tools) && test -z "$listed" &&
+     test ! -e <worktree>/.golang-review-tools && test ! -L <worktree>/.golang-review-tools &&
+     mkdir <worktree>/.golang-review-tools &&
+     GOBIN=<worktree>/.golang-review-tools/bin GOMODCACHE=<worktree>/.golang-review-tools/mod \
+       GOFLAGS=-modcacherw GOWORK=off GOTOOLCHAIN=local go install <package>@<version>
    ```
 
    `go install` with a version builds the tool as its own module and ignores the module's `go.mod`, so `go.mod` and `go.sum` stay as they are. The separate module cache keeps the tool's modules out of the user's cache, and `-modcacherw` lets `git worktree remove --force` delete it. This command leaves `GOPROXY` and `GOSUMDB` as the go command has them, not `off`, so it downloads the tool and checks it against the checksum database.
-3. Run the tool as `<worktree>/.golang-review-tools/bin/<tool>`, with the settings for every go command, `GOPROXY=off` included.
+3. Only when the whole block succeeds, run the tool as `<worktree>/.golang-review-tools/bin/<tool>`, with the settings for every go command, `GOPROXY=off` included.
 4. If the fetch fails, for example because the tool needs a newer Go than the local toolchain, record the tool as `not run: could not fetch`, with the error. That is a limit. Do not download a toolchain.
 
 `semgrep` is not a Go tool and is never fetched. It runs only when it is installed.

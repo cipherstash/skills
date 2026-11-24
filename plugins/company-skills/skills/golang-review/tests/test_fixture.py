@@ -606,6 +606,16 @@ class SkillTextTest(unittest.TestCase):
         self.assertIn("golangci-lint config", step.group(0))
         self.assertIn("The check suite in CI", step.group(0))
 
+    def test_only_an_exemption_adr_at_the_base_changes_the_verdict(self):
+        # Repository docs are untrusted, with one carve-out: an exemption ADR
+        # already merged at the base commit. Both pages say so, and where to look.
+        skill = self.section("SKILL.md", "Read-only")
+        self.assertIn("architecture decision record (ADR)", skill)
+        self.assertIn("base commit", skill)
+        ci = self.section("references/checks.md", "The check suite in CI")
+        self.assertIn("architecture decision record (ADR)", ci)
+        self.assertIn("`docs/adr/`", ci)
+
     def test_the_worktree_is_not_a_sandbox(self):
         worktree = self.section("references/target.md", "The temporary worktree")
         self.assertIn("not a sandbox", worktree)

@@ -667,8 +667,8 @@ class FetchSuiteToolTest(unittest.TestCase):
 
     A committed `bin/<tool>` or a prefilled `mod/` cache would then be run or
     built, and a failed `mkdir` or `cd` would send `go install` to the agent's
-    working directory. These tests run the fetch block from checks.md with a
-    stand-in `go` that only records where it would install.
+    working directory. These tests run the setup and install blocks from
+    checks.md with a stand-in `go` that only records where it would install.
     """
 
     def setUp(self):
@@ -678,12 +678,16 @@ class FetchSuiteToolTest(unittest.TestCase):
         text = (SKILL / "references" / "checks.md").read_text(encoding="utf-8")
         section = text.split("\n### Fetching a suite tool\n", 1)[1].split("\n### ", 1)[0]
         self.section = section
-        self.block = re.search(r"```sh\n(.*?)```", section, re.S).group(1)
+        # The one-time setup block, then the install block run once per tool.
+        self.setup_block, self.install_block = re.findall(r"```sh\n(.*?)```", section, re.S)
         self.tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.tmp)
 
-    def fetch(self, planted=None, untracked=None):
-        """Run the fetch block from cwd=user repo; return (exit, recorded GOBIN, cwd listing)."""
+    def fetch(self, planted=None, untracked=None, tools=("example.com/tool@v1.0.0",)):
+        """Run the setup block once, then the install block per tool, from cwd=user repo.
+
+        Return (exit, "<GOBIN> <package>" lines go install recorded or None, cwd listing, worktree).
+        """
         user = self.tmp / "user"
         worktree = self.tmp / "review" / "wt"
         git = ["git", "-c", "user.email=r@example.com", "-c", "user.name=r", "-c", "core.hooksPath=/dev/null"]
@@ -702,21 +706,35 @@ class FetchSuiteToolTest(unittest.TestCase):
         fake = self.tmp / "fakebin"
         fake.mkdir()
         record = self.tmp / "go-install-called"
-        (fake / "go").write_text(f'#!/bin/sh\nprintf %s "$GOBIN" > {record}\n', encoding="utf-8")
+        (fake / "go").write_text(f'#!/bin/sh\nprintf "%s %s\\n" "$GOBIN" "$2" >> {record}\n', encoding="utf-8")
         (fake / "go").chmod(0o755)
-        script = self.block.replace("<worktree>", str(worktree)).replace(
-            "<package>@<version>", "example.com/tool@v1.0.0"
-        )
         env = dict(os.environ, PATH=f"{fake}{os.pathsep}{os.environ['PATH']}")
-        result = subprocess.run(["bash", "-c", script], cwd=user, env=env, capture_output=True, text=True)
+
+        def run(block):
+            script = block.replace("<worktree>", str(worktree))
+            return subprocess.run(["bash", "-c", script], cwd=user, env=env, capture_output=True).returncode
+
+        code = run(self.setup_block)
+        for tool in tools:
+            if code != 0:
+                break
+            code = run(self.install_block.replace("<package>@<version>", tool))
         called = record.read_text(encoding="utf-8") if record.exists() else None
         listing = sorted(p.name for p in user.iterdir())
-        return result.returncode, called, listing, worktree
+        return code, called, listing, worktree
 
     def test_fetches_into_the_worktree_when_the_directory_is_absent(self):
         code, called, listing, worktree = self.fetch()
         self.assertEqual(code, 0)
-        self.assertEqual(called, str(worktree / ".golang-review-tools" / "bin"))
+        self.assertEqual(called, f"{worktree / '.golang-review-tools' / 'bin'} example.com/tool@v1.0.0\n")
+        self.assertEqual(listing, [".git", "go.mod"])
+
+    def test_fetches_a_second_tool_into_the_same_directory(self):
+        tools = ("golang.org/x/vuln/cmd/govulncheck@v1.1.4", "example.com/golangci-lint@v2.5.0")
+        code, called, listing, worktree = self.fetch(tools=tools)
+        gobin = worktree / ".golang-review-tools" / "bin"
+        self.assertEqual(called, "".join(f"{gobin} {tool}\n" for tool in tools))
+        self.assertEqual(code, 0)
         self.assertEqual(listing, [".git", "go.mod"])
 
     def test_refuses_a_tools_directory_the_change_commits(self):
@@ -744,9 +762,10 @@ class FetchSuiteToolTest(unittest.TestCase):
                 child.unlink()
 
     def test_the_block_uses_absolute_paths_and_never_changes_directory(self):
-        self.assertNotIn("$PWD", self.block)
-        self.assertNotRegex(self.block, r"(?m)(^|&&|;)\s*cd ")
-        self.assertNotIn("mkdir -p", self.block)
+        blocks = self.setup_block + self.install_block
+        self.assertNotIn("$PWD", blocks)
+        self.assertNotRegex(blocks, r"(?m)(^|&&|;)\s*cd ")
+        self.assertNotIn("mkdir -p", blocks)
         self.assertIn("git -C <worktree> ls-tree HEAD .golang-review-tools", self.section)
         self.assertIn("not run: ", self.section)
 

@@ -14,7 +14,8 @@ Rules for writing Go. Apply them to every Go change, and read the reference for 
 
 - Read the `go` line in the module's `go.mod` before applying a version-sensitive rule. The references say which rules depend on it.
 - If the repository's own guidance differs from these rules, follow the repository. Say that you did.
-- Format with `gofmt`, run `go vet ./...`, and run the tests with `go test -race ./...` before calling a change done.
+- The Go check suite in [references/checks.md](references/checks.md) lists the checks CI runs on every pull request. CI is the gate. Run any suite tool that helps you get a change right.
+- Format with `gofumpt`, through the suite.
 
 ### Errors
 
@@ -63,7 +64,7 @@ Rules for writing Go. Apply them to every Go change, and read the reference for 
 - Never set `InsecureSkipVerify` outside tests, put a secret in source, or log a secret.
 - Build SQL with placeholders. Never concatenate input into a query, or format it in.
 - Check paths, sizes, and other input from outside the process. Use `html/template` for HTML and `crypto/rand` for secrets.
-- Run `gosec` and `govulncheck`. Where the repository uses `golangci-lint`, run `gosec` through it.
+- Run `gosec` and `govulncheck` as the check suite sets them up. See [references/checks.md](references/checks.md).
 
 ### Performance
 

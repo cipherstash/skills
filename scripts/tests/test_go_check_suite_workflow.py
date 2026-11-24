@@ -88,6 +88,17 @@ class CheckSuiteWorkflowTests(unittest.TestCase):
         # The fixture holds planted defects, so the suite would fail on it.
         self.assertNotIn("golang-review", yaml.safe_dump(SUITE))
 
+    def test_covers_every_go_module_except_the_golang_review_fixture(self):
+        # The suite's checks run over the examples module only, and `./...` stops at a nested module's go.mod, so a
+        # module anywhere else would go unchecked.
+        fixtures = REPO / "plugins/company-skills/skills/golang-review/tests/fixtures"
+        modules = {
+            path.parent.relative_to(REPO).as_posix()
+            for path in REPO.rglob("go.mod")
+            if ".git" not in path.relative_to(REPO).parts and not path.is_relative_to(fixtures)
+        }
+        self.assertEqual(modules, {EXAMPLES})
+
     def test_reference_pins_every_suite_tool(self):
         self.assertEqual(set(PINS), {"golangci-lint", "govulncheck", "semgrep"})
 

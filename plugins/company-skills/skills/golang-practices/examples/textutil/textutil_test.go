@@ -62,7 +62,7 @@ func TestRenderMatchesGoldenFile(t *testing.T) {
 			t.Fatalf("update golden file: %v", err)
 		}
 	}
-	want, err := os.ReadFile(golden)
+	want, err := os.ReadFile(golden) // #nosec G304 -- a fixed path in testdata
 	if err != nil {
 		t.Fatalf("read golden file (run with -update to create it): %v", err)
 	}

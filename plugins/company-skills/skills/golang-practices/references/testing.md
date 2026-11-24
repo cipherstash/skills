@@ -30,7 +30,7 @@ The examples target Go 1.22, the `go` line in [`examples/go.mod`](../examples/go
 - Prefer a small hand-written fake to a mocking library.
 - Wait for a condition, not a fixed time. `time.Sleep` to wait for a server makes tests slow and still flaky.
 - Put the build constraint for tagged tests above the `package` clause, as `//go:build integration`, followed by a blank line.
-- A test that is missing, such as a fuzz test or a doctest-style example, is not a defect in itself. Add one when it would catch a plausible regression.
+- A test that is missing, such as a fuzz test or a doctest-style example, is not a defect in itself. Add one when it would catch a plausible regression. The exception: a function that parses or decodes untrusted input must have a Fuzz target, as [checks.md](checks.md) says.
 
 ## Table-driven tests
 

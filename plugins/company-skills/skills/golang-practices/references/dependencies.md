@@ -124,7 +124,7 @@ Releasing a new major version of your own module means changing its `module` lin
 
 ## Moving to a new Go version
 
-Raising the `go` line in `go.mod` can change what code does, not only which features it may use. Moving to `go 1.22`, for example, gives each loop iteration its own loop variable. Read the release notes for each version crossed, then run the full test suite with `-race`. Raise the `go` line on its own, not in the same change as dependency updates.
+Raising the `go` line in `go.mod` can change what code does, not only which features it may use. Moving to `go 1.22`, for example, gives each loop iteration its own loop variable. Read the release notes for each version crossed, then run the full test suite with `-race`, as [checks.md](checks.md) says. Raise the `go` line on its own, not in the same change as dependency updates.
 
 ## Quick reference
 

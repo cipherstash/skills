@@ -338,7 +338,7 @@ func ExampleRender() {
 
 ## Coverage
 
-CI writes a coverage profile and reports coverage per function. [checks.md](checks.md) gives the commands. To see which lines run, open the profile as annotated source in a browser:
+The test command in [checks.md](checks.md) writes the coverage profile `coverage.out`. To see which lines run, run that command, then open the profile as annotated source in a browser:
 
 ```sh
 go tool cover -html=coverage.out
@@ -348,9 +348,10 @@ Coverage shows which lines no test runs. It does not show whether the tests chec
 
 ## Quick reference
 
+For the test command CI runs, see [checks.md](checks.md).
+
 | Command | What it does |
 | --- | --- |
-| [checks.md](checks.md) | The test command CI runs: every test with the race detector, writing a coverage profile |
 | `go test -run 'TestReverse/ascii' ./textutil` | Run one subtest |
 | `go test -count=1 ./...` | Run without the test cache |
 | `go test -short ./...` | Skip tests that check `testing.Short()` |

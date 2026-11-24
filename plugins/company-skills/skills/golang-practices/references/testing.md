@@ -177,7 +177,7 @@ func TestRenderMatchesGoldenFile(t *testing.T) {
 	golden := filepath.Join("testdata", "render.golden")
 
 	if *update {
-		if err := os.WriteFile(golden, []byte(got), 0o644); err != nil {
+		if err := os.WriteFile(golden, []byte(got), 0o600); err != nil {
 			t.Fatalf("update golden file: %v", err)
 		}
 	}

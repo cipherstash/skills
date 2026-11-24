@@ -91,16 +91,6 @@ def finding(area):
     return found[0]
 
 
-def fuzz_finding():
-    """Return the testing finding for a new decoder with no Fuzz target."""
-    found = [
-        f for f in expected_findings().values() if f["area"] == "testing and coverage" and "Fuzz target" in f["body"]
-    ]
-    if len(found) != 1:
-        raise AssertionError(f"expected-findings.md has {len(found)} testing findings about a Fuzz target, not 1")
-    return found[0]
-
-
 # The exported API as checks.md compares it: every declaration go doc -all
 # prints, including each name inside a grouped `const (` or `var (` block and
 # each struct field and interface method, with runs of spaces collapsed (gofmt
@@ -328,20 +318,20 @@ class ExpectedFindingsTest(unittest.TestCase):
         self.assertEqual({f["area"] for f in expected_findings().values()}, {area.lower() for area in AREAS})
 
     def test_each_finding_quotes_the_line_it_names(self):
-        for id, f in expected_findings().items():
-            with self.subTest(id=id):
-                self.assertIsNotNone(f["path"], f"{id}: no '- Location: `head/<path>:<line>`'")
-                self.assertIsNotNone(f["quoted"], f"{id}: no '- Line: `<text>`'")
-                self.assertEqual(f["side"] == "base", f["deleted"], f"{id}: only a deleted line sits in base/")
+        for key, f in expected_findings().items():
+            with self.subTest(id=key):
+                self.assertIsNotNone(f["path"], f"{key}: no '- Location: `head/<path>:<line>`'")
+                self.assertIsNotNone(f["quoted"], f"{key}: no '- Line: `<text>`'")
+                self.assertEqual(f["side"] == "base", f["deleted"], f"{key}: only a deleted line sits in base/")
                 root = BASE if f["side"] == "base" else HEAD
                 lines = (root / f["path"]).read_text(encoding="utf-8").splitlines()
-                self.assertLessEqual(f["line"], len(lines), f"{id}: {f['path']} has {len(lines)} lines")
+                self.assertLessEqual(f["line"], len(lines), f"{key}: {f['path']} has {len(lines)} lines")
                 # The whole line, not a substring: a fix that keeps the call on the
                 # same line (`errs[i] = json.Unmarshal(raw, &l)`) must fail here.
                 self.assertEqual(
                     lines[f["line"] - 1].strip(),
                     f["quoted"],
-                    f"{id}: {f['path']}:{f['line']} is {lines[f['line'] - 1]!r}",
+                    f"{key}: {f['path']}:{f['line']} is {lines[f['line'] - 1]!r}",
                 )
                 if f["deleted"]:
                     head_file = HEAD / f["path"]
@@ -350,8 +340,8 @@ class ExpectedFindingsTest(unittest.TestCase):
 
     def test_findings_point_at_changed_files(self):
         changed = changed_files()
-        for id, f in expected_findings().items():
-            with self.subTest(id=id):
+        for key, f in expected_findings().items():
+            with self.subTest(id=key):
                 self.assertIn(f["path"], changed)
 
     def test_the_change_touches_only_the_planted_files(self):
@@ -374,7 +364,7 @@ class ExpectedFindingsTest(unittest.TestCase):
     def test_a_new_decoder_has_no_fuzz_target(self):
         # Testing and coverage, second finding: the change adds a function
         # that decodes untrusted input, and no Fuzz target for it.
-        f = fuzz_finding()
+        f = expected_findings()["G11"]
         self.assertEqual((f["severity"], f["side"]), ("minor", "head"))
         name = re.match(r"func (\w+)\(", f["quoted"])
         self.assertIsNotNone(name, f"{f['quoted']!r} does not declare a function")
@@ -398,15 +388,21 @@ class ExpectedFindingsTest(unittest.TestCase):
         prompts = (SKILL / "tests" / "prompts.md").read_text(encoding="utf-8")
         case = re.search(r"(?m)^- The fixture has no CI\. .*$", prompts)
         self.assertIsNotNone(case)
+        # How each check CI can show is named on the missing line.
+        missing_line = {
+            "golangci-lint": "`golangci-lint`",
+            "govulncheck": "`govulncheck`",
+            "semgrep": "`semgrep`",
+            "Tests with the race detector and coverage": "race-enabled tests with coverage",
+        }
         for page, found in (("expected-findings.md", line.group(0)), ("prompts.md", case.group(0))):
             for check in checks:
                 with self.subTest(page=page, check=check):
                     if check == "Fuzz targets":
                         self.assertRegex(found, r"Fuzz target[^.]*not a (missing|line)")
-                    elif " " in check:
-                        self.assertIn("race-enabled tests with coverage", found)
                     else:
-                        self.assertIn(f"`{check}`", found)
+                        self.assertIn(check, missing_line, "a new suite check: say how its missing line names it")
+                        self.assertIn(missing_line[check], found)
 
     def test_changed_files_compares_contents(self):
         # A same-size edit with a matching mtime, as after extracting an archive,

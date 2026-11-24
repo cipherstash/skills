@@ -32,7 +32,7 @@ A check is in place when it is a GitHub Actions step that:
 
 - runs on `pull_request`;
 - has no `continue-on-error`;
-- covers every Go module, except test fixtures that hold planted defects;
+- covers every Go module, except test fixtures that contain planted defects;
 - pins its tool version.
 
-A repository may leave a check out only through an exemption ADR in that repository.
+A repository may leave a check out only through an exemption architecture decision record (ADR) in that repository.

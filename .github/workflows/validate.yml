@@ -53,6 +53,19 @@ jobs:
           version: v2.15.0
           working-directory: plugins/company-skills/skills/golang-practices/examples
           args: --config=../assets/golangci.yml
+      # Files behind a build constraint load only when it holds.
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.15.0
+          working-directory: plugins/company-skills/skills/golang-practices/examples
+          args: --config=../assets/golangci.yml --build-tags=integration
+      - uses: golangci/golangci-lint-action@v9
+        env:
+          GOOS: windows
+        with:
+          version: v2.15.0
+          working-directory: plugins/company-skills/skills/golang-practices/examples
+          args: --config=../assets/golangci.yml
       - name: govulncheck
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.10.0 ./...
       - name: Tests with the race detector and coverage

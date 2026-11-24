@@ -97,7 +97,7 @@ Every skill must include `tests/prompts.md` with these sections:
 - An observable end-to-end result, including important edge cases and facts the agent must not invent.
 ```
 
-Use the cases for forward testing; they are evaluation inputs, not exact-output snapshots.
+Use the cases for forward testing; they are evaluation inputs, not exact-output snapshots. Nothing in CI runs an agent, so run an agent against the cases by hand.
 
 ## Codex compatibility
 

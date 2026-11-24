@@ -71,7 +71,7 @@ A language pair often starts from an upstream skill. Take its material in like t
 - Copy it under its licence. Put the licence text in the skill's `LICENSE`. Put a `NOTICE` beside it that names the source repository, path, and commit, and lists every change. `plain-language` follows the same pattern.
 - Fix every defect the audit found before the copy merges. Rewrite or drop confused or dated rules.
 - Drop the upstream frontmatter metadata, persona line, and links to skills that do not exist here.
-- If company-skills installs the upstream skill as a dependency, the new `<lang>-practices` replaces it. The README lists these under **Bundled language practice skills**. The release PR that adds the pair drops the upstream plugin from both catalogs and from the company-skills dependencies. That PR also tells users how to uninstall the old plugin. The validator rejects any entry in either catalog, other than company-skills, that is not a dependency.
+- If company-skills installs the upstream skill as a dependency, the new `<lang>-practices` replaces it. The README lists these under **Bundled language practice skills**. The release PR that adds the pair drops the upstream plugin from both catalogs and from the company-skills dependencies. That PR also tells users how to uninstall the old plugin. The validator rejects any entry in either catalog, other than company-skills, that is not a dependency. The only exceptions are the Claude catalog's opt-in plugins, listed in `CLAUDE_OPT_IN_PLUGINS` in `scripts/validate.py`.
 
 ## Behavior cases
 

@@ -190,6 +190,16 @@ class PackagingTests(unittest.TestCase):
                 )
                 self.check_result(1, "example-plugin: a bundled plugin in the catalog must be a company-skills dependency")
 
+    def test_claude_opt_in_plugins_need_not_be_dependencies(self):
+        self.check_result(0, "Validation passed")
+        codex_market = ".agents/plugins/marketplace.json"
+        policy = {"policy": {"installation": "AVAILABLE", "authentication": "ON_INSTALL"}, "category": "Productivity"}
+        self.change_json(
+            codex_market,
+            lambda data: data["plugins"].append({**git_subdir(name="plugin-dev"), **policy}),
+        )
+        self.check_result(1, f"{codex_market}: plugin-dev: a bundled plugin in the catalog must be a company-skills dependency")
+
     def test_codex_bundled_plugin_must_be_a_dependency(self):
         codex_market = ".agents/plugins/marketplace.json"
         policy = {"policy": {"installation": "AVAILABLE", "authentication": "ON_INSTALL"}, "category": "Productivity"}

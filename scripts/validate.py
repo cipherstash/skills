@@ -21,6 +21,11 @@ RESERVED_WORDS = ("anthropic", "claude")
 XML_TAG_RE = re.compile(r"<[^>]+>")
 errors: list[str] = []
 
+# Plugins the Claude catalog lists for users to install by name. They are not
+# company-skills dependencies, because installing them for everyone costs too
+# much (plugin-dev adds a whole toolkit to every session).
+CLAUDE_OPT_IN_PLUGINS = frozenset({"code-improver", "plugin-dev"})
+
 
 def fail(path: Path, message: str) -> None:
     errors.append(f"{path.relative_to(ROOT)}: {message}")
@@ -205,11 +210,16 @@ def validate_manifests() -> None:
     # other entry that is not a dependency, whatever its source type, is a
     # half-finished removal. A malformed list has already failed above, so skip
     # the check rather than report every entry.
+    # The only exceptions are the Claude catalog's opt-in plugins, which users
+    # install by name (README, "Bundled Trail of Bits plugins and plugin-dev").
     if isinstance(dependencies, list) and all(isinstance(name, str) for name in dependencies):
         allowed = set(dependencies) | {portable.get("name")}
-        for path, entries in ((claude_market_path, claude_entries), (codex_market_path, codex_entries)):
+        for path, entries, extra in (
+            (claude_market_path, claude_entries, CLAUDE_OPT_IN_PLUGINS),
+            (codex_market_path, codex_entries, frozenset()),
+        ):
             for entry in entries:
-                if isinstance(entry, dict) and entry.get("name") not in allowed:
+                if isinstance(entry, dict) and entry.get("name") not in allowed | extra:
                     fail(path, f"{entry.get('name')}: a bundled plugin in the catalog must be a company-skills dependency")
 
     claude_pins = git_subdir_pins(claude_entries)

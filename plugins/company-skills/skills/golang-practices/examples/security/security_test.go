@@ -50,10 +50,24 @@ func TestNewClientWithCATrustsThePrivateCA(t *testing.T) {
 func FuzzNewClientWithCA(f *testing.F) {
 	f.Add([]byte("not a certificate"))
 	f.Add([]byte("-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\n"))
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	f.Add(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: srv.Certificate().Raw}))
+	srv.Close()
 	f.Fuzz(func(t *testing.T, caPEM []byte) {
 		client, err := security.NewClientWithCA(caPEM)
-		if (err == nil) != (client != nil) {
-			t.Fatalf("NewClientWithCA(%q) = %v, %v; want a client or an error", caPEM, client, err)
+		if err != nil {
+			return
+		}
+		tr, ok := client.Transport.(*http.Transport)
+		if !ok {
+			t.Fatalf("Transport is %T, want *http.Transport", client.Transport)
+		}
+		cfg := tr.TLSClientConfig
+		if cfg == nil || cfg.RootCAs == nil {
+			t.Fatal("TLSClientConfig.RootCAs is not set: the CA is not trusted")
+		}
+		if cfg.InsecureSkipVerify {
+			t.Fatal("InsecureSkipVerify is true: certificates are not checked")
 		}
 	})
 }

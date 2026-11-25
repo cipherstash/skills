@@ -55,7 +55,7 @@ function canned(label, prompt) {
     return { headSha: 'b' + n, routineReviewLanded: true, ci: 'passed', failingChecks: [], deviations: [] };
   }
   if (label.startsWith('audit')) {
-    return { headSha: 'b' + n, unresolved: [], needsDecision: [],
+    return { headSha: 'b' + n, unresolved: [], needsDecision: [], ci: 'passed',
              counts: { total: 0, unresolved: 0, addressed: 0, refuted: 0, needsDecision: 0 }, deviations: [] };
   }
   if (label === 'sync stack') return { merges: [], decisions: [], deviations: [] };
@@ -93,20 +93,21 @@ def ticket(number, blocked_by=(), labels=("ready-for-agent",), state="open", ope
     }
 
 
-def plan(tickets, blocker_states=()):
+def plan(tickets, blocker_states=(), review_routine=True):
     return {
         "repo": "o/r", "defaultBranch": "main", "spec": {"number": 1, "title": "spec"},
+        "reviewRoutine": review_routine,
         "tickets": tickets, "blockerStates": list(blocker_states),
         "checks": ["make test"], "decisions": [], "deviations": [],
     }
 
 
-def run(ticket_list, blocker_states=(), overrides=None, **extra_args):
+def run(ticket_list, blocker_states=(), overrides=None, review_routine=True, **extra_args):
     body = SCRIPT.read_text().replace("export const meta", "const meta", 1)
     source = HARNESS.replace("/*SCRIPT*/", body)
     scenario = {
         "args": {"spec": 1, **extra_args},
-        "plan": plan(ticket_list, blocker_states),
+        "plan": plan(ticket_list, blocker_states, review_routine),
         "overrides": overrides or {},
     }
     result = subprocess.run(
@@ -266,6 +267,128 @@ class ImplementTicketsWorkflowTest(unittest.TestCase):
         r = run([ticket(2)], overrides={"wait #2 r1.1": pending})
         self.assertEqual(labels(r, "wait"), ["wait #2 r1.1", "wait #2 r1.2"])
 
+    def test_without_the_routine_waits_for_ci_only_and_requests_no_review(self):
+        r = run([ticket(2)], routine=False)
+        self.assertIsNone(r["error"])
+        # Polling stays with haiku: one CI-only wait, no routine review request anywhere.
+        self.assertEqual(labels(r, "wait"), ["wait #2 r1.1"])
+        wait = next(c for c in r["calls"] if c["label"] == "wait #2 r1.1")
+        self.assertEqual(wait["model"], "haiku")
+        self.assertIn("Check CI on pull request #", wait["prompt"])
+        for c in r["calls"]:
+            self.assertNotIn("cipherstash-agent", c["prompt"], c["label"])
+        self.assertEqual(labels(r, "audit"), ["audit #2 r1"])
+        # The audit neither polls CI nor waits for it.
+        self.assertNotIn("wait up to 15 minutes", prompt(r, "audit #2 r1").lower())
+        self.assertEqual(by_ticket(r)[2]["status"], "clean")
+
+    def test_without_the_routine_waits_again_while_ci_is_pending(self):
+        pending = {"headSha": "b2", "routineReviewLanded": False, "ci": "pending", "failingChecks": [],
+                   "deviations": []}
+        r = run([ticket(2)], routine=False, overrides={"wait #2 r1.1": pending})
+        self.assertEqual(labels(r, "wait"), ["wait #2 r1.1", "wait #2 r1.2"])
+
+    def test_without_the_routine_finished_ci_ends_the_wait(self):
+        done = {"headSha": "b2", "routineReviewLanded": False, "ci": "passed", "failingChecks": [],
+                "deviations": []}
+        r = run([ticket(2)], routine=False, overrides={"wait #2 r1.1": done})
+        self.assertEqual(labels(r, "wait"), ["wait #2 r1.1"])
+
+    def test_audit_checks_ci_once_when_no_wait_reported(self):
+        r = run([ticket(2)], routine=False, waitRounds=0)
+        self.assertIn("Check CI's state on the PR's current head once",
+                      " ".join(prompt(r, "audit #2 r1").split()))
+
+    def test_plan_looks_for_the_routine_workflow(self):
+        r = run([ticket(2)])
+        self.assertIn(".github/workflows/claude-review.yml", prompt(r, "plan"))
+
+    def test_routine_defaults_to_whether_the_repository_has_it(self):
+        # This repository has the routine, so its Plan agent reports it and the run waits for it.
+        self.assertTrue((ROOT / ".github" / "workflows" / "claude-review.yml").is_file())
+        with_routine = run([ticket(2)], review_routine=True)
+        self.assertEqual(labels(with_routine, "wait"), ["wait #2 r1.1"])
+        self.assertIn("cipherstash-agent", prompt(with_routine, "pr #2"))
+        without = run([ticket(2)], review_routine=False)
+        self.assertNotIn("cipherstash-agent", prompt(without, "pr #2"))
+        self.assertNotIn("cipherstash-agent", prompt(without, "wait #2 r1.1"))
+
+    def test_routine_arg_overrides_what_the_plan_found(self):
+        r = run([ticket(2)], review_routine=False, routine=True)
+        self.assertEqual(labels(r, "wait"), ["wait #2 r1.1"])
+        r = run([ticket(2)], review_routine=True, routine=False)
+        self.assertNotIn("cipherstash-agent", prompt(r, "wait #2 r1.1"))
+
+    def test_routine_is_off_when_the_plan_does_not_say(self):
+        r = run([ticket(2)], review_routine=None)
+        self.assertNotIn("cipherstash-agent", prompt(r, "wait #2 r1.1"))
+
+    def test_routine_off_note_does_not_invent_what_the_plan_found(self):
+        r = run([ticket(2)], review_routine=None)
+        texts = [e["text"] for e in r["out"]["ledger"]]
+        self.assertFalse(any("found no" in t for t in texts), texts)
+        self.assertIn("deviation", [e["kind"] for e in r["out"]["ledger"]
+                                    if "did not report" in e["text"]])
+
+    def test_failing_ci_the_audit_did_not_list_is_an_open_finding(self):
+        audit = {"headSha": "b2", "unresolved": [], "needsDecision": [], "ci": "failed",
+                 "counts": {"total": 0, "unresolved": 0, "addressed": 0, "refuted": 0, "needsDecision": 0},
+                 "deviations": []}
+        r = run([ticket(2)], routine=False, maxFixRounds=1, overrides={"audit #2 r1": audit})
+        t = by_ticket(r)[2]
+        self.assertNotEqual(t["status"], "clean")
+        self.assertEqual([f["id"] for f in t["openFindings"]], ["CI"])
+
+    def test_failing_ci_gets_a_fix_round_when_the_audit_omits_it(self):
+        failed = {"headSha": "b2", "unresolved": [], "needsDecision": [], "ci": "failed",
+                  "counts": {"total": 0, "unresolved": 0, "addressed": 0, "refuted": 0, "needsDecision": 0},
+                  "deviations": []}
+        r = run([ticket(2)], routine=False, overrides={"audit #2 r1": failed})
+        self.assertEqual(labels(r, "fix"), ["fix #2 r2"])
+        self.assertIn('"source": "CI"', prompt(r, "fix #2 r2"))
+        self.assertEqual(by_ticket(r)[2]["status"], "clean")
+
+    def test_ci_that_has_not_passed_is_not_clean(self):
+        no_findings = {"headSha": "b2", "unresolved": [], "needsDecision": [],
+                       "counts": {"total": 0, "unresolved": 0, "addressed": 0, "refuted": 0, "needsDecision": 0},
+                       "deviations": []}
+        for routine in (True, False):
+            r = run([ticket(2)], routine=routine, overrides={"audit #2 r1": {**no_findings, "ci": "pending"}})
+            t = by_ticket(r)[2]
+            self.assertEqual(t["status"], "ci pending", routine)
+            self.assertEqual(t["ci"], "pending", routine)
+        # An audit that leaves CI out, with no wait to fall back on, leaves CI unknown.
+        r = run([ticket(2)], routine=False, waitRounds=0, overrides={"audit #2 r1": no_findings})
+        self.assertEqual(by_ticket(r)[2]["status"], "ci unknown")
+        for ci in ("passed", "none"):
+            r = run([ticket(2)], routine=False, overrides={"audit #2 r1": {**no_findings, "ci": ci}})
+            self.assertEqual(by_ticket(r)[2]["status"], "clean", ci)
+
+    def test_audit_reports_ci_with_or_without_the_routine(self):
+        for routine in (True, False):
+            r = run([ticket(2)], routine=routine)
+            self.assertIn('Report CI\'s state on the head as "ci"',
+                          " ".join(prompt(r, "audit #2 r1").split()), routine)
+
+    def test_audit_without_a_ci_state_is_a_deviation(self):
+        audit = {"headSha": "b2", "unresolved": [], "needsDecision": [],
+                 "counts": {"total": 0, "unresolved": 0, "addressed": 0, "refuted": 0, "needsDecision": 0},
+                 "deviations": []}
+        r = run([ticket(2)], routine=False, overrides={"audit #2 r1": audit})
+        texts = [e["text"] for e in r["out"]["ledger"] if e["kind"] == "deviation"]
+        self.assertTrue(any("did not report CI" in t for t in texts), texts)
+
+    def test_build_and_review_name_a_fallback_without_mattpocock_skills(self):
+        r = run([ticket(2)])
+        build = " ".join(prompt(r, "build #2").split())
+        self.assertIn("If `mattpocock-skills:tdd` cannot be loaded", build)
+        self.assertIn("red, green, refactor", build[build.index("cannot be loaded"):])
+        review = " ".join(prompt(r, "review #2").split())
+        self.assertIn("If `mattpocock-skills:code-review` cannot be loaded", review)
+        self.assertIn("review the diff against ticket #2", review)
+        for text in (build, review):
+            self.assertIn("record a deviation", text[text.index("cannot be loaded"):])
+
     def test_run_report_gets_every_ledger_entry(self):
         r = run([ticket(2), ticket(3, labels=[])])
         self.assertIn("Skipped #3", prompt(r, "run report"))
@@ -294,6 +417,19 @@ class ImplementTicketsSkillTest(unittest.TestCase):
         yaml = (SKILL_DIR / "agents" / "openai.yaml").read_text()
         lines = [line.rstrip() for line in yaml.splitlines() if line.strip()]
         self.assertEqual(lines, ["policy:", "  allow_implicit_invocation: false"])
+
+
+class ImplementTicketsReadmeTest(unittest.TestCase):
+    def test_readme_dependency_list_matches_the_script(self):
+        text = (ROOT / "README.md").read_text()
+        start = text.index("`implement-tickets` runs a Claude Code workflow script")
+        section = " ".join(text[start:text.index("`run-report` publishes", start)].split())
+        # Neither dependency is required: each has a fallback the script names.
+        self.assertIn("`mattpocock-skills`", section)
+        self.assertIn("follow its steps themselves", section)
+        self.assertIn("`routine`", section)
+        self.assertIn(".github/workflows/claude-review.yml", section)
+        self.assertNotIn("45 minutes", section)
 
 
 if __name__ == "__main__":

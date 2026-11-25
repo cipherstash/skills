@@ -33,8 +33,16 @@ Profiling, with `-bench` or pprof, is not part of the suite. [performance.md](pe
 A check is in place when it is a GitHub Actions step that:
 
 - runs on `pull_request`;
-- has no `continue-on-error`;
+- blocks: it has no `continue-on-error`, no `|| true`, and no other way of ignoring the tool's exit status, such as a shell set without `-e` (`shell: bash {0}`), which lets a failing line pass when a later line passes;
 - covers every Go module, except test fixtures that contain planted defects;
-- pins its tool version.
+- pins its tool version, such as `version: v2.15.0` for `golangci-lint-action` or `@v1.10.0` for `go run`. `@latest` does not count. In a module whose `go` line is 1.24 or later, a `tool` directive in `go.mod`, run with `go tool <name>`, also counts as pinned, because `go.mod` fixes its version.
 
-A repository may leave a check out only through an exemption architecture decision record (ADR) in that repository.
+## Exemptions
+
+A repository may leave a check out only through an exemption architecture decision record (ADR). The ADR is a file in `docs/adr/` on the repository's default branch, added through an issue and a reviewed pull request. It:
+
+- names each check it exempts, and each Go module it covers;
+- gives the reason;
+- links the issue it came from and the merged pull request that added it.
+
+An ADR leaves out only the checks and modules it names. A pull request cannot exempt itself by adding one.

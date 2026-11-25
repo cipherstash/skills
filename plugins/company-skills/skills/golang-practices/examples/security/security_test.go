@@ -187,6 +187,36 @@ func TestOpenUpload(t *testing.T) {
 	}
 }
 
+// OpenUpload takes a file name from a user, so it has a Fuzz target. The
+// property is the security claim: any file it opens is inside dir.
+func FuzzOpenUpload(f *testing.F) {
+	root := f.TempDir()
+	dir := filepath.Join(root, "uploads")
+	if err := os.Mkdir(dir, 0o700); err != nil {
+		f.Fatal(err)
+	}
+	secret := filepath.Join(root, "secret.txt")
+	for _, p := range []string{filepath.Join(dir, "a.txt"), secret} {
+		if err := os.WriteFile(p, []byte("x"), 0o600); err != nil {
+			f.Fatal(err)
+		}
+	}
+	for _, seed := range []string{"a.txt", ".", "", "../secret.txt", "sub/../../secret.txt", "/etc/passwd", secret} {
+		f.Add(seed)
+	}
+	f.Fuzz(func(t *testing.T, name string) {
+		file, err := security.OpenUpload(dir, name)
+		if err != nil {
+			return
+		}
+		defer func() { _ = file.Close() }() // read-only: a close error loses nothing
+		rel, err := filepath.Rel(dir, file.Name())
+		if err != nil || !filepath.IsLocal(rel) {
+			t.Fatalf("OpenUpload(%q) opened %s, outside %s", name, file.Name(), dir)
+		}
+	})
+}
+
 func TestDecodeJSON(t *testing.T) {
 	var v struct{ Name string }
 

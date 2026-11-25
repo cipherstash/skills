@@ -63,25 +63,34 @@ Example, from a run on 20 November 2026:
 - After `init`, `gh stack view --json` showed the local `main` commit as the bottom branch's `base`, with `"needsRebase": false`.
 - The stack on GitHub showed the `origin/main` commit as the base of the bottom pull request.
 
-A CodeRabbit review of the source guide read gh-stack's source and found a risk.
+An earlier version of this guide is in cipherstash/stack#1733.
+
+A CodeRabbit review of it found a risk in gh-stack's source.
 Sometimes gh-stack cannot find where a branch started.
 In that case, gh-stack uses the recorded base as the starting point for a rebase.
 With an out-of-date base, the rebase replays commits that `origin/<base>` already has.
 The replay can stop on conflicts, or repeat work.
 
-Nobody has seen this happen in a run.
+A test on 25 November 2026, with a local remote and no GitHub, found the risk is smaller:
 
-So step 3 of SKILL.md updates the local `<base>` before `init`.
+- `init` recorded the old local commit, as above.
+- The first `gh stack rebase` printed `Trunk main fast-forwarded to <commit>`, and recorded the new commit as the base.
+- No `rebase` or `sync` replayed any commit from `main`.
+
+The v0.3.0 source explains this. `cascadeRebase` in `cmd/utils.go` rebases the bottom branch with a plain `git rebase <base>`. That command does not use the recorded base.
+The recorded base is used only after GitHub reports that it retargeted the stack.
+Nobody has tested that case, because it needs GitHub.
+
+Step 3 of SKILL.md updates the local `<base>` before `init`, so the record is right from the start.
 
 ## Open questions
 
 Nobody had checked these in a run when this skill was written:
 
-- After the resets in step 8 of SKILL.md, does `gh stack view --json` show the stack correctly? Does gh-stack still list the merged branch?
-- Do the [re-sign steps](restructuring.md#re-sign-a-branch-in-a-stack) work?
+- After the resets in step 8 of SKILL.md, does `gh stack view --json` mark the merged branch as merged, once it has GitHub's data? Does it update the old commit IDs? A test without GitHub showed the merged branch still listed, with old commit IDs.
 - Does the **Rebase stack** button sign commits? GitHub's reference page on stacks says yes. GitHub's page on managing stacks says no.
 - Which branch does `github.base_ref` name for a pull request in the middle of a stack?
 - How does the ruleset setting `require_extra_approval_for_unattributed_changes` treat the rebase that GitHub runs after a merge?
-- When `init` records an out-of-date local base commit, does a later `rebase` or `sync` replay commits from `<base>`?
+- After GitHub retargets a stack, does an out-of-date recorded base make `rebase` or `sync` replay commits from `<base>`?
 
 If a run answers one of these questions, tell the user, so that someone can update this skill.

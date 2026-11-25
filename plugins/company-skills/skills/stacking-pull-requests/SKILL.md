@@ -1,20 +1,22 @@
 ---
 name: stacking-pull-requests
-description: Builds and maintains a GitHub stack of pull requests with the gh stack CLI extension, so pull requests that each need the code in the one below are linked, rebased, and merged as one stack. Use when the user asks for a stack, a PR stack, or stacked pull requests; when splitting one change into pull requests that each need the one below; or when updating, syncing, re-signing, restructuring, or merging an existing stack. Not for a single pull request or independent ones (authoring-pull-requests), or for the implement-tickets workflow.
+description: Builds and maintains a GitHub stack of pull requests with GitHub's gh-stack extension, so pull requests that each need the code in the one below are linked, rebased, and merged as one stack. Use when the user asks for a stack, a PR stack, or stacked pull requests; when splitting one change into pull requests that each need the one below; or when updating, syncing, re-signing, restructuring, or merging an existing stack. Not for a single pull request or independent ones (authoring-pull-requests), or for the chain of pull requests that the implement-tickets workflow builds.
 ---
 
 # stacking-pull-requests
 
-Build pull requests that depend on each other as a GitHub stack, with GitHub's `gh stack` CLI extension.
-Do not build the chain by hand.
-Setting each pull request's base branch to the branch below it does not make a stack.
-GitHub treats each of those pull requests on its own.
+Build pull requests that depend on each other as a GitHub stack, with GitHub's gh-stack extension.
+The extension adds the `gh stack` command.
+Do not build a chain by hand.
+Setting each pull request's base branch to the branch below it makes a chain, not a stack.
+GitHub treats each pull request in a chain on its own.
 
 This skill adds to authoring-pull-requests.
 Use that skill's rules for branch names, commit messages, signed commits, the repository's checks, and each pull request's title and body.
 This skill covers what changes when the pull requests form a stack.
 
-The commands were checked against `gh stack` 0.3.0 on 20 November 2026.
+The commands were checked against gh-stack 0.3.0 on 20 November 2026.
+This is the only place the skill names that version.
 On another version, run `gh stack <command> --help` to check the flags.
 
 ## What a stack is
@@ -56,7 +58,7 @@ Every branch must be in the same repository, because GitHub does not support sta
 ## 1. Check the tools
 
 1. Run `gh stack --version`. If the command is not found, install the extension with `gh extension install github/gh-stack`. Installing an extension changes the user's `gh` setup, so ask first unless the user already asked for a stack.
-2. Run `git config --get commit.gpgsign`. `gh stack rebase` and `gh stack sync` run `git rebase` on your machine, and Git signs the new commits only when this prints `true`. If it does not, stop and tell the user. Do not rebase a stack until commits will be signed.
+2. Run `git config --type=bool --get commit.gpgsign`. `gh stack rebase` and `gh stack sync` run `git rebase` on your machine. Git signs the new commits only when this command prints `true`. Without that setting, `gh stack rebase` also removes signatures from commits it replays. If the command does not print `true`, stop and tell the user. Do not rebase a stack until commits will be signed.
 3. Find the default branch as authoring-pull-requests says. Call it `<base>` below.
 
 Run every `gh stack` command with all of its arguments, so that it never opens a prompt or a full-screen view.
@@ -77,8 +79,10 @@ Run these checks before each `gh stack rebase`, `sync`, `push`, or `submit`.
      git rev-parse origin/<branch>
      ```
 
+     A branch that has never been pushed has no `origin/<branch>`, and the command fails. Record that branch as absent.
    - Before each push, run `git fetch origin` again, and compare each branch's `git rev-parse origin/<branch>` with the commit you recorded.
    - If a branch's commit has changed, someone else pushed to it. `git log --oneline <recorded commit>..origin/<branch>` lists their commits. Bring their work into your branch, or ask the user, before you push.
+   - If a branch you recorded as absent now exists on GitHub, someone else pushed it. Ask the user before you push.
    - After each push, record the commits again.
 
    This check compares commit IDs, not the changes inside the commits. So your own rebases do not trigger it, and it still finds a commit whose message someone else changed.
@@ -93,24 +97,31 @@ Put the code that other code depends on in the lowest branch.
 
 First, bring your local `<base>` up to date with GitHub's.
 `init` records your local `<base>` commit as the start of the stack.
-If that commit is out of date, a later `rebase` or `sync` can replay commits that `<base>` already has.
+The first `gh stack rebase` or `sync` replaces an out-of-date record.
+Before then, the out-of-date record can cause problems if GitHub retargets the stack.
 
 ```bash
 git fetch origin <base>:<base>
 ```
 
-Git refuses this command when `<base>` is checked out in a worktree.
-In that case, run `git merge --ff-only origin/<base>` in that worktree.
-If the worktree is not yours, ask the user first.
+Git refuses this command when `<base>` is checked out in any worktree, including the current one.
+A fresh clone usually has `<base>` checked out.
+In that case, run `git fetch origin`, then run `git merge --ff-only origin/<base>` in the worktree that has `<base>` checked out.
+If that worktree is not yours, ask the user first.
+
+Git also refuses when your local `<base>` has commits that GitHub's does not.
+If Git refuses for that reason, stop and ask the user.
+Never add `+` to the fetch, and never pass `--force`, because either one discards the user's commits.
 
 Then create the first branch and the stack:
 
 ```bash
-git switch -c <first branch> origin/<base>
+git switch --no-track -c <first branch> origin/<base>
 gh stack init --base <base> <first branch>
 ```
 
 Create the first branch from `origin/<base>` yourself, so that it starts from GitHub's latest commit.
+`--no-track` stops a plain `git pull` on that branch from pulling `<base>`.
 Write the first part of the change and commit it.
 
 To turn branches that already exist into a stack, update your local `<base>` as above. Then name the branches from the bottom up:
@@ -171,6 +182,8 @@ Do not build a chain by hand instead.
 
 ## 6. Update the stack after a change lower down
 
+Record the commits as step 2 says before you start.
+
 ```bash
 gh stack checkout <branch to change>
 # edit, then commit
@@ -188,42 +201,46 @@ To undo the whole rebase, run `gh stack rebase --abort`.
 Run the checks in step 2, then `gh stack sync --remote origin`.
 `sync` fetches, rebases the whole stack onto `<base>`, and pushes.
 
-- If `sync` stops on a conflict, it restores every branch and exits with code 3. Run `gh stack rebase --remote origin` to repeat the rebase and resolve the conflict.
+- If `sync` stops on a conflict, it restores every branch and exits with code 3. Run `gh stack rebase --remote origin` to repeat the rebase, and resolve the conflict. `gh stack rebase` does not push. So then run the checks in step 2, and push with `gh stack push --remote origin`.
 - If `sync` prints `Sync aborted`, the local stack and the stack on GitHub have diverged, and nothing changed. `sync` still exits with code 0, so check the output for that message and tell the user.
 
 ## 8. After the bottom pull request merges
 
 GitHub retargets the next pull request to `<base>`, rebases the remaining branches, and force-pushes them.
 GitHub marks its rebased commits as verified.
-GitHub's commits are not signed with the user's key.
+GitHub's commits are not signed with the user's key, so the signature check in step 2 does not show `G` for them.
+That result is expected after GitHub's rebase. Do not re-sign them unless the user chooses their own signatures.
 
 Your local branches still hold the commits from before GitHub's rebase.
 There are two ways to update them.
 Ask the user which they want, unless they have already chosen.
+If the user has no preference, keep GitHub's commits.
 
 ### Keep GitHub's commits
 
-Keeping GitHub's commits is the default.
 Nothing is pushed.
 CI does not run again.
 
-1. Run `git fetch origin`.
-2. Run the worktree check in step 2. Check that no branch has uncommitted changes.
-3. For each remaining branch, run `git cherry -v origin/<branch> <branch>`. A line that starts with `+` is a local commit that GitHub does not have. If any branch has one, ask the user before you continue.
-4. For each remaining branch, run `git switch <branch>`, then `git reset --keep origin/<branch>`. `--keep` refuses to discard uncommitted changes.
+1. For each remaining branch, compare `git rev-parse <branch>` with the commit you recorded in step 2. A different commit means the branch has local work that GitHub does not have. If any branch differs, or you have no record, ask the user before you continue.
+2. Run `git worktree list`. Run `git status --porcelain` in each worktree that has a stack branch checked out. If any prints a line, ask the user before you continue.
+3. Run `git fetch origin`. Then record each branch's `git rev-parse origin/<branch>` again, as step 2 says. The new commits are GitHub's rebase, not someone else's work.
+4. For each remaining branch, run `git switch <branch>`, then `git reset --keep origin/<branch>`. `--keep` never discards uncommitted changes. Git keeps them in the working tree, or stops if they would conflict. If any reset fails, stop before the next branch, and tell the user.
 5. Run `gh stack view --json`, and report what it shows for each branch.
 
 Leave the local branch of the merged pull request in place, and tell the user it is there.
-Nobody has checked how gh-stack's local record handles these resets, so check the output of `gh stack view --json` carefully.
+
+The local record that gh-stack keeps may still list the merged branch, with the old commit IDs, until it gets GitHub's data.
+That was seen in a test without GitHub, so check the output of `gh stack view --json` carefully.
 
 ### Use the user's signatures
 
 Run the checks in step 2, then `gh stack sync --prune --remote origin`.
 
-The command rebases the local branches and signs them with the user's key.
+The command fetches, rebases the local branches, and signs them with the user's key.
 The command then force-pushes every remaining branch, replacing GitHub's commits.
 That push starts CI again on each remaining pull request.
 `--prune` deletes the local branch of the merged pull request.
+After the push, record the commits again, as step 2 says.
 
 After every pull request in the stack has merged, GitHub closes the stack.
 
@@ -233,11 +250,11 @@ Do not merge a pull request in a stack unless the user asks.
 When they ask, use `gh stack merge`, because `gh pr merge` cannot merge a pull request in a stack:
 
 ```bash
-gh stack merge <pull request number> --yes --merge
+gh stack merge <pull request number> --yes --<method>
 ```
 
 - Merging a pull request also merges every unmerged pull request below it. Either all of them merge, or none do.
-- Always pass a method flag: `--merge`, `--squash`, or `--rebase`. Without one, gh-stack uses the method you used last.
+- Replace `<method>` with `merge`, `squash`, or `rebase`. Always pass a method. Without one, gh-stack uses the method you used last.
 - Use a method the repository allows. To list the allowed methods, run `gh api repos/{owner}/{repo} --jq '{merge: .allow_merge_commit, squash: .allow_squash_merge, rebase: .allow_rebase_merge}'`. If more than one is allowed, and neither the repository's checklist nor the user says which, ask.
 - `gh stack merge` refuses a draft, and exits with code 5. Do not mark pull requests ready to make the merge work. Ask the user.
 - Do not bypass the repository's rules. `gh stack merge --help` says that bypassing merge requirements is not supported for stacks. Stacks do not support auto-merge either.
@@ -256,7 +273,7 @@ To reorder, rename, or remove a branch, or to re-sign a branch in the middle, fo
 - Do not delete gh-stack's lock file. Exit code 8 means another `gh stack` command has taken the lock. Wait, then try again.
 - A single pull request, or several independent ones, is authoring-pull-requests.
 - Do not fix review findings here. review-fix fixes them on the pull request's branch. This skill then rebases the branches above it, as step 6 says.
-- The implement-tickets workflow builds its own chain of pull requests. Do not convert its pull requests to a stack unless the user asks.
+- The implement-tickets workflow builds a chain of pull requests, not a stack. Do not run `gh stack` commands on that chain, or convert it to a stack, unless the user asks.
 
 ## Report
 

@@ -1,6 +1,6 @@
 ---
 name: authoring-pull-requests
-description: Takes finished work from the working tree to a draft pull request on a CipherStash GitHub repository: branch, signed commits, the repository's own checks, and a plain-language PR body. Use when committing work, opening or updating a pull request, writing a PR title or body, re-signing or rebasing a branch with an open PR, or asked to ship work or push it up for review. Not for fixing or auditing review findings (review-fix, review-audit) filing GitHub issues (filing-github-issues), or a stack of pull requests that build on each other (stacking-pull-requests).
+description: Takes finished work from the working tree to a draft pull request on a CipherStash GitHub repository: branch, signed commits, the repository's own checks, and a plain-language PR body. Use when committing work, opening or updating a pull request, writing a PR title or body, re-signing or rebasing a branch with an open PR, or asked to ship work or push it up for review. Not for fixing or auditing review findings (review-fix, review-audit), filing GitHub issues (filing-github-issues), or a stack of pull requests that each need the one below (stacking-pull-requests).
 ---
 
 # authoring-pull-requests

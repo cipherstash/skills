@@ -1,7 +1,7 @@
 # `gh stack` commands and exit codes
 
 Read this when you need a command's non-interactive form, or when a `gh stack` command exits with a code other than 0.
-Checked against `gh stack` 0.3.0.
+SKILL.md names the gh-stack version these commands were checked against.
 
 ## Commands that never prompt
 
@@ -16,7 +16,7 @@ Give every command its arguments.
 | `gh stack view --json` | `gh stack view` |
 | `gh stack checkout <stack, pull request or branch>` | `gh stack checkout` with no argument |
 | `gh stack up`, `down`, `top`, or `bottom` | `gh stack switch` |
-| `gh stack merge <pull request> --yes --merge` | `gh pr merge` on a pull request in a stack |
+| `gh stack merge <pull request> --yes --<method>` | `gh pr merge` on a pull request in a stack |
 
 - Never run `gh stack modify`, because the command works only in a full-screen view. If a command reports a paused `modify` session with exit code 10, run `gh stack modify --abort`.
 - Pass `--remote origin` to `push`, `submit`, `sync`, `rebase`, and `link`. Without that flag, gh-stack stops in a clone with several remotes and no default remote.
@@ -24,13 +24,13 @@ Give every command its arguments.
 
 ## Exit codes
 
-gh-stack defines these codes in `cmd/utils.go`, checked at v0.3.0.
+gh-stack defines these codes in `cmd/utils.go`, checked at the version that SKILL.md names.
 
 | Code | Meaning | What to do |
 |---:|---|---|
 | 1 | The command failed, and has already printed the error. | Read the error, then stop and tell the user. |
 | 2 | The branch is not in a stack. | Run `gh stack init` or `gh stack checkout <target>`. |
-| 3 | A rebase stopped on a conflict. | Fix the files, run `git add`, then run `gh stack rebase --continue`. |
+| 3 | A conflict. The meaning depends on the command. | See the next table. |
 | 4 | A GitHub API call failed. | Run `gh auth status`, then try again. |
 | 5 | The arguments are not valid. `gh stack merge` also returns 5 for a draft, a closed pull request, or one outside the stack. | Read the error. For a draft, ask the user. Do not mark it ready yourself. |
 | 6 | gh-stack cannot choose between several stacks or remotes. | Check out a branch that only one stack contains, and pass `--remote origin`. |
@@ -40,6 +40,17 @@ gh-stack defines these codes in `cmd/utils.go`, checked at v0.3.0.
 | 10 | A `modify` session is paused. | Run `gh stack modify --abort`. |
 
 For any code that this table does not list, stop and tell the user.
+
+### Exit code 3 by command
+
+| Command | What code 3 means | What to do |
+|---|---|---|
+| `rebase` | The rebase stopped on a conflict, and is still in progress. | Fix the files, run `git add`, then run `gh stack rebase --continue`. |
+| `sync` | The rebase hit a conflict. `sync` has already restored every branch, so no rebase is in progress. | Run `gh stack rebase --remote origin`, and resolve the conflict there. |
+| `merge` | GitHub found a conflict when it tried to merge. | Tell the user. |
+| `checkout` | The local stack and the stack on GitHub list different branches. | Tell the user. |
+
+Only after `rebase` does `gh stack rebase --continue` work. After the other commands, it fails with "no rebase in progress".
 
 `sync` exits with code 0 when the local stack and the stack on GitHub have diverged.
 In that case, `sync` prints `Sync aborted` and changes nothing.

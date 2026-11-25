@@ -38,14 +38,3 @@ func ListUsersQuery(sortKey string) (string, error) {
 	}
 	return "SELECT id, name FROM users ORDER BY " + col, nil
 }
-
-// RenameUserFormatted shows the mistake RenameUser avoids: it formats the
-// name into the SQL text, so a name containing a quote ends the string and
-// the rest runs as SQL. Never build queries like this.
-func RenameUserFormatted(ctx context.Context, db Execer, id int64, name string) error {
-	query := fmt.Sprintf("UPDATE users SET name = '%s' WHERE id = %d", name, id) // wrong: injectable
-	if _, err := db.ExecContext(ctx, query); err != nil {
-		return fmt.Errorf("rename user %d: %w", id, err)
-	}
-	return nil
-}

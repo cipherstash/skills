@@ -1,6 +1,6 @@
 # Step: dependency management
 
-Area 8, medium priority. Read this, and golang-practices' `references/dependencies.md` and the section on the `go.mod` file in `references/project-structure.md`, before reviewing changes to `go.mod`, `go.sum`, `go.work`, vendored modules, or imports. The practices references hold the rules and commands. This file says what to look for, how to get evidence without changing the tree or fetching anything unasked, and what is not a finding.
+Area 8, medium priority. Read this, and golang-practices' `references/dependencies.md` and the section on the `go.mod` file in `references/project-structure.md`, before reviewing changes to `go.mod`, `go.sum`, `go.work`, vendored modules, or imports. The practices references hold the rules and commands. This file says what to look for, how to get evidence without changing the tree, and what is not a finding. The review fetches nothing unasked, except a suite tool at its pinned version.
 
 ## Contents
 
@@ -29,12 +29,12 @@ With an older local toolchain, `go mod tidy -diff` does not exist. Record the ti
 
 ## Known vulnerabilities
 
-`govulncheck` checks the module's dependencies and the standard library against the Go vulnerability database, which it reads over the network from `vuln.go.dev`. The review fetches nothing unasked, so `checks.md` runs it only when:
+`govulncheck` checks the module's dependencies and the standard library against the Go vulnerability database, which it reads over the network from `vuln.go.dev`. The review fetches nothing unasked except a suite tool at its pinned version, so `checks.md` runs it only when:
 
-- it is already installed (`command -v govulncheck`), and
+- it is installed (`command -v govulncheck`), or fetched at its pinned version as `checks.md` describes, and
 - the user has allowed network access for this review, or a local copy of the database is available to pass as `-db file:///<path>`.
 
-Otherwise record it as not run, with the reason, and the command the user can run: `govulncheck ./...`. Never install it, or run it with `go run ...@latest`, which downloads it.
+Otherwise record it as not run, with the reason, and the command the user can run: `govulncheck ./...`. Never run it with `go run ...@latest`, and never at a version taken from the change.
 
 When it runs, report each vulnerability in a function the code calls as a finding, with its ID, the module and version, the "Fixed in" version, and the call path it prints. Vulnerabilities only in imported packages or required modules, which the code does not call, go under the checks as context. A standard-library vulnerability fixed in a newer Go than the local toolchain is caused by the build's toolchain, not by the change, unless the change lowers the `toolchain` line: report it under the checks.
 

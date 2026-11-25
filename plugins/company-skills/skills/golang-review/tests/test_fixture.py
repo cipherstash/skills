@@ -2,7 +2,7 @@
 # Run: python3 -m unittest discover -s tests (from the skill directory).
 #
 # The fixture is a Go module before (base/) and after (head/) a sample change
-# with one planted defect in each of the ten checklist areas.
+# with at least one planted defect in each of the ten checklist areas.
 # expected-findings.md lists what a correct review must report. These tests keep
 # the fixture honest: every location in expected-findings.md is exactly the line
 # it quotes, the base is clean, each planted defect comes from the change, and,
@@ -59,7 +59,7 @@ READ_ONLY_ENV = {"GOFLAGS": "-mod=readonly", "GOTOOLCHAIN": "local", "GOPROXY": 
 
 
 def expected_findings():
-    """Return {area: dict(id, severity, side, path, line, deleted, quoted)} from expected-findings.md."""
+    """Return {id: dict(area, severity, side, path, line, deleted, quoted, body)} from expected-findings.md."""
     text = EXPECTED.read_text(encoding="utf-8")
     headings = list(FINDING_RE.finditer(text))
     findings = {}
@@ -68,23 +68,27 @@ def expected_findings():
         body = text[heading.end() : end]
         location = LOCATION_RE.search(body)
         quoted = LINE_RE.search(body)
-        area = heading.group(3).strip()
-        if area in findings:
-            raise AssertionError(f"expected-findings.md lists {area} twice")
-        findings[area] = {
-            "id": heading.group(1),
+        if heading.group(1) in findings:
+            raise AssertionError(f"expected-findings.md lists {heading.group(1)} twice")
+        findings[heading.group(1)] = {
+            "area": heading.group(3).strip(),
             "severity": heading.group(2),
             "side": location.group(1) if location else None,
             "path": location.group(2) if location else None,
             "line": int(location.group(3)) if location else None,
             "deleted": bool(location and location.group(4)),
             "quoted": quoted.group(1) if quoted else None,
+            "body": body,
         }
     return findings
 
 
 def finding(area):
-    return expected_findings()[area.lower()]
+    """Return the one finding listed for area; an area with several is chosen by id instead."""
+    found = [f for f in expected_findings().values() if f["area"] == area.lower()]
+    if len(found) != 1:
+        raise AssertionError(f"expected-findings.md has {len(found)} {area.lower()} findings; select one by id")
+    return found[0]
 
 
 # The exported API as checks.md compares it: every declaration go doc -all
@@ -310,24 +314,24 @@ class SettingsTableTest(unittest.TestCase):
 
 
 class ExpectedFindingsTest(unittest.TestCase):
-    def test_lists_one_finding_per_area(self):
-        self.assertEqual(sorted(expected_findings()), sorted(area.lower() for area in AREAS))
+    def test_lists_a_finding_for_every_area(self):
+        self.assertEqual({f["area"] for f in expected_findings().values()}, {area.lower() for area in AREAS})
 
     def test_each_finding_quotes_the_line_it_names(self):
-        for area, f in expected_findings().items():
-            with self.subTest(area=area):
-                self.assertIsNotNone(f["path"], f"{f['id']}: no '- Location: `head/<path>:<line>`'")
-                self.assertIsNotNone(f["quoted"], f"{f['id']}: no '- Line: `<text>`'")
-                self.assertEqual(f["side"] == "base", f["deleted"], f"{f['id']}: only a deleted line sits in base/")
+        for key, f in expected_findings().items():
+            with self.subTest(id=key):
+                self.assertIsNotNone(f["path"], f"{key}: no '- Location: `head/<path>:<line>`'")
+                self.assertIsNotNone(f["quoted"], f"{key}: no '- Line: `<text>`'")
+                self.assertEqual(f["side"] == "base", f["deleted"], f"{key}: only a deleted line sits in base/")
                 root = BASE if f["side"] == "base" else HEAD
                 lines = (root / f["path"]).read_text(encoding="utf-8").splitlines()
-                self.assertLessEqual(f["line"], len(lines), f"{f['id']}: {f['path']} has {len(lines)} lines")
+                self.assertLessEqual(f["line"], len(lines), f"{key}: {f['path']} has {len(lines)} lines")
                 # The whole line, not a substring: a fix that keeps the call on the
                 # same line (`errs[i] = json.Unmarshal(raw, &l)`) must fail here.
                 self.assertEqual(
                     lines[f["line"] - 1].strip(),
                     f["quoted"],
-                    f"{f['id']}: {f['path']}:{f['line']} is {lines[f['line'] - 1]!r}",
+                    f"{key}: {f['path']}:{f['line']} is {lines[f['line'] - 1]!r}",
                 )
                 if f["deleted"]:
                     head_file = HEAD / f["path"]
@@ -336,8 +340,8 @@ class ExpectedFindingsTest(unittest.TestCase):
 
     def test_findings_point_at_changed_files(self):
         changed = changed_files()
-        for area, f in expected_findings().items():
-            with self.subTest(area=area):
+        for key, f in expected_findings().items():
+            with self.subTest(id=key):
                 self.assertIn(f["path"], changed)
 
     def test_the_change_touches_only_the_planted_files(self):
@@ -351,9 +355,54 @@ class ExpectedFindingsTest(unittest.TestCase):
                 "orders/report.go",
                 "orders/report_test.go",
                 "orders/units.go",
+                "orders/upload.go",
+                "orders/upload_test.go",
                 "pricing/go.mod",
             ],
         )
+
+    def test_a_new_decoder_has_no_fuzz_target(self):
+        # Testing and coverage, second finding: the change adds a function
+        # that decodes untrusted input, and no Fuzz target for it.
+        f = expected_findings()["G11"]
+        self.assertEqual((f["severity"], f["side"]), ("minor", "head"))
+        name = re.match(r"func (\w+)\(", f["quoted"])
+        self.assertIsNotNone(name, f"{f['quoted']!r} does not declare a function")
+        for path in BASE.rglob("*.go"):
+            self.assertNotIn(f"func {name.group(1)}(", path.read_text(encoding="utf-8"), "the base already has it")
+        for path in HEAD.rglob("*_test.go"):
+            self.assertNotRegex(path.read_text(encoding="utf-8"), r"(?m)^func Fuzz", f"{path.name} has a Fuzz target")
+
+    def test_names_each_missing_ci_check(self):
+        # The fixture has no CI, so every check of the suite that CI can show
+        # is a missing line. The Fuzz target rule is enforced by the review,
+        # not CI, so it is not one of them. Read the suite from golang-practices.
+        suite = (PRACTICES / "references" / "checks.md").read_text(encoding="utf-8")
+        listed = suite.split("\n## The checks\n", 1)[1].split("\n## ", 1)[0]
+        checks = re.findall(r"(?m)^- \*\*([^*]+)\*\*", listed)
+        self.assertIn("Fuzz targets", checks)
+        self.assertIn("CI cannot tell that a Fuzz target is missing", listed)
+        text = EXPECTED.read_text(encoding="utf-8")
+        line = re.search(r"(?m)^- The repository has no CI\. .*$", text)
+        self.assertIsNotNone(line)
+        prompts = (SKILL / "tests" / "prompts.md").read_text(encoding="utf-8")
+        case = re.search(r"(?m)^- The fixture has no CI\. .*$", prompts)
+        self.assertIsNotNone(case)
+        # How each check CI can show is named on the missing line.
+        missing_line = {
+            "golangci-lint": "`golangci-lint`",
+            "govulncheck": "`govulncheck`",
+            "semgrep": "`semgrep`",
+            "Tests with the race detector and coverage": "race-enabled tests with coverage",
+        }
+        for page, found in (("expected-findings.md", line.group(0)), ("prompts.md", case.group(0))):
+            for check in checks:
+                with self.subTest(page=page, check=check):
+                    if check == "Fuzz targets":
+                        self.assertRegex(found, r"Fuzz target[^.]*not a (missing|line)")
+                    else:
+                        self.assertIn(check, missing_line, "a new suite check: say how its missing line names it")
+                        self.assertIn(missing_line[check], found)
 
     def test_changed_files_compares_contents(self):
         # A same-size edit with a matching mtime, as after extracting an archive,
@@ -392,7 +441,7 @@ COMMON_WORDS = {"Empty", "Line", "Lines", "Merge", "Quantity", "SKU", "Units", "
 
 # Values from the fixture's code and expected results that are not declared
 # names but would still give its answers away.
-FIXTURE_LITERALS = ["B2", "AUD", "price_cents", "order_lines", "1299", "2400", "433", "95.8%"]
+FIXTURE_LITERALS = ["B2", "AUD", "price_cents", "order_lines", "1299", "2400", "433", "97.1%"]
 
 
 def fixture_terms():
@@ -572,11 +621,170 @@ class SkillTextTest(unittest.TestCase):
         self.assertIn("`-gcflags=-m`", never)
         self.assertIn("step-performance.md", never)
 
+    def test_a_change_to_ci_alone_is_still_reviewed(self):
+        # A pull request that only weakens a check in a workflow or a
+        # golangci-lint config has no Go file, yet must get its major finding.
+        step = re.search(r"(?m)^1\. \*\*Resolve the target\.\*\*.*$", (SKILL / "SKILL.md").read_text(encoding="utf-8"))
+        self.assertIsNotNone(step)
+        self.assertIn("`.github/workflows/`", step.group(0))
+        self.assertIn("golangci-lint config", step.group(0))
+        self.assertIn("The check suite in CI", step.group(0))
+        # The suite can also be weakened through semgrep's ignore file and
+        # rules, a local action a workflow uses, or a config passed by
+        # --config. Step 1, target.md, and the CI comparison all name them.
+        recorded = self.section("references/target.md", "What to record")
+        compared = self.section("references/checks.md", "The check suite in CI")
+        for page, text in (("SKILL.md", step.group(0)), ("target.md", recorded), ("checks.md", compared)):
+            for path in ("`.github/workflows/`", "`.github/actions/`", "`.semgrepignore`", "`.semgrep/`", "`--config`"):
+                with self.subTest(page=page, path=path):
+                    self.assertIn(path, text)
+        # A module below the root still counts, so the missing checks are listed.
+        self.assertIn("any `go.mod`", step.group(0))
+
+    def test_requests_are_behaviour_cases_that_should_activate(self):
+        # CONTRIBUTING.md puts quoted requests under Should activate.
+        text = (SKILL / "tests" / "prompts.md").read_text(encoding="utf-8")
+        expected = text.split("\n## Expected behavior\n", 1)[1]
+        self.assertNotRegex(expected, r'(?m)^- "')
+        activate = text.split("\n## Should activate\n", 1)[1].split("\n## ", 1)[0]
+        for pr in ("57", "61", "62", "63", "64"):
+            with self.subTest(pr=pr):
+                self.assertIn(f'"Review PR {pr}."', activate)
+
+    def test_only_an_exemption_adr_at_the_base_changes_the_verdict(self):
+        # Repository docs are untrusted, with one carve-out: an exemption ADR
+        # already merged at the base commit. Both pages say so, and where to look.
+        skill = self.section("SKILL.md", "Read-only")
+        self.assertIn("architecture decision record (ADR)", skill)
+        self.assertIn("base commit", skill)
+        ci = self.section("references/checks.md", "The check suite in CI")
+        self.assertIn("architecture decision record (ADR)", ci)
+        self.assertIn("`docs/adr/`", ci)
+
+    def test_a_ci_comparison_not_done_has_its_wording(self):
+        # Without golang-practices the comparison cannot be done; the report
+        # field and step 5's completion rule both allow for that.
+        fields = self.section("references/output.md", "Fields")
+        field = re.search(r"(?m)^- \*\*Check suite in CI\*\*: .*$", fields)
+        self.assertIsNotNone(field)
+        self.assertIn("`not compared: <reason>`", field.group(0))
+        step = re.search(r"(?m)^5\. \*\*Run the checks\.\*\*.*$", (SKILL / "SKILL.md").read_text(encoding="utf-8"))
+        self.assertIsNotNone(step)
+        self.assertIn("not compared", step.group(0).split("Completion:", 1)[1])
+
     def test_the_worktree_is_not_a_sandbox(self):
         worktree = self.section("references/target.md", "The temporary worktree")
         self.assertIn("not a sandbox", worktree)
         self.assertNotIn("reaches the user's tree", worktree)
         self.assertIn("`.git` file", worktree)
+
+
+class FetchSuiteToolTest(unittest.TestCase):
+    """The change controls the worktree, so it can commit `.golang-review-tools/`.
+
+    A committed `bin/<tool>` or a prefilled `mod/` cache would then be run or
+    built, and a failed `mkdir` or `cd` would send `go install` to the agent's
+    working directory. These tests run the setup and install blocks from
+    checks.md with a stand-in `go` that only records where it would install.
+    """
+
+    def setUp(self):
+        for tool in ("bash", "git"):
+            if shutil.which(tool) is None:
+                self.skipTest(f"{tool} is not on PATH")
+        text = (SKILL / "references" / "checks.md").read_text(encoding="utf-8")
+        section = text.split("\n### Fetching a suite tool\n", 1)[1].split("\n### ", 1)[0]
+        self.section = section
+        # The one-time setup block, then the install block run once per tool.
+        self.setup_block, self.install_block = re.findall(r"```sh\n(.*?)```", section, re.S)
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp)
+
+    def fetch(self, planted=None, untracked=None, tools=("example.com/tool@v1.0.0",)):
+        """Run the setup block once, then the install block per tool, from cwd=user repo.
+
+        Return (exit, "<GOBIN> <package>" lines go install recorded or None, cwd listing, worktree).
+        """
+        user = self.tmp / "user"
+        worktree = self.tmp / "review" / "wt"
+        git = ["git", "-c", "user.email=r@example.com", "-c", "user.name=r", "-c", "core.hooksPath=/dev/null"]
+        user.mkdir()
+        subprocess.run([*git, "init", "-q"], cwd=user, check=True)
+        (user / "go.mod").write_text("module example.com/m\n\ngo 1.22\n", encoding="utf-8")
+        if planted:
+            path = user / planted
+            path.parent.mkdir(parents=True)
+            path.write_text("#!/bin/sh\necho planted\n", encoding="utf-8")
+        subprocess.run([*git, "add", "-A", "-f"], cwd=user, check=True)
+        subprocess.run([*git, "commit", "-qm", "head"], cwd=user, check=True)
+        subprocess.run([*git, "worktree", "add", "-q", "--detach", str(worktree), "HEAD"], cwd=user, check=True)
+        if untracked:
+            (worktree / untracked).mkdir(parents=True)
+        fake = self.tmp / "fakebin"
+        fake.mkdir()
+        record = self.tmp / "go-install-called"
+        (fake / "go").write_text(f'#!/bin/sh\nprintf "%s %s\\n" "$GOBIN" "$2" >> {record}\n', encoding="utf-8")
+        (fake / "go").chmod(0o755)
+        env = dict(os.environ, PATH=f"{fake}{os.pathsep}{os.environ['PATH']}")
+
+        def run(block):
+            script = block.replace("<worktree>", str(worktree))
+            return subprocess.run(["bash", "-c", script], cwd=user, env=env, capture_output=True).returncode
+
+        code = run(self.setup_block)
+        for tool in tools:
+            if code != 0:
+                break
+            code = run(self.install_block.replace("<package>@<version>", tool))
+        called = record.read_text(encoding="utf-8") if record.exists() else None
+        listing = sorted(p.name for p in user.iterdir())
+        return code, called, listing, worktree
+
+    def test_fetches_into_the_worktree_when_the_directory_is_absent(self):
+        code, called, listing, worktree = self.fetch()
+        self.assertEqual(code, 0)
+        self.assertEqual(called, f"{worktree / '.golang-review-tools' / 'bin'} example.com/tool@v1.0.0\n")
+        self.assertEqual(listing, [".git", "go.mod"])
+
+    def test_fetches_a_second_tool_into_the_same_directory(self):
+        tools = ("golang.org/x/vuln/cmd/govulncheck@v1.1.4", "example.com/golangci-lint@v2.5.0")
+        code, called, listing, worktree = self.fetch(tools=tools)
+        gobin = worktree / ".golang-review-tools" / "bin"
+        self.assertEqual(called, "".join(f"{gobin} {tool}\n" for tool in tools))
+        self.assertEqual(code, 0)
+        self.assertEqual(listing, [".git", "go.mod"])
+
+    def test_refuses_a_tools_directory_the_change_commits(self):
+        for planted in (".golang-review-tools/bin/golangci-lint", ".golang-review-tools/mod/cache/x"):
+            with self.subTest(planted=planted):
+                self.reset_tmp()
+                code, called, listing, _ = self.fetch(planted=planted)
+                self.assertNotEqual(code, 0)
+                self.assertIsNone(called, "go install ran")
+                self.assertEqual(listing, [".git", ".golang-review-tools", "go.mod"])
+
+    def test_refuses_a_tools_directory_already_on_disk(self):
+        # Uncommitted changes are copied into a worktree made at HEAD, so the
+        # head tree alone does not show everything on disk.
+        code, called, listing, _ = self.fetch(untracked=".golang-review-tools/mod")
+        self.assertNotEqual(code, 0)
+        self.assertIsNone(called, "go install ran")
+        self.assertEqual(listing, [".git", "go.mod"])
+
+    def reset_tmp(self):
+        for child in self.tmp.iterdir():
+            if child.is_dir():
+                shutil.rmtree(child)
+            else:
+                child.unlink()
+
+    def test_the_block_uses_absolute_paths_and_never_changes_directory(self):
+        blocks = self.setup_block + self.install_block
+        self.assertNotIn("$PWD", blocks)
+        self.assertNotRegex(blocks, r"(?m)(^|&&|;)\s*cd ")
+        self.assertNotIn("mkdir -p", blocks)
+        self.assertIn("git -C <worktree> ls-tree HEAD .golang-review-tools", self.section)
+        self.assertIn("not run: ", self.section)
 
 
 class GoFixtureTest(unittest.TestCase):
@@ -691,7 +899,7 @@ func TestEmptyAverageProbe(t *testing.T) {
     # Testing and coverage.
 
     def test_coverage_shows_one_untested_function(self):
-        f = finding("Testing and coverage")
+        f = expected_findings()["G3"]
         with tempfile.TemporaryDirectory() as tmp:
             profile = Path(tmp) / "cover.out"
             # The race fails the run, but the profile is still written.

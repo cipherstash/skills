@@ -32,7 +32,9 @@ Where this skill names another skill, use it when the host has it. Otherwise do 
 
 ## Unattended runs
 
-When the person starts an unattended run of this skill, that approves commits and pushes to ticket branches and the integration branch. Tell `review-fix` so, since it otherwise asks first. It never approves a merge, a push to `main`, or marking a PR ready. Keep the log with the `run-report` skill. When a step needs a person, stop and report.
+When the person starts an unattended run of this skill, that approves commits and pushes to ticket branches and the integration branch. Tell `review-fix` so, since it otherwise asks first. Local `git merge`s into ticket branches and the integration branch are approved too. It never approves merging a PR on GitHub, a push to `main`, or marking a PR ready.
+
+Keep the log with the `run-report` skill. When a step needs a person, stop and report.
 
 ## Design
 
@@ -59,11 +61,11 @@ When the person starts an unattended run of this skill, that approves commits an
    - the `tests/` suite of each skill on the branch;
    - with Claude Code installed, `claude plugin validate . --strict`, and `claude plugin validate plugins/company-skills --strict`.
 
-8. **Review each PR independently.** The author of a PR does not review it. A separate agent or session reviews it against its ticket with `code-review`. Without subagents, start a fresh session for the review. Then work the findings with `review-fix`, red first. When a person or bot review lands later, run `review-audit`, then `review-fix`. Done when no finding is open, or each open one is reported to the person with the reason.
+8. **Review each PR independently.** The author of a PR does not review it. A separate agent or session reviews it against its ticket with `code-review`. Without subagents, start a fresh session for the review. Then work the findings with `review-fix`, red first. When a person or bot review lands later, run `review-audit`, then `review-fix`. Before the release ticket PR opens, also run a security review on the tip of the stack, as **The stack** in [references/gotchas.md](references/gotchas.md) explains. Done when no finding is open, or each open one is reported to the person with the reason.
 
-9. **Merge fixes through the stack.** After any push to a branch, merge it into every branch stacked on it, in stack order. Rerun the checks on each. Done when every branch stacked on the fixed one has the fix and passes its checks.
+9. **Merge fixes through the stack.** After any push to a branch, merge it into every branch stacked on it, in stack order. Rerun the checks on each. Fix each line on the branch that added it, and check each PR's base branch right before it merges, as **The stack** in [references/gotchas.md](references/gotchas.md) says. Done when every branch stacked on the fixed one has the fix and passes its checks.
 
-10. **Test on both hosts.** Run both skills' behaviour cases in Claude Code and in Codex, and run the review skill against its seeded-defect fixture. Give the reviewing agent a copy of the change without the skill's `tests/` folder, so it cannot read the expected findings. Compare the fixture review with `expected-findings.md`. Check that each run lists the references and step files it read. Record the host, version, and observed result for each case in the release ticket PR body. Fix a trigger miss in the skill's `description`, and add a behaviour case only when none covers the request. Fix a wrong finding red first. A host you cannot run is reported to the person by name. Done when every case has a recorded result on both hosts, or the missing host is reported.
+10. **Test on both hosts.** Run both skills' behavior cases in Claude Code and in Codex, and run the review skill against its seeded-defect fixture. Build the fixture repository from the fixture's `base/` and `head/` outside the plugin, as `expected-findings.md` says. Load the review skill from a scratch copy of the plugin with every skill's `tests/` folder removed, so the reviewer cannot read the expected findings. **Host testing** in [references/gotchas.md](references/gotchas.md) covers making that copy and other host problems. Compare the fixture review with `expected-findings.md`. Check that each run lists the references and step files it read. Record the host, version, and observed result for each case in the release ticket PR body. Fix a trigger miss in the skill's `description`, and add a behavior case only when none covers the request. Fix a wrong finding red first. A host you cannot run is reported to the person by name. Done when every case has a recorded result on both hosts, or the missing host is reported.
 
 11. **Open the main PR.** After the person merges the stack into the integration branch, merge `origin/main` into it. Open the main PR from `feat/<lang>-skills` to `main`, and link the host results from the release ticket PR. Done when the main PR is open with its checks passing.
 

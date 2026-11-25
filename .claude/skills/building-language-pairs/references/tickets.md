@@ -22,7 +22,7 @@ Go had a sixth ticket, #61, for the convention in CONTRIBUTING.md. A later langu
 2. **Remaining references.** Every other area in the checklist gets a reference, each quoting the examples module. Build only the examples the spec lists.
 3. **Review first slice.** Target resolution, the temporary worktree, the safe-checks reference, the finding contract, and the verdict, applied to two areas. A seeded-defect fixture with one planted defect for each of those two areas, its `expected-findings.md`, and its script test.
 4. **Remaining areas.** One step reference per remaining area, and one planted fixture defect per area.
-5. **Release ticket.** When an upstream plugin exists, remove it from every catalog that lists it and from the dependencies. Update the README. When an upstream plugin was removed, add uninstall steps for it modelled on the `golang-pro` note. Bump the version in all three manifests. Run strict plugin validation, the behaviour cases on both hosts, and the fixture review by hand. Leave out #62's last criterion, the merge to `main`. The main PR, opened after this ticket merges, does that.
+5. **Release ticket.** When an upstream plugin exists, remove it from every catalog that lists it and from the dependencies. Update the README. When an upstream plugin was removed, add uninstall steps for it modelled on the `golang-pro` note. Bump the version in all three manifests. Run strict plugin validation, the behavior cases on both hosts, and the fixture review by hand. Leave out #62's last criterion, the merge to `main`. The main PR, opened after this ticket merges, does that.
 
 ## Writing each ticket
 

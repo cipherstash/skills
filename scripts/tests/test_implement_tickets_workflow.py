@@ -55,7 +55,7 @@ function canned(label, prompt) {
     return { headSha: 'b' + n, routineReviewLanded: true, ci: 'passed', failingChecks: [], deviations: [] };
   }
   if (label.startsWith('audit')) {
-    return { headSha: 'b' + n, unresolved: [], needsDecision: [],
+    return { headSha: 'b' + n, unresolved: [], needsDecision: [], ci: 'passed',
              counts: { total: 0, unresolved: 0, addressed: 0, refuted: 0, needsDecision: 0 }, deviations: [] };
   }
   if (label === 'sync stack') return { merges: [], decisions: [], deviations: [] };
@@ -300,6 +300,45 @@ class ImplementTicketsWorkflowTest(unittest.TestCase):
     def test_routine_is_off_when_the_plan_does_not_say(self):
         r = run([ticket(2)], review_routine=None)
         self.assertEqual(labels(r, "wait"), [])
+
+    def test_routine_off_note_does_not_invent_what_the_plan_found(self):
+        r = run([ticket(2)], review_routine=None)
+        texts = [e["text"] for e in r["out"]["ledger"]]
+        self.assertFalse(any("found no" in t for t in texts), texts)
+        self.assertIn("deviation", [e["kind"] for e in r["out"]["ledger"]
+                                    if "did not report" in e["text"]])
+
+    def test_failing_ci_the_audit_did_not_list_is_an_open_finding(self):
+        audit = {"headSha": "b2", "unresolved": [], "needsDecision": [], "ci": "failed",
+                 "counts": {"total": 0, "unresolved": 0, "addressed": 0, "refuted": 0, "needsDecision": 0},
+                 "deviations": []}
+        r = run([ticket(2)], routine=False, maxFixRounds=1, overrides={"audit #2 r1": audit})
+        t = by_ticket(r)[2]
+        self.assertNotEqual(t["status"], "clean")
+        self.assertEqual([f["id"] for f in t["openFindings"]], ["CI"])
+
+    def test_failing_ci_gets_a_fix_round_when_the_audit_omits_it(self):
+        failed = {"headSha": "b2", "unresolved": [], "needsDecision": [], "ci": "failed",
+                  "counts": {"total": 0, "unresolved": 0, "addressed": 0, "refuted": 0, "needsDecision": 0},
+                  "deviations": []}
+        r = run([ticket(2)], routine=False, overrides={"audit #2 r1": failed})
+        self.assertEqual(labels(r, "fix"), ["fix #2 r2"])
+        self.assertIn('"source": "CI"', prompt(r, "fix #2 r2"))
+        self.assertEqual(by_ticket(r)[2]["status"], "clean")
+
+    def test_audit_reports_ci_with_or_without_the_routine(self):
+        for routine in (True, False):
+            r = run([ticket(2)], routine=routine)
+            self.assertIn('Report CI\'s state on the head as "ci"',
+                          " ".join(prompt(r, "audit #2 r1").split()), routine)
+
+    def test_audit_without_a_ci_state_is_a_deviation(self):
+        audit = {"headSha": "b2", "unresolved": [], "needsDecision": [],
+                 "counts": {"total": 0, "unresolved": 0, "addressed": 0, "refuted": 0, "needsDecision": 0},
+                 "deviations": []}
+        r = run([ticket(2)], routine=False, overrides={"audit #2 r1": audit})
+        texts = [e["text"] for e in r["out"]["ledger"] if e["kind"] == "deviation"]
+        self.assertTrue(any("did not report CI" in t for t in texts), texts)
 
     def test_build_and_review_name_a_fallback_without_mattpocock_skills(self):
         r = run([ticket(2)])

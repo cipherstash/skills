@@ -218,7 +218,7 @@ const AUDIT_SCHEMA = {
     },
     deviations: STRS,
   },
-  required: ['headSha', 'unresolved', 'needsDecision', 'counts', 'deviations'],
+  required: ['headSha', 'unresolved', 'needsDecision', 'ci', 'counts', 'deviations'],
 }
 
 const FIX_SCHEMA = {
@@ -299,9 +299,13 @@ const BASE = A.base || plan.defaultBranch
 // or waits for one: the audit covers the independent review, the PR's threads and CI.
 // A plan that does not say counts as no routine, so a run never waits for a review that cannot come.
 const USE_ROUTINE = A.routine ?? plan.reviewRoutine === true
-note(null, 'plan', 'decision', [A.routine === undefined
-  ? `Claude review routine ${USE_ROUTINE ? 'on' : 'off'}: the plan found ${plan.reviewRoutine ? '' : 'no '}.github/workflows/claude-review.yml.`
-  : `Claude review routine ${USE_ROUTINE ? 'on' : 'off'}, as args.routine says.`])
+if (A.routine !== undefined) {
+  note(null, 'plan', 'decision', [`Claude review routine ${USE_ROUTINE ? 'on' : 'off'}, as args.routine says.`])
+} else if (typeof plan.reviewRoutine === 'boolean') {
+  note(null, 'plan', 'decision', [`Claude review routine ${USE_ROUTINE ? 'on' : 'off'}: the plan found ${plan.reviewRoutine ? '' : 'no '}.github/workflows/claude-review.yml.`])
+} else {
+  note(null, 'plan', 'deviation', ['The plan did not report whether .github/workflows/claude-review.yml exists; Claude review routine off.'])
+}
 const REPO = plan.repo
 const explicit = !!(A.tickets && A.tickets.length)
 const inScope = plan.tickets.filter(t => {
@@ -550,9 +554,10 @@ the head as you would a thread, keeping its id:
 ${JSON.stringify(reviewFindings, null, 2)}` : ''}
 ${!USE_ROUTINE ? `This repository has no Claude review routine, so no agent has checked CI. Check CI on the PR's current head
 yourself: wait up to 15 minutes for its check runs to finish (Monitor with an until-loop if you have one,
-otherwise Bash with \`sleep 120\` between checks; if waiting is blocked, check once). Report its state as "ci".
+otherwise Bash with \`sleep 120\` between checks; if waiting is blocked, check once).
 Add each failing check as an unresolved finding with its log excerpt as evidence and source "CI".`
-  : wait && wait.ci === 'failed' ? `CI is failing on the head: ${wait.failingChecks.join(', ')}. Add each failing check as an unresolved finding with its log excerpt as evidence and source "CI".` : ''}`, {
+  : wait && wait.ci === 'failed' ? `CI is failing on the head: ${wait.failingChecks.join(', ')}. Add each failing check as an unresolved finding with its log excerpt as evidence and source "CI".` : ''}
+Report CI's state on the head as "ci".`, {
         label: `audit #${t.number} r${round}`, phase: 'Fix', model: OPUS, schema: AUDIT_SCHEMA,
       })
       if (!audit) {
@@ -569,9 +574,24 @@ Add each failing check as an unresolved finding with its log excerpt as evidence
       }
       audited = true
       entry.audit = c
-      entry.ci = wait ? wait.ci : audit.ci || 'unknown'
       head = audit.headSha
       pending = audit.unresolved
+      // The audit reads CI after the wait, so its state wins. The script gates on CI itself rather than
+      // trusting the audit to have listed every failing check: a failing CI with no CI finding gets one.
+      if (!audit.ci) note(t.number, `audit r${round}`, 'deviation', [`The audit did not report CI's state on ${head}.`])
+      const ci = audit.ci || (wait && wait.ci) || 'unknown'
+      entry.ci = ci
+      if (ci === 'pending') note(t.number, `audit r${round}`, 'deviation', [`CI was still running on ${head} when it was audited.`])
+      if (ci === 'failed' && !pending.some(f => /^ci\b/i.test(f.source || ''))) {
+        const checks = wait && wait.ci === 'failed' && wait.failingChecks.length ? wait.failingChecks.join(', ') : ''
+        note(t.number, `audit r${round}`, 'deviation', [`CI is failing on ${head} but the audit listed no CI finding; added one.`])
+        pending = [...pending, {
+          id: 'CI', severity: 'major', location: `CI on ${head}`,
+          claim: `CI is failing on the PR's head${checks ? `: ${checks}` : ''}.`,
+          evidence: `CI's state on ${head} is "failed", and the audit listed no CI finding. Read the failing check runs' logs.`,
+          source: 'CI',
+        }]
+      }
       if (!pending.length) break
       if (round === MAX_FIX_ROUNDS) {
         note(t.number, 'fix', 'deviation', [`${pending.length} finding(s) still open after ${MAX_FIX_ROUNDS} rounds: ${pending.map(f => f.id).join(', ')}`])

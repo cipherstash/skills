@@ -1,4 +1,4 @@
-"""Tests for .claude/workflows/implement-tickets.js.
+"""Tests for the implement-tickets skill's workflows/implement-tickets.js.
 
 The workflow is a Claude Code Workflow script. These tests run it under Node with a stub
 agent() that returns canned results per agent label, and assert on the agents it starts and
@@ -13,7 +13,8 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-SCRIPT = ROOT / ".claude" / "workflows" / "implement-tickets.js"
+SKILL_DIR = ROOT / "plugins" / "company-skills" / "skills" / "implement-tickets"
+SCRIPT = SKILL_DIR / "workflows" / "implement-tickets.js"
 NODE = shutil.which("node")
 
 # The stub runtime. SCENARIO is a JSON object:
@@ -272,7 +273,7 @@ class ImplementTicketsWorkflowTest(unittest.TestCase):
 
 
 class ImplementTicketsSkillTest(unittest.TestCase):
-    SKILL = ROOT / ".claude" / "skills" / "implement-tickets" / "SKILL.md"
+    SKILL = SKILL_DIR / "SKILL.md"
 
     def test_only_a_person_can_start_the_skill(self):
         text = self.SKILL.read_text()
@@ -280,9 +281,19 @@ class ImplementTicketsSkillTest(unittest.TestCase):
         self.assertIn("name: implement-tickets", front)
         self.assertIn("disable-model-invocation: true", front)
 
-    def test_skill_points_at_the_workflow_script(self):
-        self.assertIn(".claude/workflows/implement-tickets.js", self.SKILL.read_text())
+    def test_skill_resolves_the_script_from_its_own_directory(self):
+        text = self.SKILL.read_text()
+        self.assertIn("${CLAUDE_SKILL_DIR}/workflows/implement-tickets.js", text)
+        self.assertNotIn("git rev-parse", text)
+        self.assertNotIn(".claude/workflows", text)
         self.assertTrue(SCRIPT.is_file())
+
+    def test_codex_never_selects_the_skill_implicitly(self):
+        # No YAML parser in the standard library, so require the exact shape: the key
+        # nested under policy:, set to false, with nothing commented out.
+        yaml = (SKILL_DIR / "agents" / "openai.yaml").read_text()
+        lines = [line.rstrip() for line in yaml.splitlines() if line.strip()]
+        self.assertEqual(lines, ["policy:", "  allow_implicit_invocation: false"])
 
 
 if __name__ == "__main__":

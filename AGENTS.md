@@ -6,7 +6,7 @@ When adding, changing, renaming, or releasing a published skill, follow [CONTRIB
 
 To build a language's skill pair (`<lang>-practices` and `<lang>-review`), read and follow `.claude/skills/building-language-pairs/SKILL.md`.
 
-In Claude Code, to build a spec's approved tickets into stacked, reviewed PRs, a person types `/implement-tickets <spec number>`. The published `implement-tickets` skill starts the workflow script that ships inside it. Codex cannot run it.
+In Claude Code, to build a spec's approved tickets into stacked, reviewed PRs, a person types `/company-skills:implement-tickets <spec number>`. The published `implement-tickets` skill starts the workflow script that ships inside it, so company-skills 0.16.0 or later must be installed. The installed copy is cached, so to try an edit to the script, start the session with `claude --plugin-dir <clone>/plugins/company-skills`. Codex cannot run it.
 
 ## Agent skills
 

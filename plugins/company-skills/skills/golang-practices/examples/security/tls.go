@@ -28,11 +28,15 @@ func NewClientWithCA(caPEM []byte) (*http.Client, error) {
 		return nil, fmt.Errorf("new client: http.DefaultTransport is %T, not *http.Transport", http.DefaultTransport)
 	}
 	transport := base.Clone()
-	transport.TLSClientConfig = &tls.Config{
-		RootCAs:    pool,
-		MinVersion: tls.VersionTLS12,
-		// InsecureSkipVerify stays false: certificates and host names are
-		// checked.
+	// Keep any TLS settings the program gave the default transport, such as a
+	// client certificate or ServerName, and add the CA to them.
+	tlsConfig := &tls.Config{}
+	if base.TLSClientConfig != nil {
+		tlsConfig = base.TLSClientConfig.Clone()
 	}
+	tlsConfig.RootCAs = pool
+	tlsConfig.MinVersion = max(tlsConfig.MinVersion, tls.VersionTLS12)
+	tlsConfig.InsecureSkipVerify = false // certificates and host names are checked
+	transport.TLSClientConfig = tlsConfig
 	return &http.Client{Timeout: 30 * time.Second, Transport: transport}, nil
 }

@@ -202,3 +202,25 @@ func TestEmailOfAndChangeEmail(t *testing.T) {
 		t.Fatalf("ChangeEmail error = %v, want it to wrap %v", err, boom)
 	}
 }
+
+// partialWriter accepts two bytes of every write and then fails.
+type partialWriter struct{ err error }
+
+func (w partialWriter) Write([]byte) (int, error) { return 2, w.err }
+
+func TestCountingWriterCountsPartialWrite(t *testing.T) {
+	boom := errors.New("disk full")
+	c := &interfaces.CountingWriter{W: partialWriter{err: boom}}
+	n, err := c.Write([]byte("hello"))
+	if n != 2 || c.N != 2 || !errors.Is(err, boom) {
+		t.Fatalf("Write = %d, %v; N = %d; want 2, %v; N = 2", n, err, c.N, boom)
+	}
+}
+
+func TestWriteAndFlushWrapsAWriteError(t *testing.T) {
+	boom := errors.New("disk full")
+	err := interfaces.WriteAndFlush(failWriter{err: boom}, []byte("data"))
+	if !errors.Is(err, boom) || !strings.HasPrefix(err.Error(), "write: ") {
+		t.Fatalf("err = %v, want a write error wrapping %v", err, boom)
+	}
+}

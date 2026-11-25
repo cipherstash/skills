@@ -678,6 +678,15 @@ class SkillTextTest(unittest.TestCase):
         self.assertNotIn("reaches the user's tree", worktree)
         self.assertIn("`.git` file", worktree)
 
+    def test_the_review_diff_matches_the_snapshot_copy(self):
+        read = re.search(r"the changes are `([^`]+)`", self.section("references/target.md", "Diff"))
+        copy = re.search(r"copy the changes in with `([^`|]+?) \|", self.section("references/target.md", "The temporary worktree"))
+        self.assertIsNotNone(read)
+        self.assertIsNotNone(copy)
+        for flag in ("-c diff.noprefix=false", "--no-color", "--no-ext-diff", "--no-textconv"):
+            self.assertIn(flag, read.group(1))
+        self.assertEqual(read.group(1), copy.group(1).replace(" --binary", ""))
+
 
 class FetchSuiteToolTest(unittest.TestCase):
     """The change controls the worktree, so it can commit `.golang-review-tools/`.
@@ -785,6 +794,53 @@ class FetchSuiteToolTest(unittest.TestCase):
         self.assertNotIn("mkdir -p", blocks)
         self.assertIn("git -C <worktree> ls-tree HEAD .golang-review-tools", self.section)
         self.assertIn("not run: ", self.section)
+
+
+class SnapshotCopyTest(unittest.TestCase):
+    """Step 4 of "The temporary worktree" copies uncommitted changes.
+
+    The user's git config must not change the patch. With diff.noprefix=true a
+    staged orders/new.go would land at the worktree root, and with
+    color.diff=always git apply would reject the patch.
+    """
+
+    def setUp(self):
+        for tool in ("bash", "git"):
+            if shutil.which(tool) is None:
+                self.skipTest(f"{tool} is not on PATH")
+        text = (SKILL / "references" / "target.md").read_text(encoding="utf-8")
+        step = re.search(r"(?m)^4\. For uncommitted changes.*$", text)
+        self.assertIsNotNone(step)
+        command = re.search(r"copy the changes in with `([^`]+)`", step.group(0))
+        self.assertIsNotNone(command)
+        self.command = command.group(1)
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp)
+
+    def test_copies_the_changes_whatever_the_users_diff_config(self):
+        user = self.tmp / "user"
+        worktree = self.tmp / "review" / "wt"
+        git = ["git", "-c", "user.email=r@example.com", "-c", "user.name=r", "-c", "core.hooksPath=/dev/null", "-c", "commit.gpgsign=false"]
+        user.mkdir()
+        subprocess.run([*git, "init", "-q"], cwd=user, check=True)
+        (user / "go.mod").write_text("module example.com/m\n\ngo 1.22\n", encoding="utf-8")
+        subprocess.run([*git, "add", "-A"], cwd=user, check=True)
+        subprocess.run([*git, "commit", "-qm", "head"], cwd=user, check=True)
+        subprocess.run([*git, "worktree", "add", "-q", "--detach", str(worktree), "HEAD"], cwd=user, check=True)
+        subprocess.run(["git", "config", "diff.noprefix", "true"], cwd=user, check=True)
+        subprocess.run(["git", "config", "color.diff", "always"], cwd=user, check=True)
+        (user / "orders").mkdir()
+        (user / "orders" / "new.go").write_text("package orders\n", encoding="utf-8")
+        subprocess.run(["git", "add", "orders/new.go"], cwd=user, check=True)
+        (user / "go.mod").write_text("module example.com/m\n\ngo 1.23\n", encoding="utf-8")
+
+        script = self.command.replace("<worktree>", str(worktree))
+        result = subprocess.run(["bash", "-c", script], cwd=user, capture_output=True, text=True)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue((worktree / "orders" / "new.go").is_file())
+        self.assertFalse((worktree / "new.go").exists())
+        self.assertIn("go 1.23", (worktree / "go.mod").read_text(encoding="utf-8"))
 
 
 class GoFixtureTest(unittest.TestCase):

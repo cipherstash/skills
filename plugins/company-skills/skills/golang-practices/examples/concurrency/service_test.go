@@ -100,3 +100,30 @@ func TestServiceReturnsATickErrorThatIsNotTheStop(t *testing.T) {
 		t.Fatalf("Run = %v, want it to wrap %v", err, errWrite)
 	}
 }
+
+func TestNewServiceRejectsANonPositiveInterval(t *testing.T) {
+	tick := func(context.Context) error { return nil }
+	for _, d := range []time.Duration{0, -time.Second} {
+		wantPanic(t, "concurrency: NewService needs a positive interval", func() { concurrency.NewService(d, tick) })
+	}
+}
+
+func TestServiceTreatsCancelledTickAsStop(t *testing.T) {
+	started := make(chan struct{})
+	var once sync.Once
+	s := concurrency.NewService(time.Millisecond, func(ctx context.Context) error {
+		once.Do(func() { close(started) })
+		<-ctx.Done()
+		return ctx.Err() // context.Canceled once Stop cancels the tick
+	})
+	errCh := runInBackground(context.Background(), s)
+	select {
+	case <-started:
+	case <-time.After(prompt):
+		t.Fatal("tick was never called")
+	}
+	s.Stop()
+	if err := waitFor(t, errCh); err != nil {
+		t.Fatalf("Run after Stop = %v, want nil", err)
+	}
+}

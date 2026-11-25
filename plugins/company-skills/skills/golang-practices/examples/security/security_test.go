@@ -3,6 +3,7 @@ package security_test
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"database/sql"
 	"encoding/json"
 	"encoding/pem"
@@ -129,6 +130,32 @@ func TestNewClientWithCAWithWrappedDefaultTransport(t *testing.T) {
 	}()
 	if err == nil {
 		t.Fatal("NewClientWithCA returned no error when http.DefaultTransport is not an *http.Transport")
+	}
+}
+
+// Not parallel: it replaces http.DefaultTransport for its duration.
+func TestNewClientWithCAKeepsDefaultTransportTLSSettings(t *testing.T) {
+	orig := http.DefaultTransport
+	base := orig.(*http.Transport).Clone()
+	base.TLSClientConfig = &tls.Config{ServerName: "internal.example", MinVersion: tls.VersionTLS13}
+	http.DefaultTransport = base
+	t.Cleanup(func() { http.DefaultTransport = orig })
+
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	defer srv.Close()
+	caPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: srv.Certificate().Raw})
+
+	client, err := security.NewClientWithCA(caPEM)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := client.Transport.(*http.Transport).TLSClientConfig
+	if cfg.ServerName != "internal.example" || cfg.MinVersion != tls.VersionTLS13 || cfg.RootCAs == nil || cfg.InsecureSkipVerify {
+		t.Fatalf("TLSClientConfig = ServerName %q, MinVersion %x, RootCAs set %t, InsecureSkipVerify %t; want the default transport's settings plus the CA",
+			cfg.ServerName, cfg.MinVersion, cfg.RootCAs != nil, cfg.InsecureSkipVerify)
+	}
+	if base.TLSClientConfig.RootCAs != nil {
+		t.Error("NewClientWithCA changed the default transport's TLS config instead of a clone")
 	}
 }
 

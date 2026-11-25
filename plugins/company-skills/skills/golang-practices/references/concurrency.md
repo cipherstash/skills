@@ -410,7 +410,12 @@ type Service struct {
 }
 
 // NewService returns a Service that calls tick every interval once Run starts.
+// It panics if interval is not positive, as time.NewTicker would once Run
+// starts.
 func NewService(interval time.Duration, tick func(context.Context) error) *Service {
+	if interval <= 0 {
+		panic("concurrency: NewService needs a positive interval")
+	}
 	return &Service{interval: interval, tick: tick, stop: make(chan struct{})}
 }
 

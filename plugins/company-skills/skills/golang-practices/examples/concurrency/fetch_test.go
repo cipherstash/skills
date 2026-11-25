@@ -74,3 +74,16 @@ func TestFetchErrorsDoNotRepeatTheURL(t *testing.T) {
 		t.Fatalf("Fetch error = %v, want %q", err, want)
 	}
 }
+
+func TestFetchWrapsBodyReadError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Length", "2")
+		_, _ = io.WriteString(w, "x") // one byte of the two promised
+	}))
+	defer srv.Close()
+
+	body, err := concurrency.Fetch(context.Background(), srv.Client(), srv.URL)
+	if body != nil || !errors.Is(err, io.ErrUnexpectedEOF) {
+		t.Fatalf("Fetch = %q, %v; want nil and io.ErrUnexpectedEOF", body, err)
+	}
+}

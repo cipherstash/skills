@@ -50,18 +50,22 @@ func NewClientWithCA(caPEM []byte) (*http.Client, error) {
 		return nil, fmt.Errorf("new client: http.DefaultTransport is %T, not *http.Transport", http.DefaultTransport)
 	}
 	transport := base.Clone()
-	transport.TLSClientConfig = &tls.Config{
-		RootCAs:    pool,
-		MinVersion: tls.VersionTLS12,
-		// InsecureSkipVerify stays false: certificates and host names are
-		// checked.
+	// Keep any TLS settings the program gave the default transport, such as a
+	// client certificate or ServerName, and add the CA to them.
+	tlsConfig := &tls.Config{}
+	if base.TLSClientConfig != nil {
+		tlsConfig = base.TLSClientConfig.Clone()
 	}
+	tlsConfig.RootCAs = pool
+	tlsConfig.MinVersion = max(tlsConfig.MinVersion, tls.VersionTLS12)
+	tlsConfig.InsecureSkipVerify = false // certificates and host names are checked
+	transport.TLSClientConfig = tlsConfig
 	return &http.Client{Timeout: 30 * time.Second, Transport: transport}, nil
 }
 ```
 
-- Start from a clone of `http.DefaultTransport` and change only `TLSClientConfig`. A program can replace it with a wrapper for tracing or tests. Check its type with the two-value form, and return an error when it is not an `*http.Transport`. A new `&http.Transport{}` ignores `HTTPS_PROXY` and `NO_PROXY`, has no dial, handshake, or idle timeouts, and, with a custom `TLSClientConfig`, does not use HTTP/2.
-- Set `MinVersion: tls.VersionTLS12` or higher. Go's default minimum for clients has been TLS 1.2 since Go 1.18, but stating it guards against older toolchains and copied configs.
+- Start from a clone of `http.DefaultTransport` and change only `TLSClientConfig`. Clone its existing `TLSClientConfig` too, when it has one, so a client certificate or `ServerName` the program set is kept. A program can replace it with a wrapper for tracing or tests. Check its type with the two-value form, and return an error when it is not an `*http.Transport`. A new `&http.Transport{}` ignores `HTTPS_PROXY` and `NO_PROXY`, has no dial, handshake, or idle timeouts, and, with a custom `TLSClientConfig`, does not use HTTP/2.
+- Set `MinVersion` to `tls.VersionTLS12` or higher. Go's default minimum for clients has been TLS 1.2 since Go 1.18, but stating it guards against older toolchains and copied configs.
 - Leave cipher suites at their defaults unless a policy requires otherwise; Go chooses safe ones.
 - In tests, use `httptest.NewTLSServer` and its `Client()` instead of turning verification off. That client trusts the test certificate.
 - Give HTTP servers timeouts. With no `ReadHeaderTimeout`, an `http.Server` lets a slow client keep a connection open indefinitely. `gosec` reports that.

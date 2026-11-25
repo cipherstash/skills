@@ -271,5 +271,19 @@ class ImplementTicketsWorkflowTest(unittest.TestCase):
         self.assertEqual(labels(r, "run"), ["run report"])
 
 
+class ImplementTicketsSkillTest(unittest.TestCase):
+    SKILL = ROOT / ".claude" / "skills" / "implement-tickets" / "SKILL.md"
+
+    def test_only_a_person_can_start_the_skill(self):
+        text = self.SKILL.read_text()
+        front = text.split("---")[1]
+        self.assertIn("name: implement-tickets", front)
+        self.assertIn("disable-model-invocation: true", front)
+
+    def test_skill_points_at_the_workflow_script(self):
+        self.assertIn(".claude/workflows/implement-tickets.js", self.SKILL.read_text())
+        self.assertTrue(SCRIPT.is_file())
+
+
 if __name__ == "__main__":
     unittest.main()

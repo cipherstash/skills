@@ -2,6 +2,8 @@
 
 Add skills under `plugins/company-skills/skills/<skill-name>/`. The directory is the single source published to Codex and Claude Code.
 
+A skill for working on this repository itself, such as `building-language-pairs`, goes in `.claude/skills/` instead. It is not published, the validator does not check it, and it needs no behavior cases. AGENTS.md points to it, so Codex can follow it too.
+
 ## Skill skeleton
 
 Start each skill from this `plugins/company-skills/skills/<skill-name>/SKILL.md`:
@@ -42,6 +44,8 @@ Most skills here are workflows: a user asks for a result and the skill runs a pr
 
 A programming language gets a pair of skills with the language as the shared prefix: `<lang>-practices` and `<lang>-review`. `<lang>` is the language's lowercase name, never an abbreviation: `golang` for Go, then `python`, `typescript`, or `rust`. Copy the layout of the Go pair, `golang-practices` with `golang-review`, for the next language. The Go pair is the worked example.
 
+To build a new pair, follow the [`building-language-pairs`](.claude/skills/building-language-pairs/SKILL.md) project skill. It takes a language ticket through an audit and tickets to the main PR.
+
 Rust already has convention skills: `rust-sdk-dx`, `rust-security`, and `rust-testing`. Rust is exempt from the practices-skill rules below for now. A `rust-review` skill may read those three as they are, with no check suite, `examples/` module, script test, or short `SKILL.md`. The exemption ends when a `rust-practices` skill is added.
 
 Any other language that already has convention skills needs a decision like this before you build its pair.
@@ -54,6 +58,9 @@ Any other language that already has convention skills needs a decision like this
 - Keep the practices skill's `SKILL.md` safe to load during a review. Give it a short rule list and a table saying when to read each reference. Leave out any authoring workflow, output template, or persona.
 - Every language pair defines a check suite (see [GLOSSARY.md](GLOSSARY.md)): the checks that gate every pull request, run in CI. Define it in one practices reference, with every tool version pinned. Other references and both skills link to it instead of repeating its commands. The Go pair's is `golang-practices`' [checks.md](plugins/company-skills/skills/golang-practices/references/checks.md).
 - Keep reference examples as real source that CI builds and tests. Put them in a small module under the practices skill's `examples/`, with tests. Quote each code block in a reference word for word from that source, with a link to the file on the line before it.
+- Keep each example to the smallest code that shows one rule the reference states. Where prose can state the rule, write no code. Add no features, error paths, or tests beyond what shows the example works. The pair's spec is the issue filed under the language's ticket, such as #56 for Go. It lists the examples each reference needs, and a reviewer flags any example not on that list.
+- Aim to keep each reference under 100 lines. The spec names any reference planned to run longer, and why.
+- The examples-list and reference-length rules start with the next pair. Go's references and spec #56 predate them, so do not copy Go's sizes.
 - Run the language's check suite over the examples in CI, in the validate workflow. Add a workflow test under `scripts/tests/` that checks each suite check is in place there and that its pinned version matches the reference.
 - Add a script test to the practices skill that checks every quoted block matches its source. It runs none of the suite's checks. golang-practices' test also runs each benchmark once, because benchmarks are not a suite check. CI runs it with the other skill script tests.
 - State in each reference the language version its examples target.
@@ -71,9 +78,9 @@ A language pair often starts from an upstream skill. Take its material in like t
 
 - Audit it first: read it against the language's review checklist, and build and run its examples where you can. Record each defect you find. The checklist is the areas table in the review skill. For a new language, write that table first. Model it on the ten areas in `golang-review`.
 - Copy it under its licence. Put the licence text in the skill's `LICENSE`. Put a `NOTICE` beside it that names the source repository, path, and commit, and lists every change. `plain-language` follows the same pattern.
-- Fix every defect the audit found before the copy merges. Rewrite or drop confused or dated rules.
+- Fix every defect the audit found before the copy merges, each with the smallest change that fixes it. Keep upstream material that has no defect as it is. Rewrite or drop confused or dated rules.
 - Drop the upstream frontmatter metadata, persona line, and links to skills that do not exist here.
-- If company-skills installs the upstream skill as a dependency, the new `<lang>-practices` replaces it. The README lists these under **Bundled language practice skills**. The release PR that adds the pair drops the upstream plugin from both catalogs and from the company-skills dependencies. That PR also tells users how to uninstall the old plugin. The validator rejects any entry in either catalog, other than company-skills, that is not a dependency. The only exceptions are the Claude catalog's opt-in plugins, listed in `CLAUDE_OPT_IN_PLUGINS` in `scripts/validate.py`.
+- If company-skills installs the upstream skill as a dependency, the new `<lang>-practices` replaces it. The README lists these under **Bundled language practice skills**. The release ticket PR is the last of the stacked PRs that build the pair. It drops the upstream plugin from every catalog that lists it and from the company-skills dependencies. That PR also tells users how to uninstall the old plugin. The validator rejects any entry in either catalog, other than company-skills, that is not a dependency. The only exceptions are the Claude catalog's opt-in plugins, listed in `CLAUDE_OPT_IN_PLUGINS` in `scripts/validate.py`.
 
 ## Behavior cases
 

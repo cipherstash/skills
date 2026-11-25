@@ -187,6 +187,50 @@ func TestOpenUpload(t *testing.T) {
 	}
 }
 
+// OpenUpload takes a file name from outside the process, so it has a Fuzz
+// target. The property is the name check's claim: no name reaches a file
+// outside dir, such as the secret file beside it. It does not cover a
+// symbolic link inside dir, which OpenUpload does not stop.
+func FuzzOpenUpload(f *testing.F) {
+	root := f.TempDir()
+	dir := filepath.Join(root, "uploads")
+	if err := os.Mkdir(dir, 0o700); err != nil {
+		f.Fatal(err)
+	}
+	secret := filepath.Join(root, "secret.txt")
+	for _, p := range []string{filepath.Join(dir, "a.txt"), secret} {
+		if err := os.WriteFile(p, []byte("x"), 0o600); err != nil {
+			f.Fatal(err)
+		}
+	}
+	secretInfo, err := os.Stat(secret)
+	if err != nil {
+		f.Fatal(err)
+	}
+	for _, seed := range []string{"a.txt", ".", "", "../secret.txt", "sub/../../secret.txt", "/etc/passwd", secret} {
+		f.Add(seed)
+	}
+	f.Fuzz(func(t *testing.T, name string) {
+		file, err := security.OpenUpload(dir, name)
+		if err != nil {
+			return
+		}
+		defer file.Close() // read-only: a close error cannot lose data
+		rel, err := filepath.Rel(dir, file.Name())
+		if err != nil || !filepath.IsLocal(rel) {
+			t.Fatalf("OpenUpload(%q) opened %s, outside %s", name, file.Name(), dir)
+		}
+		// The path check trusts file.Name(). Compare the file itself too.
+		got, err := file.Stat()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if os.SameFile(got, secretInfo) {
+			t.Fatalf("OpenUpload(%q) opened the secret file outside %s", name, dir)
+		}
+	})
+}
+
 func TestDecodeJSON(t *testing.T) {
 	var v struct{ Name string }
 

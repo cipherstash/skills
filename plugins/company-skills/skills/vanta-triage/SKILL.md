@@ -1,6 +1,6 @@
 ---
 name: vanta-triage
-description: Reconciles open Vanta vulnerability findings (Dependabot package alerts and AWS Inspector container findings) with the Linear AppSec tracking issues — filing, retargeting, reopening, and closing issues so Linear matches Vanta. Use when asked to check Vanta, look for new security alerts or vulnerabilities, sync Vanta with Linear, file Vanta issues, or run the scheduled Vanta triage, including unattended routine runs. Does not patch repositories or open PRs (vanta-remediate does that), and does not handle Vanta AWS configuration tests.
+description: Reconciles open Vanta vulnerability findings (Dependabot and AWS Inspector) with the Linear AppSec issues, filing, retargeting, reopening, and closing issues so Linear matches Vanta. Use when asked to check Vanta for new vulnerabilities, sync Vanta with Linear, file Vanta issues, or run the scheduled Vanta triage. Does not patch repositories or open PRs (vanta-remediate), or handle Vanta AWS configuration tests.
 argument-hint: "[dry run] [severity or repo filter]"
 ---
 

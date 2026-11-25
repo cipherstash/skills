@@ -1,6 +1,6 @@
 ---
 name: review-fix
-description: Verify and fix code review findings — this session's review plus any pasted from parallel agents — each confirmed behavioural defect fixed red first with a regression test wherever one can be written. Use when asked to fix, or work through, the findings of a code review run in this session, a PR's unresolved review feedback as audited by review-audit, or findings pasted from review agents. Does not perform the review, reply to or resolve PR review threads, or audit a PR's existing feedback (review-audit).
+description: Verifies and fixes code review findings, each confirmed defect fixed red first with a regression test where one can be written. Use when asked to fix or work through findings from this session's review, from a PR's unresolved review feedback (audited with review-audit), or pasted from review agents. Does not perform the review, reply to or resolve PR threads, or audit a PR's existing feedback (review-audit).
 argument-hint: "[pasted findings]"
 ---
 

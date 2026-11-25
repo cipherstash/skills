@@ -1,6 +1,6 @@
 ---
 name: review-post
-description: Posts a finished code review to a GitHub pull request as a single review — one inline comment per finding, tagged with its source, plus an attestation summary naming the commit reviewed, the host, models, and skills, with blocking issues first — posted even when there are no findings. A finding that adds to an existing review thread is posted as a reply on that thread. Use when asked to post, publish, or leave review findings or a review attestation on a PR. Takes a PR number or URL. Does not perform the review, verify findings, cross-check them against existing comments (review-cross-check), or resolve threads (review-audit).
+description: Posts a finished code review to a GitHub pull request as one review: an inline comment per finding, or a reply on an existing thread it adds to, and an attestation summary, posted even with no findings. Use when asked to post or leave review findings or a review attestation on a PR. Takes a PR number or URL. Does not perform, verify, or cross-check the review (review-cross-check), or resolve threads (review-audit).
 argument-hint: "<PR number or URL> [pasted findings]"
 ---
 

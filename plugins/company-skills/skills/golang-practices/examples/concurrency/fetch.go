@@ -34,11 +34,13 @@ func Fetch(ctx context.Context, client *http.Client, url string) ([]byte, error)
 	}
 	defer resp.Body.Close() // read-only: a close error cannot lose data
 	if resp.StatusCode != http.StatusOK {
-		return nil, &StatusError{URL: url, Code: resp.StatusCode}
+		// Read a little of the body so the connection can be reused.
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4<<10))
+		return nil, &StatusError{URL: req.URL.Redacted(), Code: resp.StatusCode}
 	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("read body of %s: %w", url, err)
+		return nil, fmt.Errorf("read body of %s: %w", req.URL.Redacted(), err)
 	}
 	return body, nil
 }

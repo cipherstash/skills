@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -85,5 +87,20 @@ func TestFetchWrapsBodyReadError(t *testing.T) {
 	body, err := concurrency.Fetch(context.Background(), srv.Client(), srv.URL)
 	if body != nil || !errors.Is(err, io.ErrUnexpectedEOF) {
 		t.Fatalf("Fetch = %q, %v; want nil and io.ErrUnexpectedEOF", body, err)
+	}
+}
+
+func TestFetchStatusErrorHidesThePassword(t *testing.T) {
+	srv := httptest.NewServer(http.NotFoundHandler())
+	defer srv.Close()
+	u, err := url.Parse(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	u.User = url.UserPassword("user", "secret")
+
+	_, err = concurrency.Fetch(context.Background(), srv.Client(), u.String())
+	if err == nil || strings.Contains(err.Error(), "secret") {
+		t.Fatalf("Fetch error = %v, want an error that does not contain the password", err)
 	}
 }

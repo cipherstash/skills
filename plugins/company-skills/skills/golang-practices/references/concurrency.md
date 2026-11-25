@@ -380,15 +380,19 @@ func Fetch(ctx context.Context, client *http.Client, url string) ([]byte, error)
 	}
 	defer resp.Body.Close() // read-only: a close error cannot lose data
 	if resp.StatusCode != http.StatusOK {
-		return nil, &StatusError{URL: url, Code: resp.StatusCode}
+		// Read a little of the body so the connection can be reused.
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4<<10))
+		return nil, &StatusError{URL: req.URL.Redacted(), Code: resp.StatusCode}
 	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("read body of %s: %w", url, err)
+		return nil, fmt.Errorf("read body of %s: %w", req.URL.Redacted(), err)
 	}
 	return body, nil
 }
 ```
+
+Fetch's own errors name the URL with `req.URL.Redacted()`, which hides a password in it, as `client.Do`'s `*url.Error` already does. On a status other than 200, it reads up to 4 KiB of the body before it closes it, so the connection goes back to the pool instead of being closed.
 
 Do not wrap a blocking call that ignores `ctx` in a goroutine and race it against a timer. The caller gets an answer on time, but the call keeps running in the background, still holding its connection, and its result is thrown away. Find or write the variant that takes a context: `net.Dialer.DialContext`, `sql.DB.QueryContext`, `exec.CommandContext`, and so on.
 

@@ -131,7 +131,7 @@ Installed users receive the new commit only when they update each of the three p
 claude plugin uninstall golang-pro@company
 ```
 
-`claude plugin prune` works again once `golang-pro` is gone. It removes any other auto-installed dependency that nothing needs. Add `--dry-run` to list them first. Checked by updating 0.13.0 to this release, then numbered 0.14.0, with Claude Code 2.1.329.
+`claude plugin prune` works again once `golang-pro` is gone. It removes any other auto-installed dependency that nothing needs. Add `--dry-run` to list them first. Checked with Claude Code 2.1.329 by updating 0.13.0 to a pre-release build of this release, made before it was renumbered from 0.14.0 to 0.15.0.
 
 ## Develop locally
 

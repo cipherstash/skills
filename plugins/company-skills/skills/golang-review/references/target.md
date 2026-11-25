@@ -49,7 +49,7 @@ Resolve each name with `git rev-parse --verify <name>^{commit}`. A name that doe
 
 ## Diff
 
-- **Uncommitted changes** ("my changes", "what I have here"): the base is `HEAD`, the changes are `git diff HEAD` plus untracked files from `git ls-files --others --exclude-standard`. The reviewed state is a snapshot.
+- **Uncommitted changes** ("my changes", "what I have here"): the base is `HEAD`, the changes are `git -c diff.noprefix=false diff --no-color --no-ext-diff --no-textconv HEAD` plus untracked files from `git ls-files --others --exclude-standard`. The reviewed state is a snapshot.
 - **A patch file or pasted diff**: review the patch as the change. To run checks, find the commit it applies to: the commit the user names, or `HEAD`. In the temporary worktree at that commit, run `GIT_LFS_SKIP_SMUDGE=1 git -c core.hooksPath=/dev/null apply --check` and then the same without `--check`. If it does not apply cleanly, review the patch by reading alone and record that no checks could run as a limit.
 
 ## No target named
@@ -80,6 +80,6 @@ Checking out the change's code must run none of it. Run every git command that c
 1. Record `git status --porcelain` for the user's tree.
 2. Choose a directory outside the repository: the host's scratch directory, or one from `mktemp -d`.
 3. Create the worktree at the head: `GIT_LFS_SKIP_SMUDGE=1 git -c core.hooksPath=/dev/null worktree add --detach <dir>/golang-review-<short head SHA> <head commit>`. This writes only under `.git/worktrees/`.
-4. For uncommitted changes, create it at `HEAD` instead. Then copy the changes in with `git diff HEAD --binary | GIT_LFS_SKIP_SMUDGE=1 git -C <worktree> -c core.hooksPath=/dev/null apply --binary`, and copy each untracked file from `git ls-files --others --exclude-standard -z` to the same path in the worktree. A patch file is applied the same way.
+4. For uncommitted changes, create it at `HEAD` instead. Then copy the changes in with `git -c diff.noprefix=false diff --no-color --no-ext-diff --no-textconv --binary HEAD | GIT_LFS_SKIP_SMUDGE=1 git -C <worktree> -c core.hooksPath=/dev/null apply --binary`, and copy each untracked file from `git ls-files --others --exclude-standard -z` to the same path in the worktree. The flags keep the user's git config, such as `diff.noprefix`, `color.diff`, an external diff tool or a `textconv` driver, out of the patch. A patch file is applied the same way. If `apply` fails, remove the worktree, review the snapshot by reading alone, and record that no checks could run as a limit, with git's error.
 5. Remove it on every exit from here on, including a stop: `git worktree remove --force <worktree>`. Do not run `git worktree prune`, which also deletes the records of the user's other worktrees whose directories are missing, such as ones on an unmounted drive. Remove a base worktree, if `checks.md` or `step-breaking-changes.md` had you make one, the same way. Make a base worktree exactly as this one, at the base commit.
 6. Before the report, run `git status --porcelain` again for the user's tree. Any difference from step 1 is reported, with the paths.

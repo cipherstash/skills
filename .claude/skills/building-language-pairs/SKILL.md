@@ -7,7 +7,7 @@ description: Builds a language's skill pair in this repository, `<lang>-practice
 
 This skill is the process. The rules a pair must meet live in the **Language skills** section of [CONTRIBUTING.md](../../../CONTRIBUTING.md#language-skills). Read that section before step 1, and check every change against it.
 
-The Go pair is the worked example to copy: spec #56, tickets #57 to #62, PRs #70 to #75, and the skills `golang-practices` and `golang-review`. Go stacked each PR on the one before, and its PR to `main` was not open when this skill was written. Step 11 is the intended flow, not yet a tested one. Go's references and spec predate the examples-list and reference-length rules in CONTRIBUTING.md, so follow those rules, not Go's sizes.
+The Go pair is the worked example to copy: spec #56, tickets #57 to #62, PRs #70 to #75, and the skills `golang-practices` and `golang-review`. Go stacked each PR on the one before. Its main PR is #102, opened from a working branch that held `feat/golang-skills` plus the merge of `origin/main`, because the agent could not push to the integration branch. Go's references and spec predate the examples-list and reference-length rules in CONTRIBUTING.md, so follow those rules, not Go's sizes.
 
 The work has two phases with a person between them. **Design** turns a high-level language ticket, such as #64 for Python, into an audit and buildable tickets, then stops. Design may start on a parent ticket labelled `ready-for-human`, because it ends in a proposal for the person. **Build** turns approved tickets into a stack of draft PRs and a PR to `main`.
 

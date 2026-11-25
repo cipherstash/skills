@@ -81,6 +81,7 @@ Rules for every step of this run:
 const STR = { type: 'string' }
 const STRS = { type: 'array', items: STR }
 const INT = { type: 'integer' }
+const STATE = { type: 'string', enum: ['open', 'closed'] }
 const CHECKS = {
   type: 'array',
   items: {
@@ -101,7 +102,7 @@ const PLAN_SCHEMA = {
       items: {
         type: 'object',
         properties: {
-          number: INT, title: STR, url: STR, state: STR,
+          number: INT, title: STR, url: STR, state: STATE,
           labels: STRS,
           blockedBy: { type: 'array', items: INT },
           openPr: { type: ['object', 'null'], properties: { number: INT, url: STR, branch: STR, merged: { type: 'boolean' } } },
@@ -113,7 +114,7 @@ const PLAN_SCHEMA = {
       type: 'array',
       items: {
         type: 'object',
-        properties: { number: INT, state: STR, mergedPrBranch: STR, openPrBranch: STR },
+        properties: { number: INT, state: STATE, note: STR, mergedPrBranch: STR, openPrBranch: STR },
         required: ['number', 'state'],
       },
     },
@@ -254,7 +255,8 @@ const ticketScope = A.tickets && A.tickets.length
   ? `Build exactly these tickets: ${A.tickets.map(n => '#' + n).join(', ')}.`
   : `Build the open sub-issues of spec #${A.spec} that carry the ready-for-agent label.`
 
-const plan = await run(`Read the work for an implementation run and return its plan. Do not change anything.
+const plan = await run(`Read the work for an implementation run and return its plan. Do not change anything:
+no git checkout, commit or push, and no GitHub writes.
 ${RULES}
 
 Repository: ${A.repo || 'the GitHub repository of the current working directory (read `git remote -v`)'}.
@@ -265,7 +267,7 @@ ${ticketScope}
    (load them with ToolSearch). Follow docs/agents/issue-tracker.md if the repository has one.
 2. For each ticket, list its blockers from GitHub's native issue dependencies (blocked_by), and from any
    "Blocked by: #n" line in its body. For each blocker, record its state, and the branch of its merged or
-   open PR if it has one.
+   open PR if it has one. State is exactly "open" or "closed"; put anything else you know in "note".
 3. Record any PR already open for a ticket (it closes or references the ticket), so the run updates it
    instead of opening a second.
 4. List the checks a change in this repository must pass, as exact commands, from AGENTS.md,
@@ -282,9 +284,9 @@ const BASE = A.base || plan.defaultBranch
 const REPO = plan.repo
 const explicit = !!(A.tickets && A.tickets.length)
 const inScope = plan.tickets.filter(t => {
-  const ok = t.state.toLowerCase() === 'open' && (explicit || t.labels.includes('ready-for-agent'))
+  const ok = t.state === 'open' && (explicit || t.labels.includes('ready-for-agent'))
   if (!ok) {
-    const why = t.state.toLowerCase() !== 'open' ? `it is ${t.state}` : 'it is not labelled ready-for-agent'
+    const why = t.state !== 'open' ? `it is ${t.state}` : 'it is not labelled ready-for-agent'
     log(`Skipping #${t.number}: ${why}`)
     note(t.number, 'plan', 'decision', [`Skipped #${t.number} because ${why}.`])
   }
@@ -325,7 +327,7 @@ function baseFor(t, blockerPrs) {
     if (blockerPrs[b]) branches.push(blockerPrs[b].branch)
     else if (!byNum[b]) {
       const s = blockerState[b]
-      if (s && s.state.toLowerCase() === 'open' && s.openPrBranch) branches.push(s.openPrBranch)
+      if (s && s.state === 'open' && s.openPrBranch) branches.push(s.openPrBranch)
     }
   }
   return { base: branches[0] || BASE, mergeIn: branches.slice(1) }
@@ -339,7 +341,7 @@ function openTicket(t) {
     for (const b of t.blockedBy) {
       if (!byNum[b]) {
         const s = blockerState[b]
-        if (s && s.state.toLowerCase() === 'open' && !s.openPrBranch) {
+        if (s && s.state === 'open' && !s.openPrBranch) {
           note(t.number, 'build', 'decision', [`Not built: blocker #${b} is open, outside this run, and has no PR.`])
           return null
         }

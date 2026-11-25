@@ -341,7 +341,8 @@ class ReviewPrSkillTest(unittest.TestCase):
 
     def test_codex_never_selects_it_implicitly(self):
         yaml = (SKILL_DIR / "agents" / "openai.yaml").read_text()
-        self.assertIn("allow_implicit_invocation: false", yaml)
+        lines = [line.rstrip() for line in yaml.splitlines() if line.strip()]
+        self.assertEqual(lines, ["policy:", "  allow_implicit_invocation: false"])
 
 
 if __name__ == "__main__":

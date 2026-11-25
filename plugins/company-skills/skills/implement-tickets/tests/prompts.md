@@ -4,10 +4,10 @@
 
 ## Should activate
 
-- `/implement-tickets 56`: starts the workflow with `{spec: 56}`.
-- `/implement-tickets 56 plan`: starts it with `{spec: 56, planOnly: true}` and returns the plan without building.
-- `/implement-tickets tickets 57,58 base feat/x rounds 3`: starts it with `{tickets: [57, 58], base: "feat/x", maxFixRounds: 3}`.
-- `/implement-tickets` with no arguments: asks for the spec issue number and starts nothing until it has one.
+- `/company-skills:implement-tickets 56`: starts the workflow with `{spec: 56}`.
+- `/company-skills:implement-tickets 56 plan`: starts it with `{spec: 56, planOnly: true}` and returns the plan without building.
+- `/company-skills:implement-tickets tickets 57,58 base feat/x rounds 3`: starts it with `{tickets: [57, 58], base: "feat/x", maxFixRounds: 3}`.
+- `/company-skills:implement-tickets` with no arguments: asks for the spec issue number and starts nothing until it has one.
 
 ## Should not activate
 

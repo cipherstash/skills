@@ -4,10 +4,10 @@
 
 ## Should activate
 
-- `/review-pr 118`: starts the workflow with `{pr: 118}` and writes nothing to GitHub.
-- `/review-pr https://github.com/cipherstash/skills/pull/118 post`: starts it with that URL as `pr` and `post: true`.
-- `/review-pr 118 no-audit only correctness,lang-go`: starts it with `{pr: 118, audit: false, dimensions: ["correctness", "lang-go"]}`.
-- `/review-pr` with no arguments: asks for the pull request and starts nothing until it has one.
+- `/company-skills:review-pr 118`: starts the workflow with `{pr: 118}` and writes nothing to GitHub.
+- `/company-skills:review-pr https://github.com/cipherstash/skills/pull/118 post`: starts it with that URL as `pr` and `post: true`.
+- `/company-skills:review-pr 118 no-audit only correctness,lang-go`: starts it with `{pr: 118, audit: false, dimensions: ["correctness", "lang-go"]}`.
+- `/company-skills:review-pr` with no arguments: asks for the pull request and starts nothing until it has one.
 
 ## Should not activate
 

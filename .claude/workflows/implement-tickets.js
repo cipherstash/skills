@@ -348,7 +348,11 @@ function openTicket(t) {
     for (const b of t.blockedBy) {
       if (!byNum[b]) {
         const s = blockerState[b]
-        if (s && s.state === 'open' && !s.openPrBranch) {
+        if (!s) {
+          note(t.number, 'build', 'decision', [`Not built: the plan has no state for blocker #${b}, which is outside this run.`])
+          return null
+        }
+        if (s.state === 'open' && !s.openPrBranch) {
           note(t.number, 'build', 'decision', [`Not built: blocker #${b} is open, outside this run, and has no PR.`])
           return null
         }
@@ -362,6 +366,8 @@ function openTicket(t) {
       blockerPrs[b] = r
     }
     const { base, mergeIn } = baseFor(t, blockerPrs)
+    // A merged PR is history: a new PR continues the ticket.
+    const openPr = t.openPr && !t.openPr.merged ? t.openPr : null
 
     // Build: tdd in its own worktree.
     const build = await run(`Implement ticket #${t.number} ("${t.title}") of ${REPO} with test-driven development.
@@ -371,7 +377,7 @@ Ticket: ${t.url || '#' + t.number}. ${plan.spec ? `Spec: #${plan.spec.number} ($
 Read the ticket and spec in full before you write code. Their acceptance criteria define done.
 
 Branch: you are in a fresh git worktree. Run \`git fetch origin ${base}${mergeIn.map(b => ' ' + b).join('')}\`, then create a
-branch for this ticket from \`origin/${base}\`${t.openPr ? `, or check out the existing PR branch \`${t.openPr.branch}\` and continue it` : ''}.
+branch for this ticket from \`origin/${base}\`${openPr ? `, or check out the existing PR branch \`${openPr.branch}\` and continue it` : ''}.
 Name it with a type prefix and the ticket number, for example \`feat/${t.number}-<slug>\`.
 ${mergeIn.length ? `This ticket has more than one blocker: merge ${mergeIn.map(b => '`origin/' + b + '`').join(', ')} into your branch first (merge, never rebase).` : ''}
 
@@ -402,7 +408,7 @@ status "blocked" with the reason; still push any commits worth keeping.`, {
 ${RULES}
 
 Branch \`${build.branch}\` is pushed with the ticket's commits; its base is \`${build.base}\`.
-${t.openPr ? `PR #${t.openPr.number} is already open for it: update that one.` : ''}
+${openPr ? `PR #${openPr.number} is already open for it: update that one.` : ''}
 Use the \`company-skills:authoring-pull-requests\` skill for the title and body, with two changes for a stack:
 its <base> is \`${build.base}\` for both the signature range and the PR, and a stacked branch is never
 re-signed by rebase (if a commit needs a new signature, record a deviation instead).
@@ -434,7 +440,7 @@ function finishTicket(t) {
     const review = await run(`Review pull request #${pr.number} of ${REPO} (ticket #${t.number}) independently.
 ${RULES}
 
-You did not write this code. Review only this ticket's own commits: the diff \`${pr.base}...${o.branch}\` at
+You did not write this code. Review only this ticket's own commits: the diff \`origin/${pr.base}...origin/${o.branch}\` at
 head ${head}. Read-only: do not edit, commit, push, post to GitHub, or resolve threads.
 Use \`mattpocock-skills:code-review\` with the fixed point \`origin/${pr.base}\` and ticket #${t.number} as the
 spec. Also use the repository's language review skill for the languages the change touches, where one
@@ -447,16 +453,19 @@ not review as limits.`, {
       label: `review #${t.number}`, phase: 'Review', model: OPUS, schema: REVIEW_SCHEMA,
     })
     let pending = []
+    let reviewFindings = []
     if (review) {
       note(t.number, 'review', 'decision', review.decisions)
       note(t.number, 'review', 'deviation', review.deviations)
       note(t.number, 'review', 'deviation', review.limits.map(l => `Review limit: ${l}`))
       pending = review.findings
+      reviewFindings = review.findings
     } else {
       note(t.number, 'review', 'deviation', ['The independent review agent failed; only the routine review was audited.'])
     }
 
     const rounds = []
+    let audited = false
     for (let round = 1; round <= MAX_FIX_ROUNDS; round++) {
       const entry = { round }
       rounds.push(entry)
@@ -481,16 +490,18 @@ ${JSON.stringify(pending, null, 2)}`, {
         note(t.number, `fix r${round}`, 'decision', fix.decisions)
         note(t.number, `fix r${round}`, 'deviation', fix.deviations)
         if (fix.needsDecision.length) note(t.number, `fix r${round}`, 'decision', fix.needsDecision.map(x => `Needs a person: ${x}`))
-        head = fix.headSha
+        if (fix.pushed) head = fix.headSha
+        else note(t.number, `fix r${round}`, 'deviation', ['The fix agent pushed nothing; the head is unchanged.'])
         entry.fix = { fixed: fix.fixed.length, refuted: fix.refuted.length, needsDecision: fix.needsDecision.length }
       }
 
       // Monitor: wait for the Claude review routine on the current head, and for CI.
       let wait = null
       for (let w = 1; w <= WAIT_ROUNDS; w++) {
-        wait = await run(`Check pull request #${pr.number} of ${REPO} for the Claude review routine's review and CI.
+        const got = await run(`Check pull request #${pr.number} of ${REPO} for the Claude review routine's review and CI.
 Do not change anything except as step 1 says.
-1. If no review from \`cipherstash-agent\` is requested or submitted for head ${head}, start the Claude
+1. If no review from \`cipherstash-agent\` is requested or submitted for head ${head}, and no comment whose
+   first line starts "@cipherstash-agent review" was posted after that head was pushed, start the Claude
    review routine: ${ROUTINE}
 2. Wait up to 15 minutes for a submitted review from the routine whose commit is the PR's current head, and
    for its check runs to finish. Use the Monitor tool with an until-loop if you have one. Otherwise check
@@ -498,7 +509,8 @@ Do not change anything except as step 1 says.
 3. Return the current head, whether that review landed (and its URL), CI's state and the failing checks.`, {
           label: `wait #${t.number} r${round}.${w}`, phase: 'Fix', model: HAIKU, schema: WAIT_SCHEMA,
         })
-        if (!wait) continue
+        if (!got) continue
+        wait = got
         note(t.number, `wait r${round}`, 'deviation', wait.deviations)
         if (wait.routineReviewLanded && wait.ci !== 'pending') break
       }
@@ -513,6 +525,9 @@ ${RULES}
 Audit every thread, review body and comment, from people and bots, against the PR's current head. Read the
 code each verdict rests on. Do not resolve threads, post, or push. Reconcile your counts: total must equal
 unresolved + addressed + refuted + needsDecision.
+${reviewFindings.length ? `An independent review also raised these findings, which are not posted on the PR. Audit each one against
+the head as you would a thread, keeping its id:
+${JSON.stringify(reviewFindings, null, 2)}` : ''}
 ${wait && wait.ci === 'failed' ? `CI is failing on the head: ${wait.failingChecks.join(', ')}. Add each failing check as an unresolved finding with its log excerpt as evidence and source "CI".` : ''}`, {
         label: `audit #${t.number} r${round}`, phase: 'Fix', model: OPUS, schema: AUDIT_SCHEMA,
       })
@@ -528,6 +543,7 @@ ${wait && wait.ci === 'failed' ? `CI is failing on the head: ${wait.failingCheck
       if (audit.needsDecision.length) {
         note(t.number, `audit r${round}`, 'decision', audit.needsDecision.map(d => `Needs a person: ${d.id}: ${d.question}`))
       }
+      audited = true
       entry.audit = c
       entry.ci = wait ? wait.ci : 'unknown'
       head = audit.headSha
@@ -540,7 +556,7 @@ ${wait && wait.ci === 'failed' ? `CI is failing on the head: ${wait.failingCheck
 
     return {
       ticket: t.number,
-      status: pending.length ? 'open findings' : 'clean',
+      status: pending.length ? 'open findings' : audited ? 'clean' : 'not audited',
       pr: pr.url, branch: o.branch, base: o.base, head,
       criteriaOpen: build.criteria.filter(x => !x.met).map(x => x.criterion),
       openFindings: pending.map(f => ({ id: f.id, severity: f.severity, location: f.location, claim: f.claim })),

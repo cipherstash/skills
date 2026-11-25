@@ -30,7 +30,7 @@ func NewClientWithCA(caPEM []byte) (*http.Client, error) {
 	transport := base.Clone()
 	// Keep any TLS settings the program gave the default transport, such as a
 	// client certificate or ServerName, and add the CA to them.
-	tlsConfig := &tls.Config{}
+	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
 	if base.TLSClientConfig != nil {
 		tlsConfig = base.TLSClientConfig.Clone()
 	}

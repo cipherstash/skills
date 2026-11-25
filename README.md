@@ -193,6 +193,7 @@ Each skill is authored once under `plugins/company-skills/skills/`. The portable
 | `rust-testing` | Conventions for Rust tests: nextest, scenario modules, fake data, mocktail, paused time | Automatic while writing Rust tests |
 | `golang-practices` | Conventions for writing Go: errors, concurrency, naming, interfaces, generics, testing, project structure, security, performance, dependencies and embedding wazero, with examples that compile and pass the race detector | Automatic while writing Go |
 | `golang-review` | Review a Go change against a ten-area checklist, from error handling and concurrency to security, dependencies and breaking changes, with `go vet`, race-enabled tests with coverage, `gofmt`, `go mod tidy -diff` and an exported-API comparison as evidence, ending in a verdict | Explicit or automatic |
+| `aws-service-architecture` | Conventions for AWS services: ECS or Lambda, public by default, permission-based feature access, idempotent provisioning | Automatic while designing, building, or reviewing services |
 | `filing-github-issues` | Draft and file well-structured GitHub issues on CipherStash repos | Explicit or automatic |
 | `authoring-pull-requests` | Branch, commit, and open draft pull requests with a consistent structure | Explicit or automatic |
 | `plain-language` | Write, rewrite, and review prose in plain language (ISO 24495 and GOV.UK), with a bundled checker | Explicit or automatic |

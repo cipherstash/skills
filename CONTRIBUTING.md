@@ -4,6 +4,10 @@ Add skills under `plugins/company-skills/skills/<skill-name>/`. The directory is
 
 A skill for working on this repository itself, such as `building-language-pairs`, goes in `.claude/skills/` instead. It is not published, the validator does not check it, and it needs no behavior cases. AGENTS.md points to it, so Codex can follow it too.
 
+A multi-agent workflow script for working on this repository goes in `.claude/workflows/`. A workflow runs in Claude Code only, through the Workflow tool, and is not published. `implement-tickets` builds a spec's `ready-for-agent` tickets into stacked draft PRs, then reviews and fixes each PR and writes a run report.
+
+Run `implement-tickets` by name with `{spec: <issue number>}`, or with `{spec: <n>, planOnly: true}` to see the plan first. The comment at the top of the script lists its other arguments.
+
 ## Skill skeleton
 
 Start each skill from this `plugins/company-skills/skills/<skill-name>/SKILL.md`:

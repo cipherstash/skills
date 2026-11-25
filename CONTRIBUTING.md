@@ -39,7 +39,12 @@ Write the instructions the agent should follow.
 
 Most skills here are workflows: a user asks for a result and the skill runs a procedure. A **convention skill** instead carries coding rules the agent applies while it writes code (for example `rust-sdk-dx`). Author one like this:
 
-- Write the `description` as what the conventions cover, then `Use when …` naming the files or changes they apply to, then the nearest work they do not apply to (other languages, binaries, a sibling convention skill). The boundary is load-bearing: the plugin installs at user scope, so a loose description fires in every project.
+- Write the `description` in three parts:
+  1. what the conventions cover
+  2. `Use when …`, naming the files or changes they apply to
+  3. the nearest work they do not apply to, such as other languages, binaries, or a sibling convention skill
+
+  Always include the third part. The plugin is installed for the user, not for one project. If the description is too broad, agents load the skill in every project.
 - Set `user-invocable: false` in the frontmatter so Claude Code applies the skill automatically and keeps it out of the `/` menu. Codex has no equivalent setting and invokes skills implicitly by default, so no `agents/openai.yaml` is needed.
 - Keep rules company-wide. Name a repository's own helpers, paths, task runner commands, or ticket numbers only as clearly labelled examples, and leave repository-specific rules in that repository as a small local skill that points here.
 - When two convention skills touch the same topic, one owns it and the other links to it by name instead of restating it.

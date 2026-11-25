@@ -2,6 +2,30 @@
 
 The language shared by the company skills, especially the Vanta remediation and triage workstreams and the run reports that unattended runs publish.
 
+## CipherStash services
+
+**CipherStash service**:
+A service that CipherStash builds and runs for customers, such as CTS or ZeroKMS. A Lambda function that supports a CipherStash service is not a CipherStash service.
+_Avoid_: Service (alone, when an AWS service could be meant)
+
+**CipherStash Token Service (CTS)**:
+The CipherStash service that authenticates clients and issues the service tokens that other CipherStash services accept.
+
+**Service token issued by CTS**:
+The bearer token a client sends with each request to a CipherStash service, such as ZeroKMS. It lists the permissions that CTS granted to the client.
+_Avoid_: CipherStash Service Token, CST, CTS token (each is too close to "CTS")
+
+**Token exchange**:
+The step where a client gives CTS an access key or a token from another identity provider, and CTS returns a service token.
+
+**Feature permission**:
+A permission that CTS adds to a service token at token exchange. It lets the client use one feature, such as the MCP interface. The service that offers the feature checks for it in the token.
+_Avoid_: Feature flag, allow list
+
+**Control plane endpoint**:
+The part of a CipherStash service's API that creates, reads, updates, or deletes the service's resources, such as workspaces or keysets. Each service has its own. If the control plane is ever split from the rest of the API, the split stays inside that service.
+_Avoid_: Control plane service (no separate service exists or is planned)
+
 ## Vanta tracking issues
 
 **Tracking issue**:

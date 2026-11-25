@@ -201,7 +201,7 @@ Each skill is authored once under `plugins/company-skills/skills/`. The portable
 
 Code review skills (`review-*`) work with the findings of a code review: auditing a PR's existing feedback, cross-checking new findings against it, posting them, and fixing them. None of them performs the review itself. `golang-review` performs one for a Go change and reports findings in the severities they take.
 
-Convention skills (`rust-*` and `golang-practices`) carry coding rules rather than a workflow. Claude Code applies them automatically and hides them from the `/` menu; Codex selects them implicitly.
+Convention skills, such as the Rust skills (`rust-*`), `golang-practices`, and `aws-service-architecture`, carry rules rather than a workflow. Claude Code applies them automatically and hides them from the `/` menu. Codex selects them implicitly.
 
 `review-audit` and `review-cross-check` require Python 3, Git, and `gh` authenticated for the target repository; `review-post` requires `gh` and `python3` or `jq`. `golang-review` requires Git and the Go toolchain to run its checks, and the GitHub MCP server or `gh` to review a pull request; without them it reviews by reading and reports the checks it could not run. When `golangci-lint` or `govulncheck` is not installed, it fetches it from the Go module proxy at the version `golang-practices` pins. These are local CLI dependencies; the plugin does not bundle an MCP server.
 

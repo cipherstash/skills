@@ -8,6 +8,8 @@ To build a language's skill pair (`<lang>-practices` and `<lang>-review`), read 
 
 In Claude Code, to build a spec's approved tickets into stacked, reviewed PRs, a person types `/implement-tickets <spec number>`. That starts the workflow in `.claude/workflows/`. Codex cannot run it.
 
+In Claude Code, to review one pull request with an independent reviewer per dimension, an adversarial verifier for each, and reconciled counts, a person types `/review-pr <PR>`, adding `post` to publish the review. That starts `.claude/workflows/review-pr.js`. Codex cannot run it.
+
 ## Agent skills
 
 ### Issue tracker

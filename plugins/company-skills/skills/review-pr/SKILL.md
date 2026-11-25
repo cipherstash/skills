@@ -7,11 +7,11 @@ disable-model-invocation: true
 
 # review-pr
 
-Start the `review-pr` workflow in `.claude/workflows/review-pr.js`. The person typing this command is their opt-in to a multi-agent run. The Workflow tool does the work. This session does not.
+Start the `review-pr` workflow in this skill's `workflows/review-pr.js`. The person typing this command is their opt-in to a multi-agent run. The Workflow tool does the work. This session does not.
 
 This runs in Claude Code only. Codex cannot run workflows. In Codex, say that and stop.
 
-1. Find the script. Run `git rev-parse --show-toplevel` in the checkout of the skills repository. That is the working directory, or the checkout under it if the session starts outside the repository. The script is `<top>/.claude/workflows/review-pr.js`. If it is not there, stop and say which path you checked.
+1. Find the script. It ships with this skill, at `${CLAUDE_SKILL_DIR}/workflows/review-pr.js`. Claude Code fills in `${CLAUDE_SKILL_DIR}` with this skill's installed directory, which is also the "Base directory for this skill" shown when it loads. Never look for it in the working directory or its git checkout. If the file is not there, stop and say which path you checked.
 2. Build `args` from the command's arguments:
    - a number or a pull request URL is `pr`;
    - `post` sets `post: true`;

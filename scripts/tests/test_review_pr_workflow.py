@@ -1,4 +1,4 @@
-"""Tests for .claude/workflows/review-pr.js.
+"""Tests for plugins/company-skills/skills/review-pr/workflows/review-pr.js.
 
 The workflow is a Claude Code Workflow script. These tests run it under Node with a stub
 agent(), pipeline() and phase() that return canned results per agent label, and assert on the
@@ -13,8 +13,9 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-SCRIPT = ROOT / ".claude" / "workflows" / "review-pr.js"
-SKILL = ROOT / ".claude" / "skills" / "review-pr" / "SKILL.md"
+SKILL_DIR = ROOT / "plugins" / "company-skills" / "skills" / "review-pr"
+SCRIPT = SKILL_DIR / "workflows" / "review-pr.js"
+SKILL = SKILL_DIR / "SKILL.md"
 NODE = shutil.which("node")
 
 # The stub runtime. SCENARIO is a JSON object:
@@ -332,9 +333,15 @@ class ReviewPrSkillTest(unittest.TestCase):
         self.assertIn("name: review-pr", front)
         self.assertIn("disable-model-invocation: true", front)
 
-    def test_skill_points_at_the_workflow_script(self):
-        self.assertIn(".claude/workflows/review-pr.js", SKILL.read_text())
+    def test_skill_resolves_the_script_from_its_own_directory(self):
+        text = SKILL.read_text()
+        self.assertIn("${CLAUDE_SKILL_DIR}/workflows/review-pr.js", text)
+        self.assertNotIn("git rev-parse", text)
         self.assertTrue(SCRIPT.is_file())
+
+    def test_codex_never_selects_it_implicitly(self):
+        yaml = (SKILL_DIR / "agents" / "openai.yaml").read_text()
+        self.assertIn("allow_implicit_invocation: false", yaml)
 
 
 if __name__ == "__main__":

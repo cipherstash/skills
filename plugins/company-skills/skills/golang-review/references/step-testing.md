@@ -17,6 +17,8 @@ Report each function, method, or branch the change adds or alters that no test r
 
 Report a test the change deletes or weakens, such as a removed case or a loosened assertion, when the behaviour it covered still exists. If the deleted test caught a defect the change introduces, fold this into that defect's finding as part of its cause.
 
+When the change removes or weakens a check of the Go check suite in CI, report it as `major`. `checks.md` describes this under "The check suite in CI".
+
 ## The race detector
 
 Tests run with `-race`, as `checks.md` sets out. The run is shared with the concurrency step. A race-enabled pass covers only the paths the tests ran. When the change adds concurrent code that no test runs concurrently, say so here: the race detector cannot see it.
@@ -51,5 +53,5 @@ Report a test the change adds that cannot fail for the defect it names:
 
 - A coverage percentage, high or low, by itself.
 - No test for code with no logic to get wrong: a constant, a type declaration, a one-line getter, or generated code.
-- A missing fuzz test, benchmark, or testable example, unless it would catch a plausible regression.
+- A missing fuzz test, benchmark, or testable example, unless it would catch a plausible regression. The exception: a function the change adds that parses or decodes untrusted input, with no Fuzz target, is a `minor` finding. A function that existed before the change is not a finding. A crash that a fuzz run finds is reported at its own severity, not as `minor`.
 - A test style the practices reference prefers, such as table-driven tests, when the existing tests check the behaviour.

@@ -2,6 +2,14 @@
 
 Read this in step 8. The review's output goes to the user in the conversation. It is not written to the repository or posted anywhere.
 
+## Contents
+
+- [Report shape](#report-shape)
+- [Fields](#fields)
+- [Handing on](#handing-on)
+
+## Report shape
+
 Use this shape. Keep every section, even when it is empty, so a reader can see what the review covered.
 
 ````markdown
@@ -24,6 +32,12 @@ Skills: `golang-review`, `golang-practices`
 | `go doc -all` at base and head | `./mailer` | 1 changed, 3 added; see API changes |
 | `staticcheck`, `gosec`, `apidiff` | | not run: not installed |
 | `govulncheck` | `./...` | not run: needs the vulnerability database over the network |
+| `golangci-lint` in CI | `./...` | passed: job `lint` on the head commit, `<run URL>` |
+
+## Check suite in CI
+
+- `govulncheck`: no workflow step runs it.
+- `semgrep`: not in place: its step has `continue-on-error: true` (`.github/workflows/ci.yml:41`).
 
 ## API changes
 
@@ -81,7 +95,8 @@ REQUEST_CHANGES: <one to three sentences: what blocks the change, and any limit 
 
 - **Reviewed**: full SHAs for base and head. For uncommitted changes, write `HEAD <SHA> plus uncommitted changes`. A snapshot has no commit for `review-post` to post against, so say the user must commit before posting.
 - **Go version**: one line per module when the change touches several. Write `1.16 (no go line)` where the module has none.
-- **Checks**: one row per check, with the exact command and scope. The outcome is `passed`, `failed: <evidence>`, or `not run: <reason>`, as `checks.md` defines them. A check run without `-race`, because the race detector was unavailable, is its own row. The coverage row gives the total and every function in a changed file at 0.0%, or `not run` with the reason when the tests did not run.
+- **Checks**: one row per check, with the exact command and scope. The outcome is `passed`, `failed: <evidence>`, or `not run: <reason>`, as `checks.md` defines them. A check run without `-race`, because the race detector was unavailable, is its own row. The coverage row gives the total and every function in a changed file at 0.0%, or `not run` with the reason when the tests did not run. A check CI ran on the head commit is its own row, with the job, CI's outcome, and the run's URL. A local run of a suite tool is evidence for a finding, not the gate's result.
+- **Check suite in CI**: one line for each suite check that is not in place in CI at the head, as `checks.md` describes. Each line says what is missing. Write `All in place.` when none is missing. Write `not compared: <reason>` when the review could not compare CI with the suite. That is also a limit. A missing check is a line here, not a finding. A check the change removes or weakens is also a finding.
 - **API changes**: every removed, renamed, or changed exported declaration, the additions in one line, and the version note, as `step-breaking-changes.md` describes. Write `None.` when the exported API is unchanged, and `not compared: <reason>` when the review could not compare it, which is also a limit. Leave the section out only when breaking changes are not in scope at the user's request.
 - **Coverage and limits**: every area is listed once, as reviewed or not reviewed with the reason: left out at the user's request, cut for scope, or `step reference not read`. A reviewed area lists the files read for it in step 6: its step reference and each golang-practices reference, by path. An area is reviewed only if its step reference was read; otherwise it is listed as not reviewed, `step reference not read`, with no findings under it. A golang-practices reference the table names for a reviewed area but not read is a limit of that area. If the skill could not be loaded, write `golang-practices not loaded:` and the references not read under limits. Every check not run is a limit, as is any change to the user's tree found in step 8.
 - **Findings**: most severe first, numbered `G1`, `G2`, and so on. A finding with no single line gives the files and says `design-level`. A deleted line gives the base line and says `deleted`. Write `Rule:` when the finding rests on a rule, and `Trigger and consequence:` when it rests on behaviour. Write both when both apply. With no findings, write `No findings.` and keep the coverage section, so the result is read as clean only within that coverage.

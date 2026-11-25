@@ -93,20 +93,21 @@ def ticket(number, blocked_by=(), labels=("ready-for-agent",), state="open", ope
     }
 
 
-def plan(tickets, blocker_states=()):
+def plan(tickets, blocker_states=(), review_routine=True):
     return {
         "repo": "o/r", "defaultBranch": "main", "spec": {"number": 1, "title": "spec"},
+        "reviewRoutine": review_routine,
         "tickets": tickets, "blockerStates": list(blocker_states),
         "checks": ["make test"], "decisions": [], "deviations": [],
     }
 
 
-def run(ticket_list, blocker_states=(), overrides=None, **extra_args):
+def run(ticket_list, blocker_states=(), overrides=None, review_routine=True, **extra_args):
     body = SCRIPT.read_text().replace("export const meta", "const meta", 1)
     source = HARNESS.replace("/*SCRIPT*/", body)
     scenario = {
         "args": {"spec": 1, **extra_args},
-        "plan": plan(ticket_list, blocker_states),
+        "plan": plan(ticket_list, blocker_states, review_routine),
         "overrides": overrides or {},
     }
     result = subprocess.run(
@@ -266,6 +267,51 @@ class ImplementTicketsWorkflowTest(unittest.TestCase):
         r = run([ticket(2)], overrides={"wait #2 r1.1": pending})
         self.assertEqual(labels(r, "wait"), ["wait #2 r1.1", "wait #2 r1.2"])
 
+    def test_without_the_routine_starts_no_wait_and_requests_no_review(self):
+        r = run([ticket(2)], routine=False)
+        self.assertIsNone(r["error"])
+        self.assertEqual(labels(r, "wait"), [])
+        for c in r["calls"]:
+            self.assertNotIn("cipherstash-agent", c["prompt"], c["label"])
+        self.assertEqual(labels(r, "audit"), ["audit #2 r1"])
+        self.assertIn("Check CI on the PR's current head", " ".join(prompt(r, "audit #2 r1").split()))
+        self.assertEqual(by_ticket(r)[2]["status"], "clean")
+
+    def test_plan_looks_for_the_routine_workflow(self):
+        r = run([ticket(2)])
+        self.assertIn(".github/workflows/claude-review.yml", prompt(r, "plan"))
+
+    def test_routine_defaults_to_whether_the_repository_has_it(self):
+        # This repository has the routine, so its Plan agent reports it and the run waits for it.
+        self.assertTrue((ROOT / ".github" / "workflows" / "claude-review.yml").is_file())
+        with_routine = run([ticket(2)], review_routine=True)
+        self.assertEqual(labels(with_routine, "wait"), ["wait #2 r1.1"])
+        self.assertIn("cipherstash-agent", prompt(with_routine, "pr #2"))
+        without = run([ticket(2)], review_routine=False)
+        self.assertEqual(labels(without, "wait"), [])
+        self.assertNotIn("cipherstash-agent", prompt(without, "pr #2"))
+
+    def test_routine_arg_overrides_what_the_plan_found(self):
+        r = run([ticket(2)], review_routine=False, routine=True)
+        self.assertEqual(labels(r, "wait"), ["wait #2 r1.1"])
+        r = run([ticket(2)], review_routine=True, routine=False)
+        self.assertEqual(labels(r, "wait"), [])
+
+    def test_routine_is_off_when_the_plan_does_not_say(self):
+        r = run([ticket(2)], review_routine=None)
+        self.assertEqual(labels(r, "wait"), [])
+
+    def test_build_and_review_name_a_fallback_without_mattpocock_skills(self):
+        r = run([ticket(2)])
+        build = " ".join(prompt(r, "build #2").split())
+        self.assertIn("If `mattpocock-skills:tdd` cannot be loaded", build)
+        self.assertIn("red, green, refactor", build[build.index("cannot be loaded"):])
+        review = " ".join(prompt(r, "review #2").split())
+        self.assertIn("If `mattpocock-skills:code-review` cannot be loaded", review)
+        self.assertIn("review the diff against ticket #2", review)
+        for text in (build, review):
+            self.assertIn("record a deviation", text[text.index("cannot be loaded"):])
+
     def test_run_report_gets_every_ledger_entry(self):
         r = run([ticket(2), ticket(3, labels=[])])
         self.assertIn("Skipped #3", prompt(r, "run report"))
@@ -294,6 +340,19 @@ class ImplementTicketsSkillTest(unittest.TestCase):
         yaml = (SKILL_DIR / "agents" / "openai.yaml").read_text()
         lines = [line.rstrip() for line in yaml.splitlines() if line.strip()]
         self.assertEqual(lines, ["policy:", "  allow_implicit_invocation: false"])
+
+
+class ImplementTicketsReadmeTest(unittest.TestCase):
+    def test_readme_dependency_list_matches_the_script(self):
+        text = (ROOT / "README.md").read_text()
+        start = text.index("`implement-tickets` runs a Claude Code workflow script")
+        section = " ".join(text[start:text.index("`run-report` publishes", start)].split())
+        # Neither dependency is required: each has a fallback the script names.
+        self.assertIn("`mattpocock-skills`", section)
+        self.assertIn("follow its steps themselves", section)
+        self.assertIn("`routine`", section)
+        self.assertIn(".github/workflows/claude-review.yml", section)
+        self.assertNotIn("45 minutes", section)
 
 
 if __name__ == "__main__":

@@ -1,12 +1,12 @@
 export const meta = {
   name: 'implement-tickets',
-  description: 'Build a spec\'s ready-for-agent tickets: tdd per ticket, one stacked draft PR each, independent review, Claude review routine, review-audit and review-fix rounds, then a run report',
-  whenToUse: 'After a spec issue and its tickets are filed and a person has labelled the tickets ready-for-agent. Never straight from a grill. Args: {spec, tickets?, base?, repo?, maxFixRounds?, waitRounds?, planOnly?}',
+  description: 'Build a spec\'s ready-for-agent tickets: tdd per ticket, one stacked draft PR each, independent review, the Claude review routine where the repository has it, review-audit and review-fix rounds, then a run report',
+  whenToUse: 'After a spec issue and its tickets are filed and a person has labelled the tickets ready-for-agent. Never straight from a grill. Args: {spec, tickets?, base?, repo?, maxFixRounds?, waitRounds?, routine?, planOnly?}',
   phases: [
     { title: 'Plan', detail: 'read the spec, its ready-for-agent tickets and their blocked-by graph' },
     { title: 'Build', detail: 'tdd in a worktree per ticket, then a draft PR stacked on its blocker' },
     { title: 'Review', detail: 'independent review by an agent that did not write the code' },
-    { title: 'Fix', detail: 'Claude review routine, review-audit, review-fix red first, until nothing is open' },
+    { title: 'Fix', detail: 'Claude review routine (if any), review-audit, review-fix red first, until nothing is open' },
     { title: 'Stack', detail: 'merge each fixed branch into every branch stacked on it, in stack order' },
     { title: 'Report', detail: 'run-report with every decision and deviation' },
   ],
@@ -20,6 +20,9 @@ export const meta = {
 //   repo          owner/name (default: the repository of the working directory)
 //   maxFixRounds  review-audit + review-fix rounds per PR (default 2)
 //   waitRounds    times to wait for the Claude review routine and CI per round (default 3)
+//   routine       request and wait for the Claude review routine (default: whether the repository has
+//                 .github/workflows/claude-review.yml). When false, nothing requests a routine review or
+//                 waits for one, and the audit covers the independent review, the PR's threads and CI.
 //   planOnly      stop after Plan and return the plan (default false)
 // ---------------------------------------------------------------------------
 
@@ -126,10 +129,11 @@ const PLAN_SCHEMA = {
       },
     },
     checks: STRS,
+    reviewRoutine: { type: 'boolean' },
     decisions: STRS,
     deviations: STRS,
   },
-  required: ['repo', 'defaultBranch', 'tickets', 'blockerStates', 'checks', 'decisions', 'deviations'],
+  required: ['repo', 'defaultBranch', 'tickets', 'blockerStates', 'checks', 'reviewRoutine', 'decisions', 'deviations'],
 }
 
 const BUILD_SCHEMA = {
@@ -206,6 +210,7 @@ const AUDIT_SCHEMA = {
     unresolved: FINDINGS,
     needsDecision: { type: 'array', items: { type: 'object', properties: { id: STR, question: STR }, required: ['id', 'question'] } },
     resolvable: STRS,
+    ci: { type: 'string', enum: ['passed', 'failed', 'pending', 'none'] },
     counts: {
       type: 'object',
       properties: { total: INT, unresolved: INT, addressed: INT, refuted: INT, needsDecision: INT },
@@ -280,6 +285,8 @@ ${ticketScope}
 4. List the checks a change in this repository must pass, as exact commands, from AGENTS.md,
    CONTRIBUTING.md, CI workflows and the spec.
 5. Record the default branch.
+6. Set reviewRoutine to whether \`.github/workflows/claude-review.yml\` exists on the default branch of the
+   repository (the Claude review routine).
 Return every ticket in scope, including ones that are closed or not labelled ready-for-agent, with their
 labels and state, so the run can report why it skipped them.`, { label: 'plan', phase: 'Plan', model: SONNET, schema: PLAN_SCHEMA })
 
@@ -288,6 +295,13 @@ note(null, 'plan', 'decision', plan.decisions)
 note(null, 'plan', 'deviation', plan.deviations)
 
 const BASE = A.base || plan.defaultBranch
+// Whether the repository has the Claude review routine. Without it, nothing requests a routine review
+// or waits for one: the audit covers the independent review, the PR's threads and CI.
+// A plan that does not say counts as no routine, so a run never waits for a review that cannot come.
+const USE_ROUTINE = A.routine ?? plan.reviewRoutine === true
+note(null, 'plan', 'decision', [A.routine === undefined
+  ? `Claude review routine ${USE_ROUTINE ? 'on' : 'off'}: the plan found ${plan.reviewRoutine ? '' : 'no '}.github/workflows/claude-review.yml.`
+  : `Claude review routine ${USE_ROUTINE ? 'on' : 'off'}, as args.routine says.`])
 const REPO = plan.repo
 const explicit = !!(A.tickets && A.tickets.length)
 const inScope = plan.tickets.filter(t => {
@@ -384,6 +398,9 @@ ${mergeIn.length ? `This ticket has more than one blocker: merge ${mergeIn.map(b
 How to work (this is the mattpocock-skills:implement procedure, which agents cannot invoke themselves):
 1. Invoke the \`mattpocock-skills:tdd\` skill and follow it: red, green, refactor, at the seams the ticket
    or spec agreed. A behavior change gets a test that fails before the change.
+   If \`mattpocock-skills:tdd\` cannot be loaded (the mattpocock-skills plugin is not installed), follow its
+   steps yourself: red, green, refactor, one behavior at a time, each test failing before the code that
+   passes it. Then record a deviation.
 2. Use the repository's own skills where they apply, for example a language's practices skill
    (\`company-skills:golang-practices\` for Go, \`company-skills:rust-*\` for Rust).
 3. Run typechecking and single test files often, and the full suite once at the end.
@@ -415,8 +432,8 @@ re-signed by rebase (if a commit needs a new signature, record a deviation inste
 The body links the ticket (Closes #${t.number}), says where the PR sits in the stack, and marks each
 acceptance criterion met or open, from this build record:
 ${JSON.stringify({ criteria: build.criteria, checks: build.checks }, null, 2)}
-Keep it a draft. Then start the Claude review routine: ${ROUTINE}
-Record whether the request went through.`, {
+Keep it a draft. ${USE_ROUTINE ? `Then start the Claude review routine: ${ROUTINE}
+Record whether the request went through.` : 'This repository has no Claude review routine: request no review.'}`, {
       label: `pr #${t.number}`, phase: 'Build', model: SONNET, schema: PR_SCHEMA,
     })
     if (!pr) { note(t.number, 'pr', 'deviation', ['The PR agent failed.']); return null }
@@ -443,7 +460,10 @@ ${RULES}
 You did not write this code. Review only this ticket's own commits: the diff \`origin/${pr.base}...origin/${o.branch}\` at
 head ${head}. Read-only: do not edit, commit, push, post to GitHub, or resolve threads.
 Use \`mattpocock-skills:code-review\` with the fixed point \`origin/${pr.base}\` and ticket #${t.number} as the
-spec. Also use the repository's language review skill for the languages the change touches, where one
+spec. If \`mattpocock-skills:code-review\` cannot be loaded (the mattpocock-skills plugin is not installed),
+review the diff against ticket #${t.number} yourself: does it meet each acceptance criterion, and does it
+follow the repository's documented rules. Then record a deviation.
+Also use the repository's language review skill for the languages the change touches, where one
 exists (for example \`company-skills:golang-review\` for Go; \`company-skills:review-code\` if it is installed).
 Run each review skill in your own session; if a skill wants subagents and you cannot start them, follow its
 sequential route and record that as a deviation.
@@ -461,7 +481,7 @@ not review as limits.`, {
       pending = review.findings
       reviewFindings = review.findings
     } else {
-      note(t.number, 'review', 'deviation', ['The independent review agent failed; only the routine review was audited.'])
+      note(t.number, 'review', 'deviation', [`The independent review agent failed; only ${USE_ROUTINE ? 'the routine review, PR threads and CI were' : 'PR threads and CI were'} audited.`])
     }
 
     const rounds = []
@@ -497,7 +517,7 @@ ${JSON.stringify(pending, null, 2)}`, {
 
       // Monitor: wait for the Claude review routine on the current head, and for CI.
       let wait = null
-      for (let w = 1; w <= WAIT_ROUNDS; w++) {
+      for (let w = 1; USE_ROUTINE && w <= WAIT_ROUNDS; w++) {
         const got = await run(`Check pull request #${pr.number} of ${REPO} for the Claude review routine's review and CI.
 Do not change anything except as step 1 says.
 1. If no review from \`cipherstash-agent\` is requested or submitted for head ${head}, and no comment whose
@@ -514,7 +534,7 @@ Do not change anything except as step 1 says.
         note(t.number, `wait r${round}`, 'deviation', wait.deviations)
         if (wait.routineReviewLanded && wait.ci !== 'pending') break
       }
-      if (!wait || !wait.routineReviewLanded) {
+      if (USE_ROUTINE && (!wait || !wait.routineReviewLanded)) {
         note(t.number, `wait r${round}`, 'deviation', [`The Claude review routine had not reviewed ${head} after ${WAIT_ROUNDS} waits; audited without it.`])
       }
 
@@ -528,7 +548,11 @@ unresolved + addressed + refuted + needsDecision.
 ${reviewFindings.length ? `An independent review also raised these findings, which are not posted on the PR. Audit each one against
 the head as you would a thread, keeping its id:
 ${JSON.stringify(reviewFindings, null, 2)}` : ''}
-${wait && wait.ci === 'failed' ? `CI is failing on the head: ${wait.failingChecks.join(', ')}. Add each failing check as an unresolved finding with its log excerpt as evidence and source "CI".` : ''}`, {
+${!USE_ROUTINE ? `This repository has no Claude review routine, so no agent has checked CI. Check CI on the PR's current head
+yourself: wait up to 15 minutes for its check runs to finish (Monitor with an until-loop if you have one,
+otherwise Bash with \`sleep 120\` between checks; if waiting is blocked, check once). Report its state as "ci".
+Add each failing check as an unresolved finding with its log excerpt as evidence and source "CI".`
+  : wait && wait.ci === 'failed' ? `CI is failing on the head: ${wait.failingChecks.join(', ')}. Add each failing check as an unresolved finding with its log excerpt as evidence and source "CI".` : ''}`, {
         label: `audit #${t.number} r${round}`, phase: 'Fix', model: OPUS, schema: AUDIT_SCHEMA,
       })
       if (!audit) {
@@ -545,7 +569,7 @@ ${wait && wait.ci === 'failed' ? `CI is failing on the head: ${wait.failingCheck
       }
       audited = true
       entry.audit = c
-      entry.ci = wait ? wait.ci : 'unknown'
+      entry.ci = wait ? wait.ci : audit.ci || 'unknown'
       head = audit.headSha
       pending = audit.unresolved
       if (!pending.length) break

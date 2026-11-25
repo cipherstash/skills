@@ -196,11 +196,10 @@ The Vanta skills also need the Linear connector, read-only Vanta API credentials
 
 `plain-language` is ported from [auxesis/plain-language-skill](https://github.com/auxesis/plain-language-skill) under the Apache License 2.0; its `LICENSE` and `NOTICE` files carry the licence, the Open Government Licence credit for the GOV.UK material, and the changes made here. The port ships the skill and its checker, `scripts/check.py`, which needs Python 3.9 or later and no packages. It does not ship the upstream plugin's hooks, which add the rules to every session and send back chat replies that break them; install that plugin separately if you want them.
 
-`implement-tickets` runs a Claude Code workflow script that ships inside the skill, so the command is found in any repository. Only a person can start it, because typing the command is their opt-in to a run of up to four agents at once. It never merges a PR or marks one ready. Codex cannot run workflows, so in Codex it says so and stops. It depends on:
+`implement-tickets` runs a Claude Code workflow script that ships inside the skill, so the command is found in any repository. Only a person can start it, because typing the command is their opt-in to a run of up to four agents at once. It never merges a PR or marks one ready. Codex cannot run workflows, so in Codex it says so and stops. It needs Git and GitHub access for its agents. It uses two more things where they are there:
 
-- Git and GitHub access for its agents.
-- The `mattpocock-skills` plugin, whose `tdd` and `code-review` skills its agents call. company-skills does not install it.
-- The Claude review routine in [`.github/workflows/claude-review.yml`](.github/workflows/claude-review.yml), which a review request for `cipherstash-agent` starts. A repository without that routine still gets each PR built and reviewed, but every fix round waits up to 45 minutes for the routine, then records that it never came.
+- The `mattpocock-skills` plugin, whose `tdd` and `code-review` skills its agents call. company-skills does not install it. Without it, the agents follow its steps themselves: red, green, refactor to build, and a review of the diff against the ticket. Each records a deviation.
+- The Claude review routine in [`.github/workflows/claude-review.yml`](.github/workflows/claude-review.yml), which a review request for `cipherstash-agent` starts. The script's `routine` argument defaults to whether the repository has that file. Without it, the run requests no routine review and waits for none, and each fix round audits the independent review, the PR's threads and CI.
 
 `run-report` publishes through Claude's Artifact tool; on a host without it, the report goes in the run's final message. List it first in a routine's prompt so it logs problems from the start of the run, for example:
 

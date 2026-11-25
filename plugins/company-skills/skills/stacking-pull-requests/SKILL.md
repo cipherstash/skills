@@ -241,6 +241,9 @@ gh stack merge <pull request number> --yes --merge
 - Use a method the repository allows. To list the allowed methods, run `gh api repos/{owner}/{repo} --jq '{merge: .allow_merge_commit, squash: .allow_squash_merge, rebase: .allow_rebase_merge}'`. If more than one is allowed, and neither the repository's checklist nor the user says which, ask.
 - `gh stack merge` refuses a draft, and exits with code 5. Do not mark pull requests ready to make the merge work. Ask the user.
 - Do not bypass the repository's rules. `gh stack merge --help` says that bypassing merge requirements is not supported for stacks. Stacks do not support auto-merge either.
+- Before the merge, check whether `<base>` has a merge queue. Run `gh api repos/{owner}/{repo}/rules/branches/<base>`, and look for a rule of type `merge_queue`.
+- With a merge queue, `gh stack merge` adds the stack to the queue, and GitHub merges it later if CI passes. Merge as the user asked. Do not ask again.
+- After a merge into a queue, report the pull requests as "added to the merge queue, not merged yet". Never report them as merged. To see whether a pull request has merged, run `gh pr view <number> --json state,mergedAt`.
 
 ## Restructure a stack
 

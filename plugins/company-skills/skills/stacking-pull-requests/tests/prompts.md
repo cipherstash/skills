@@ -39,4 +39,5 @@
 - When `sync` prints `Sync aborted`, the agent tells the user, even though the exit code is 0.
 - When a command exits with code 9, the agent tells the user and does not build a chain by hand.
 - The agent merges only when asked, with `gh stack merge <number> --yes` and an explicit method flag that the repository allows. The agent never uses `gh pr merge`, a bypass, or the **Rebase stack** button.
+- Before a merge, the agent checks `<base>` for a `merge_queue` rule. With a queue, the agent merges without asking again. The agent then reports the pull requests as "added to the merge queue, not merged yet", never as merged.
 - The report lists each pull request from the bottom up with its branch, base, draft state, stack position, and signature status.

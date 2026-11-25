@@ -22,7 +22,8 @@ export const meta = {
 //   waitRounds    times to wait for the Claude review routine and CI per round (default 3)
 //   routine       request and wait for the Claude review routine (default: whether the repository has
 //                 .github/workflows/claude-review.yml). When false, nothing requests a routine review or
-//                 waits for one, and the audit covers the independent review, the PR's threads and CI.
+//                 waits for one: a haiku wait step waits for CI only, and the audit covers the
+//                 independent review, the PR's threads and CI.
 //   planOnly      stop after Plan and return the plan (default false)
 // ---------------------------------------------------------------------------
 
@@ -520,10 +521,11 @@ ${JSON.stringify(pending, null, 2)}`, {
         entry.fix = { fixed: fix.fixed.length, refuted: fix.refuted.length, needsDecision: fix.needsDecision.length }
       }
 
-      // Monitor: wait for the Claude review routine on the current head, and for CI.
+      // Monitor: wait for CI on the current head, and for the Claude review routine's review when it is on.
+      // Polling is haiku's job, so this step runs with the routine off too; it then only waits for CI.
       let wait = null
-      for (let w = 1; USE_ROUTINE && w <= WAIT_ROUNDS; w++) {
-        const got = await run(`Check pull request #${pr.number} of ${REPO} for the Claude review routine's review and CI.
+      for (let w = 1; w <= WAIT_ROUNDS; w++) {
+        const got = await run(USE_ROUTINE ? `Check pull request #${pr.number} of ${REPO} for the Claude review routine's review and CI.
 Do not change anything except as step 1 says.
 1. If no review from \`cipherstash-agent\` is requested or submitted for head ${head}, and no comment whose
    first line starts "@cipherstash-agent review" was posted after that head was pushed, start the Claude
@@ -531,17 +533,24 @@ Do not change anything except as step 1 says.
 2. Wait up to 15 minutes for a submitted review from the routine whose commit is the PR's current head, and
    for its check runs to finish. Use the Monitor tool with an until-loop if you have one. Otherwise check
    with Bash, \`sleep 120\` between checks. If waiting is blocked, check once and return.
-3. Return the current head, whether that review landed (and its URL), CI's state and the failing checks.`, {
+3. Return the current head, whether that review landed (and its URL), CI's state and the failing checks.`
+          : `Check CI on pull request #${pr.number} of ${REPO}. Do not change anything, and do not request a review.
+1. Wait up to 15 minutes for the check runs on the PR's current head to finish. Use the Monitor tool with an
+   until-loop if you have one. Otherwise check with Bash, \`sleep 120\` between checks. If waiting is
+   blocked, check once and return.
+2. Return the current head, CI's state and the failing checks. Return routineReviewLanded false: this
+   repository has no Claude review routine.`, {
           label: `wait #${t.number} r${round}.${w}`, phase: 'Fix', model: HAIKU, schema: WAIT_SCHEMA,
         })
         if (!got) continue
         wait = got
         note(t.number, `wait r${round}`, 'deviation', wait.deviations)
-        if (wait.routineReviewLanded && wait.ci !== 'pending') break
+        if ((wait.routineReviewLanded || !USE_ROUTINE) && wait.ci !== 'pending') break
       }
       if (USE_ROUTINE && (!wait || !wait.routineReviewLanded)) {
         note(t.number, `wait r${round}`, 'deviation', [`The Claude review routine had not reviewed ${head} after ${WAIT_ROUNDS} waits; audited without it.`])
       }
+      if (!wait) note(t.number, `wait r${round}`, 'deviation', [`No wait agent reported CI on ${head}; the audit checks it once.`])
 
       // Audit every piece of review feedback on the PR against its head.
       const audit = await run(`Audit the review feedback on pull request #${pr.number} of ${REPO} with \`company-skills:review-audit\`.
@@ -553,11 +562,9 @@ unresolved + addressed + refuted + needsDecision.
 ${reviewFindings.length ? `An independent review also raised these findings, which are not posted on the PR. Audit each one against
 the head as you would a thread, keeping its id:
 ${JSON.stringify(reviewFindings, null, 2)}` : ''}
-${!USE_ROUTINE ? `This repository has no Claude review routine, so no agent has checked CI. Check CI on the PR's current head
-yourself: wait up to 15 minutes for its check runs to finish (Monitor with an until-loop if you have one,
-otherwise Bash with \`sleep 120\` between checks; if waiting is blocked, check once).
+${!wait ? `No agent has reported CI on the head. Check CI's state on the PR's current head once; do not wait for it.
 Add each failing check as an unresolved finding with its log excerpt as evidence and source "CI".`
-  : wait && wait.ci === 'failed' ? `CI is failing on the head: ${wait.failingChecks.join(', ')}. Add each failing check as an unresolved finding with its log excerpt as evidence and source "CI".` : ''}
+  : wait.ci === 'failed' ? `CI is failing on the head: ${wait.failingChecks.join(', ')}. Add each failing check as an unresolved finding with its log excerpt as evidence and source "CI".` : ''}
 Report CI's state on the head as "ci".`, {
         label: `audit #${t.number} r${round}`, phase: 'Fix', model: OPUS, schema: AUDIT_SCHEMA,
       })

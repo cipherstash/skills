@@ -267,15 +267,37 @@ class ImplementTicketsWorkflowTest(unittest.TestCase):
         r = run([ticket(2)], overrides={"wait #2 r1.1": pending})
         self.assertEqual(labels(r, "wait"), ["wait #2 r1.1", "wait #2 r1.2"])
 
-    def test_without_the_routine_starts_no_wait_and_requests_no_review(self):
+    def test_without_the_routine_waits_for_ci_only_and_requests_no_review(self):
         r = run([ticket(2)], routine=False)
         self.assertIsNone(r["error"])
-        self.assertEqual(labels(r, "wait"), [])
+        # Polling stays with haiku: one CI-only wait, no routine review request anywhere.
+        self.assertEqual(labels(r, "wait"), ["wait #2 r1.1"])
+        wait = next(c for c in r["calls"] if c["label"] == "wait #2 r1.1")
+        self.assertEqual(wait["model"], "haiku")
+        self.assertIn("Check CI on pull request #", wait["prompt"])
         for c in r["calls"]:
             self.assertNotIn("cipherstash-agent", c["prompt"], c["label"])
         self.assertEqual(labels(r, "audit"), ["audit #2 r1"])
-        self.assertIn("Check CI on the PR's current head", " ".join(prompt(r, "audit #2 r1").split()))
+        # The audit neither polls CI nor waits for it.
+        self.assertNotIn("wait up to 15 minutes", prompt(r, "audit #2 r1").lower())
         self.assertEqual(by_ticket(r)[2]["status"], "clean")
+
+    def test_without_the_routine_waits_again_while_ci_is_pending(self):
+        pending = {"headSha": "b2", "routineReviewLanded": False, "ci": "pending", "failingChecks": [],
+                   "deviations": []}
+        r = run([ticket(2)], routine=False, overrides={"wait #2 r1.1": pending})
+        self.assertEqual(labels(r, "wait"), ["wait #2 r1.1", "wait #2 r1.2"])
+
+    def test_without_the_routine_finished_ci_ends_the_wait(self):
+        done = {"headSha": "b2", "routineReviewLanded": False, "ci": "passed", "failingChecks": [],
+                "deviations": []}
+        r = run([ticket(2)], routine=False, overrides={"wait #2 r1.1": done})
+        self.assertEqual(labels(r, "wait"), ["wait #2 r1.1"])
+
+    def test_audit_checks_ci_once_when_no_wait_reported(self):
+        r = run([ticket(2)], routine=False, waitRounds=0)
+        self.assertIn("Check CI's state on the PR's current head once",
+                      " ".join(prompt(r, "audit #2 r1").split()))
 
     def test_plan_looks_for_the_routine_workflow(self):
         r = run([ticket(2)])
@@ -288,18 +310,18 @@ class ImplementTicketsWorkflowTest(unittest.TestCase):
         self.assertEqual(labels(with_routine, "wait"), ["wait #2 r1.1"])
         self.assertIn("cipherstash-agent", prompt(with_routine, "pr #2"))
         without = run([ticket(2)], review_routine=False)
-        self.assertEqual(labels(without, "wait"), [])
         self.assertNotIn("cipherstash-agent", prompt(without, "pr #2"))
+        self.assertNotIn("cipherstash-agent", prompt(without, "wait #2 r1.1"))
 
     def test_routine_arg_overrides_what_the_plan_found(self):
         r = run([ticket(2)], review_routine=False, routine=True)
         self.assertEqual(labels(r, "wait"), ["wait #2 r1.1"])
         r = run([ticket(2)], review_routine=True, routine=False)
-        self.assertEqual(labels(r, "wait"), [])
+        self.assertNotIn("cipherstash-agent", prompt(r, "wait #2 r1.1"))
 
     def test_routine_is_off_when_the_plan_does_not_say(self):
         r = run([ticket(2)], review_routine=None)
-        self.assertEqual(labels(r, "wait"), [])
+        self.assertNotIn("cipherstash-agent", prompt(r, "wait #2 r1.1"))
 
     def test_routine_off_note_does_not_invent_what_the_plan_found(self):
         r = run([ticket(2)], review_routine=None)
@@ -336,7 +358,7 @@ class ImplementTicketsWorkflowTest(unittest.TestCase):
             self.assertEqual(t["status"], "ci pending", routine)
             self.assertEqual(t["ci"], "pending", routine)
         # An audit that leaves CI out, with no wait to fall back on, leaves CI unknown.
-        r = run([ticket(2)], routine=False, overrides={"audit #2 r1": no_findings})
+        r = run([ticket(2)], routine=False, waitRounds=0, overrides={"audit #2 r1": no_findings})
         self.assertEqual(by_ticket(r)[2]["status"], "ci unknown")
         for ci in ("passed", "none"):
             r = run([ticket(2)], routine=False, overrides={"audit #2 r1": {**no_findings, "ci": ci}})

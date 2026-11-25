@@ -97,9 +97,9 @@ The verdict is `REQUEST_CHANGES`: G6 is critical, and G1, G2, and G4 are major.
 - Location: `head/orders/units.go:5`
 - Line: `func (this Summary) UnitsPerLine() float64{`
 - Cause: the new method's receiver is named `this`, where every other `Summary` method uses `s`, and the file is not formatted: `gofmt` adds a space before the `{`.
-- Rule: golang-practices, naming: a receiver is one or two letters from its type, the same on every method, never `this` or `self`; and format with `gofmt`.
+- Rule: golang-practices, naming: a receiver is one or two letters from its type, the same on every method, never `this` or `self`; and general: format with `gofumpt`, through the suite.
 - Evidence: `gofmt -l` lists `orders/units.go`, and `gofmt -d` changes this line.
-- A correct fix renames the receiver to `s` and runs `gofmt -w orders/units.go`.
+- A correct fix renames the receiver to `s` and formats the file with `golangci-lint fmt` (`gofumpt`).
 
 ## G6 · critical · security
 

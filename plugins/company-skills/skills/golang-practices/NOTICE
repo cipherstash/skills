@@ -75,6 +75,8 @@ CipherStash made these changes:
     checks it;
   - the integration test used // +build and slept to wait for a server; it
     uses //go:build and httptest;
+  - a function that parses or decodes untrusted input must have a Fuzz
+    target;
   - the racy example is replaced by a test that fails under -race only if
     the code is wrong; benchmarks moved to references/performance.md.
 - references/project-structure.md is adapted from skills/golang-pro/

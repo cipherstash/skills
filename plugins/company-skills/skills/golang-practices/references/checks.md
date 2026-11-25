@@ -20,7 +20,7 @@ The golangci-lint pin moves with each Go minor release. A golangci-lint release 
 
 ## The checks
 
-- **golangci-lint**, as the runner for `govet`, `staticcheck`, `gosec`, and the `gofumpt` formatter. Use `gofumpt`, not `gofmt`. Start from the template [assets/golangci.yml](../assets/golangci.yml). A repository's own config may enable more linters, but must enable at least these four.
+- **golangci-lint**, as the runner for `govet`, `staticcheck`, `gosec`, and the `gofumpt` formatter. Use `gofumpt`, not `gofmt`. To format locally, run `golangci-lint fmt`. Start from the template [assets/golangci.yml](../assets/golangci.yml). A repository's own config may enable more linters, but must enable at least these four.
 - **govulncheck**, run on its own: `go run golang.org/x/vuln/cmd/govulncheck@<version> ./...`, with the version from the table.
 - **semgrep**, run on its own, with the `p/golang` ruleset plus the repository's own rules in `.semgrep/` at its root, when that directory exists. By default, semgrep skips test files (`*_test.go`) and test directories. Add a `.semgrepignore` at the repository root. That file replaces the default list. Leave the test entries out of it, so that semgrep scans the tests too.
 - **Tests with the race detector and coverage**: `go test -race -coverprofile=coverage.out ./...`, then `go tool cover -func=coverage.out` to report coverage. There is no coverage threshold.

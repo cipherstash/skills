@@ -75,6 +75,13 @@ Rules for every step of this run:
 - CI is where the checks gate. Run the checks a skill tells you to run, report their real results,
   and never claim a check passed that you did not see pass.`
 
+// The Claude review routine (.github/workflows/claude-review.yml) starts on a review request for
+// cipherstash-agent, or on a team member's comment whose first line starts "@cipherstash-agent review".
+// GitHub refuses a review request from a PR's own author, which is cipherstash-agent when this runs as it.
+const ROUTINE = `request a review from \`cipherstash-agent\` with the call that updates a pull request. If GitHub
+refuses it because cipherstash-agent wrote the PR, post a PR comment whose first line is
+"@cipherstash-agent review" instead, and record that as a deviation.`
+
 // ---------------------------------------------------------------------------
 // Schemas
 // ---------------------------------------------------------------------------
@@ -402,8 +409,8 @@ re-signed by rebase (if a commit needs a new signature, record a deviation inste
 The body links the ticket (Closes #${t.number}), says where the PR sits in the stack, and marks each
 acceptance criterion met or open, from this build record:
 ${JSON.stringify({ criteria: build.criteria, checks: build.checks }, null, 2)}
-Keep it a draft. Then request a review from \`cipherstash-agent\` with the call that updates a pull request;
-that starts the Claude review routine. Record whether the request went through.`, {
+Keep it a draft. Then start the Claude review routine: ${ROUTINE}
+Record whether the request went through.`, {
       label: `pr #${t.number}`, phase: 'Build', model: SONNET, schema: PR_SCHEMA,
     })
     if (!pr) { note(t.number, 'pr', 'deviation', ['The PR agent failed.']); return null }
@@ -483,8 +490,8 @@ ${JSON.stringify(pending, null, 2)}`, {
       for (let w = 1; w <= WAIT_ROUNDS; w++) {
         wait = await run(`Check pull request #${pr.number} of ${REPO} for the Claude review routine's review and CI.
 Do not change anything except as step 1 says.
-1. If no review from \`cipherstash-agent\` is requested or submitted for head ${head}, request one from
-   \`cipherstash-agent\` with the call that updates a pull request.
+1. If no review from \`cipherstash-agent\` is requested or submitted for head ${head}, start the Claude
+   review routine: ${ROUTINE}
 2. Wait up to 15 minutes for a submitted review from the routine whose commit is the PR's current head, and
    for its check runs to finish. Use the Monitor tool with an until-loop if you have one. Otherwise check
    with Bash, \`sleep 120\` between checks. If waiting is blocked, check once and return.

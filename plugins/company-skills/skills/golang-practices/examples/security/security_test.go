@@ -187,8 +187,9 @@ func TestOpenUpload(t *testing.T) {
 	}
 }
 
-// OpenUpload takes a file name from a user, so it has a Fuzz target. The
-// property is the security claim: any file it opens is inside dir.
+// OpenUpload takes a file name from outside the process, so it has a Fuzz
+// target. The property is the security claim: any file it opens is inside
+// dir, and never the secret file beside it.
 func FuzzOpenUpload(f *testing.F) {
 	root := f.TempDir()
 	dir := filepath.Join(root, "uploads")
@@ -209,10 +210,18 @@ func FuzzOpenUpload(f *testing.F) {
 		if err != nil {
 			return
 		}
-		defer func() { _ = file.Close() }() // read-only: a close error loses nothing
+		defer file.Close() // read-only: a close error cannot lose data
 		rel, err := filepath.Rel(dir, file.Name())
 		if err != nil || !filepath.IsLocal(rel) {
 			t.Fatalf("OpenUpload(%q) opened %s, outside %s", name, file.Name(), dir)
+		}
+		// The path check trusts file.Name(). Compare the file itself too.
+		got, err := file.Stat()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want, err := os.Stat(secret); err == nil && os.SameFile(got, want) {
+			t.Fatalf("OpenUpload(%q) opened the secret file outside %s", name, dir)
 		}
 	})
 }

@@ -326,6 +326,22 @@ class ImplementTicketsWorkflowTest(unittest.TestCase):
         self.assertIn('"source": "CI"', prompt(r, "fix #2 r2"))
         self.assertEqual(by_ticket(r)[2]["status"], "clean")
 
+    def test_ci_that_has_not_passed_is_not_clean(self):
+        no_findings = {"headSha": "b2", "unresolved": [], "needsDecision": [],
+                       "counts": {"total": 0, "unresolved": 0, "addressed": 0, "refuted": 0, "needsDecision": 0},
+                       "deviations": []}
+        for routine in (True, False):
+            r = run([ticket(2)], routine=routine, overrides={"audit #2 r1": {**no_findings, "ci": "pending"}})
+            t = by_ticket(r)[2]
+            self.assertEqual(t["status"], "ci pending", routine)
+            self.assertEqual(t["ci"], "pending", routine)
+        # An audit that leaves CI out, with no wait to fall back on, leaves CI unknown.
+        r = run([ticket(2)], routine=False, overrides={"audit #2 r1": no_findings})
+        self.assertEqual(by_ticket(r)[2]["status"], "ci unknown")
+        for ci in ("passed", "none"):
+            r = run([ticket(2)], routine=False, overrides={"audit #2 r1": {**no_findings, "ci": ci}})
+            self.assertEqual(by_ticket(r)[2]["status"], "clean", ci)
+
     def test_audit_reports_ci_with_or_without_the_routine(self):
         for routine in (True, False):
             r = run([ticket(2)], routine=routine)

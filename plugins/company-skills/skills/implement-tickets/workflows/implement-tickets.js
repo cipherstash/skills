@@ -490,6 +490,7 @@ not review as limits.`, {
 
     const rounds = []
     let audited = false
+    let ci = null
     for (let round = 1; round <= MAX_FIX_ROUNDS; round++) {
       const entry = { round }
       rounds.push(entry)
@@ -579,7 +580,7 @@ Report CI's state on the head as "ci".`, {
       // The audit reads CI after the wait, so its state wins. The script gates on CI itself rather than
       // trusting the audit to have listed every failing check: a failing CI with no CI finding gets one.
       if (!audit.ci) note(t.number, `audit r${round}`, 'deviation', [`The audit did not report CI's state on ${head}.`])
-      const ci = audit.ci || (wait && wait.ci) || 'unknown'
+      ci = audit.ci || (wait && wait.ci) || 'unknown'
       entry.ci = ci
       if (ci === 'pending') note(t.number, `audit r${round}`, 'deviation', [`CI was still running on ${head} when it was audited.`])
       if (ci === 'failed' && !pending.some(f => /^ci\b/i.test(f.source || ''))) {
@@ -598,9 +599,13 @@ Report CI's state on the head as "ci".`, {
       }
     }
 
+    // Clean needs CI seen to pass, or no CI at all: a head whose CI is still running, or was never
+    // reported, has not been shown to pass, however few findings the audit left open.
+    const ciOk = ci === 'passed' || ci === 'none'
     return {
       ticket: t.number,
-      status: pending.length ? 'open findings' : audited ? 'clean' : 'not audited',
+      status: pending.length ? 'open findings' : !audited ? 'not audited' : ciOk ? 'clean' : `ci ${ci}`,
+      ci,
       pr: pr.url, branch: o.branch, base: o.base, head,
       criteriaOpen: build.criteria.filter(x => !x.met).map(x => x.criterion),
       openFindings: pending.map(f => ({ id: f.id, severity: f.severity, location: f.location, claim: f.claim })),

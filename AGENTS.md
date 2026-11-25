@@ -1,8 +1,10 @@
 # Repository guidance
 
-Every skill lives once, in `plugins/company-skills/skills/`; Codex and Claude Code both publish from that directory.
+Every published skill lives once, in `plugins/company-skills/skills/`; Codex and Claude Code both publish from that directory. Skills for working on this repository live in `.claude/skills/` and are not published.
 
-When adding, changing, renaming, or releasing a skill, follow [CONTRIBUTING.md](CONTRIBUTING.md). The change is done when it meets every authoring rule and behavior case, the README's installation and invocation instructions are current for both hosts, and `python3 scripts/validate.py` passes.
+When adding, changing, renaming, or releasing a published skill, follow [CONTRIBUTING.md](CONTRIBUTING.md). The change is done when it meets every authoring rule and behavior case, the README's installation and invocation instructions are current for both hosts, and `python3 scripts/validate.py` passes. Skills in `.claude/skills/` are exempt from these rules and checks.
+
+To build a language's skill pair (`<lang>-practices` and `<lang>-review`), read and follow `.claude/skills/building-language-pairs/SKILL.md`.
 
 ## Agent skills
 

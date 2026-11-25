@@ -59,3 +59,13 @@ A claim in a run's output that the run's own deviation log contradicts.
 
 **Run date**:
 The calendar date a run started, in the timezone its prompt names, or labelled as UTC when the prompt names none.
+
+## Language skills
+
+**Check suite**:
+The canonical set of checks that gate every pull request, run in CI, in every repository in one programming language. Each language has its own, such as the Go check suite. Every language skill pair defines one.
+_Avoid_: Toolchain, the language's checks
+
+**Untrusted input**:
+Bytes that come from outside the process, such as a request body, a file, or a message. A function that parses or decodes untrusted input must have a Fuzz target.
+_Avoid_: User input, external data

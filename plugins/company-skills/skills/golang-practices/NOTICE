@@ -1,0 +1,107 @@
+Go practices skill for Claude Code and Codex
+
+This directory contains material adapted from the golang-pro skill in
+Jeffallan/claude-skills (https://github.com/Jeffallan/claude-skills), path
+skills/golang-pro, at commit 36f3fe8052da7c57083783268c6ea3265d075265
+(release v0.4.20). That material is distributed under the MIT License,
+copied in LICENSE.
+
+Modifications in this copy
+--------------------------
+
+CipherStash made these changes:
+
+- references/concurrency.md is adapted from skills/golang-pro/references/
+  concurrency.md and the core pattern example in skills/golang-pro/SKILL.md.
+  Its examples now live as Go source in examples/concurrency/, with tests,
+  and these defects are fixed:
+  - the pipeline example waited for its whole timeout on success and then
+    returned a timeout error; RunJobs returns as soon as the work is done;
+  - pipeline, fan-out and fan-in stages ranged over their input and checked
+    the context only when sending, so they leaked when the input was never
+    closed; every stage now also selects on the context when receiving;
+  - the worker pool's Submit and the semaphore's Acquire blocked with no
+    context, and pool tasks had no way to be cancelled; they now take one;
+  - the worker pool's Shutdown and the server's done channel panicked when
+    closed twice, and Submit after Shutdown panicked; shutdown is now safe
+    to repeat and Submit returns ErrPoolClosed;
+  - the timeout example ran a call that ignored its context in a goroutine
+    raced against time.After, and returned an unwrapped error; Fetch passes
+    the context to the request instead;
+  - the cache wrote to a nil map, and the sync.Once example dropped the
+    load error; they use a constructor and sync.OnceValues;
+  - the server example printed instead of returning errors;
+  - the rate limiter example, which imported golang.org/x/time/rate, is
+    replaced by prose, so the examples module needs only the standard
+    library;
+  - the loop-variable advice depends on the module's Go version.
+- references/error-handling.md is new.
+- references/interfaces.md is adapted from skills/golang-pro/references/
+  interfaces.md. Its examples now live in examples/interfaces/, with tests,
+  and these changes are made:
+  - errors returned from wrapped calls carry context with %w;
+  - the embedding example wrote to a nil map; it is replaced by an
+    embedded logger with a non-nil default;
+  - the option parameter named max, which shadowed the built-in max, is
+    renamed;
+  - the fat-interface example redeclared io.Reader's name for a different
+    method; the split interfaces have distinct names;
+  - interfaces are defined where they are used, and a section on pointer
+    and value receivers and method sets is added.
+- references/generics.md is adapted from skills/golang-pro/references/
+  generics.md. Its examples now live in examples/generics/, with tests, and
+  these changes are made:
+  - the non-existent "constraints" import is replaced by the standard
+    library's cmp.Ordered and a union constraint of our own;
+  - the Max and Min helpers, which duplicated the built-in max and min,
+    are dropped, and the built-ins are used;
+  - ~T is described as matching types by underlying type, not type
+    aliases;
+  - the channel Merge and Stage stages take a context and stop when it
+    ends, instead of leaking when their input is never closed;
+  - union constraints are described as a feature for when operators are
+    needed, not a requirement;
+  - Pop clears the removed slot, and the Result type and other patterns
+    that fight Go's (T, error) convention are dropped.
+- references/testing.md is adapted from skills/golang-pro/references/
+  testing.md. Its examples now live in examples/textutil/,
+  examples/welcome/, examples/metrics/ and examples/health/, with tests, and
+  these changes are made:
+  - copying the loop variable for parallel subtests is described as needed
+    only before Go 1.22;
+  - the mock test indexed a slice that could be empty after t.Errorf; it
+    stops with t.Fatalf first, and fakes replace mocking libraries;
+  - the golden-file test ignored the error from writing the file; it
+    checks it;
+  - the integration test used // +build and slept to wait for a server; it
+    uses //go:build and httptest;
+  - a function that parses or decodes untrusted input must have a Fuzz
+    target;
+  - the racy example is replaced by a test that fails under -race only if
+    the code is wrong; benchmarks moved to references/performance.md.
+- references/project-structure.md is adapted from skills/golang-pro/
+  references/project-structure.md. Its Go examples now live in
+  examples/project/, with tests, and these changes are made:
+  - the build-constraint example put two //go:build lines in one file,
+    which Go rejects, and used // +build; each file has one //go:build
+    line, and the example is two real files covering unix and !unix;
+  - RegisterUser returned a user alongside an error; Register returns the
+    user or nil and an error;
+  - the archived github.com/golang/mock is replaced by fakes, or
+    go.uber.org/mock where a project already generates mocks;
+  - the Dockerfile used an old golang base image and alpine:latest and ran
+    as root; it takes the Go version as a build argument, to be set to the
+    latest supported release, and uses a distroless nonroot image;
+  - the envconfig-based loader is replaced by a standard library loader
+    that reports every problem and keeps secrets out of errors;
+  - "go get -u ./..." as a routine update and the Makefile are dropped;
+  - naming conventions for packages, identifiers and receivers are added.
+- references/security.md, references/performance.md,
+  references/dependencies.md, references/wazero.md, references/checks.md
+  and assets/golangci.yml are new.
+- SKILL.md is new: a rule list and an index of references. Its rule
+  groups draw on the upstream SKILL.md constraints list. The upstream
+  frontmatter metadata, persona line, workflow, output template and list of
+  related skills are not carried over, and "no naked returns" is not treated
+  as an error-handling rule.
+- examples/ and tests/ are new.

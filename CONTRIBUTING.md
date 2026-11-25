@@ -10,6 +10,8 @@ A workflow skill is started by a person, because typing the command is their opt
 
 `implement-tickets` is the worked example. It builds a spec's `ready-for-agent` tickets into stacked draft PRs, then reviews and fixes each PR and writes a run report. Start it with `/company-skills:implement-tickets <spec number>`, or add `plan` to see the plan first. The command runs the installed plugin's cached copy of the script, so test an edit with `claude --plugin-dir <clone>/plugins/company-skills` (see the README's [Develop locally](README.md#develop-locally)). The comment at the top of its script lists its other arguments.
 
+`review-pr` follows the same layout. It reviews one pull request with an independent reviewer per dimension and a separate verifier for each, then reconciles the counts. Start it with `/company-skills:review-pr <PR>`, adding `post` to publish the review.
+
 ## Skill skeleton
 
 Start each skill from this `plugins/company-skills/skills/<skill-name>/SKILL.md`:

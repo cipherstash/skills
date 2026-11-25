@@ -185,6 +185,7 @@ Each skill is authored once under `plugins/company-skills/skills/`. The portable
 | `authoring-pull-requests` | Branch, commit, and open draft pull requests with a consistent structure | Explicit or automatic |
 | `plain-language` | Write, rewrite, and review prose in plain language (ISO 24495 and GOV.UK), with a bundled checker | Explicit or automatic |
 | `implement-tickets` | Build a spec's `ready-for-agent` tickets into stacked draft PRs, review and fix each one, and write a run report | Claude Code only: a person types `/company-skills:implement-tickets <spec number>` |
+| `review-pr` | Review one pull request with an independent reviewer per dimension, a separate verifier that tries to refute each finding, and reconciled counts, then post the review only when asked | Claude Code only: a person types `/company-skills:review-pr <PR>` |
 
 Code review skills (`review-*`) work with the findings of a code review: auditing a PR's existing feedback, cross-checking new findings against it, posting them, and fixing them. None of them performs the review itself. `golang-review` performs one for a Go change and reports findings in the severities they take.
 
@@ -200,6 +201,12 @@ The Vanta skills also need the Linear connector, read-only Vanta API credentials
 
 - The `mattpocock-skills` plugin, whose `tdd` and `code-review` skills its agents call. company-skills does not install it. Without it, the agents follow its steps themselves: red, green, refactor to build, and a review of the diff against the ticket. Each records a deviation.
 - The Claude review routine in [`.github/workflows/claude-review.yml`](.github/workflows/claude-review.yml), which a review request for `cipherstash-agent` starts. The script's `routine` argument defaults to whether the repository has that file. Without it, the run requests no routine review and waits for none, a Haiku step waits for CI only, and each fix round audits the independent review, the PR's threads and CI.
+
+`review-pr` is a workflow skill on the same terms. Without `post` it writes nothing to GitHub, and it never pushes, resolves threads, approves or merges. It depends on:
+
+- Git, and `gh` authenticated for the PR's repository, for its agents. `review-cross-check`, `review-audit` and `review-post`, which its verify, audit, cross-check and post steps use, also need Python 3.
+- The `mattpocock-skills` plugin, whose `code-review` skill reviews the `standards-spec` dimension. company-skills does not install it.
+- The built-in `code-review` and `security-review` skills, and each installed `<lang>-review` skill, such as `golang-review`. A dimension whose skill is not installed is reported as a limit, not reviewed by hand.
 
 `run-report` publishes through Claude's Artifact tool; on a host without it, the report goes in the run's final message. List it first in a routine's prompt so it logs problems from the start of the run, for example:
 

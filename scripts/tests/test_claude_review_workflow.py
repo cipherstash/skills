@@ -55,18 +55,24 @@ class WorkflowTests(unittest.TestCase):
             " || github.event.requested_reviewer.login == 'cipherstash-agent')",
         )
 
-    def test_grants_only_the_permission_the_reaction_needs(self):
+    def test_grants_only_the_permissions_the_shared_workflow_needs(self):
         self.assertEqual(WORKFLOW["permissions"], {})
-        self.assertEqual(REVIEW["permissions"], {"issues": "write"})
+        self.assertEqual(REVIEW["permissions"], {"issues": "write", "pull-requests": "write"})
 
     def test_passes_the_trigger_id_from_a_variable_and_each_secret_by_name(self):
-        # No `secrets: inherit`: the shared workflow gets only the three secrets it needs.
-        self.assertEqual(REVIEW["with"], {"routine-trigger-id": gha("vars.CLAUDE_ROUTINE_TRIGGER_ID")})
+        # No `secrets: inherit`: the shared workflow gets only the two secrets it needs.
+        self.assertEqual(
+            REVIEW["with"],
+            {
+                "routine-trigger-id": gha("vars.CLAUDE_ROUTINE_TRIGGER_ID"),
+                "app-client-id": gha("vars.CLAUDE_REVIEW_APP_CLIENT_ID"),
+            },
+        )
         self.assertEqual(
             REVIEW["secrets"],
             {
                 name: gha(f"secrets.{name}")
-                for name in ("CLAUDE_ROUTINE_TOKEN", "CLAUDE_REVIEW_APP_ID", "CLAUDE_REVIEW_APP_PRIVATE_KEY")
+                for name in ("CLAUDE_ROUTINE_TOKEN", "CLAUDE_REVIEW_APP_PRIVATE_KEY")
             },
         )
 

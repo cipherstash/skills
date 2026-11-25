@@ -196,6 +196,7 @@ Each skill is authored once under `plugins/company-skills/skills/`. The portable
 | `aws-service-architecture` | Conventions for AWS services: ECS or Lambda, public by default, permission-based feature access, idempotent provisioning | Automatic while designing, building, or reviewing services |
 | `filing-github-issues` | Draft and file well-structured GitHub issues on CipherStash repos | Explicit or automatic |
 | `authoring-pull-requests` | Branch, commit, and open draft pull requests with a consistent structure | Explicit or automatic |
+| `stacking-pull-requests` | Build, update, and merge a GitHub stack of pull requests that build on each other, with the `gh stack` extension | Explicit or automatic |
 | `plain-language` | Write, rewrite, and review prose in plain language (ISO 24495 and GOV.UK), with a bundled checker | Explicit or automatic |
 | `implement-tickets` | Build a spec's `ready-for-agent` tickets into stacked draft PRs, review and fix each one, and write a run report | Claude Code only: a person types `/company-skills:implement-tickets <spec number>` |
 
@@ -204,6 +205,8 @@ Code review skills (`review-*`) work with the findings of a code review: auditin
 Convention skills, such as the Rust skills (`rust-*`), `golang-practices`, and `aws-service-architecture`, carry rules rather than a workflow. Claude Code applies them automatically and hides them from the `/` menu. Codex selects them implicitly.
 
 `review-audit` and `review-cross-check` require Python 3, Git, and `gh` authenticated for the target repository; `review-post` requires `gh` and `python3` or `jq`. `golang-review` requires Git and the Go toolchain to run its checks, and the GitHub MCP server or `gh` to review a pull request; without them it reviews by reading and reports the checks it could not run. When `golangci-lint` or `govulncheck` is not installed, it fetches it from the Go module proxy at the version `golang-practices` pins. These are local CLI dependencies; the plugin does not bundle an MCP server.
+
+`stacking-pull-requests` requires Git, `gh` authenticated for the target repository, and GitHub's `gh stack` extension. It was checked with `gh stack` 0.3.0. It asks before it installs the extension with `gh extension install github/gh-stack`.
 
 The Vanta skills also need the Linear connector, read-only Vanta API credentials (`vanta-api.all:read`) with network access to `api.vanta.com` for `vanta-triage`, either as an environment network secret of type OAuth 2.0 client credentials for `api.vanta.com` or as `VANTA_CLIENT_ID` and `VANTA_CLIENT_SECRET`, and each target ecosystem's toolchain (`cargo`, `pnpm`/`npm`/`yarn`/`bun`, `go`, `poetry`/`uv`) for `vanta-remediate`. `vanta-remediate` also needs the GitHub MCP server for pull requests and `git` push access to the target repos; it does not use the `gh` CLI. Both run unattended, so they suit Claude Code routines.
 

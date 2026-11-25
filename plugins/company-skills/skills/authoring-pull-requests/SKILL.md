@@ -1,6 +1,6 @@
 ---
 name: authoring-pull-requests
-description: Takes finished work from the working tree to a draft pull request on a CipherStash GitHub repository: branch, signed commits, the repository's own checks, and a plain-language PR body. Use when committing work, opening or updating a pull request, writing a PR title or body, re-signing or rebasing a branch with an open PR, or asked to ship work or push it up for review. Not for fixing or auditing review findings (review-fix, review-audit) or filing GitHub issues (filing-github-issues).
+description: Takes finished work from the working tree to a draft pull request on a CipherStash GitHub repository: branch, signed commits, the repository's own checks, and a plain-language PR body. Use when committing work, opening or updating a pull request, writing a PR title or body, re-signing or rebasing a branch with an open PR, or asked to ship work or push it up for review. Not for fixing or auditing review findings (review-fix, review-audit) filing GitHub issues (filing-github-issues), or a stack of pull requests that build on each other (stacking-pull-requests).
 ---
 
 # authoring-pull-requests
@@ -41,7 +41,13 @@ Every commit must be signed. Before each push, check the range:
 git log --format='%h %G? %an %s' origin/<base>..HEAD
 ```
 
-`N` means unsigned. `U` (untrusted key) and `E` (key not in the local keyring) are signed commits this machine cannot fully verify, so leave them alone; report any `B`, `X`, `Y`, or `R`. Only re-sign when every commit in the range is your own or the user's work on this branch; if the range holds anyone else's commits, stop and ask. To re-sign, pass the signing flag explicitly, because `--force-rebase` alone keeps commits unsigned unless `commit.gpgsign` is set:
+On a branch above the bottom of a GitHub stack, this range also lists the commits of the branches below. Re-sign a stack with stacking-pull-requests instead. The rebase below would replay the lower branches' commits onto `<base>`.
+
+- `N` means unsigned.
+- `U` means signed with a key that is not trusted. `E` means signed with a key that is not in the local keyring. This machine cannot fully verify `U` or `E` commits. Leave them alone.
+- Report any `B`, `X`, `Y`, or `R`.
+
+Re-sign only when every commit in the range is yours, or the user's work on this branch. If the range holds anyone else's commits, stop and ask. To re-sign, pass the signing flag explicitly, because `--force-rebase` alone keeps commits unsigned unless `commit.gpgsign` is set:
 
 ```bash
 git rebase --force-rebase --gpg-sign origin/<base>
@@ -85,6 +91,7 @@ The PR title follows the commit-subject convention.
 - Do not merge, close, or mark a PR ready for review unless the user asks. When they ask, mark it ready with `update_pull_request` (`draft: false`).
 - Do not fix review findings or reply to review comments here; fixing them is review-fix, and auditing them is review-audit.
 - Do not file issues here; that is filing-github-issues.
+- Pull requests that build on each other go in a GitHub stack. Follow stacking-pull-requests for those. It uses these rules for each pull request.
 
 ## Report
 

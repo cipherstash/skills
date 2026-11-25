@@ -14,12 +14,14 @@ Rules for writing Go. Apply them to every Go change, and read the reference for 
 
 - Read the `go` line in the module's `go.mod` before applying a version-sensitive rule. The references say which rules depend on it.
 - If the repository's own guidance differs from these rules, follow the repository. Say that you did.
-- Format with `gofmt`, run `go vet ./...`, and run the tests with `go test -race ./...` before calling a change done.
+- The Go check suite in [references/checks.md](references/checks.md) lists the checks CI runs on every pull request. Before calling a change done, run any suite tool that helps you get it right. CI is the gate.
+- Format with `gofumpt`, through the suite.
 
 ### Errors
 
 - Check every returned error. Handle it or return it with context. Ignore one only on purpose, with a comment saying why it cannot matter: `_ =` for most calls, or a deferred `Close` on something you only read.
 - Wrap with `fmt.Errorf("what this function was doing: %w", err)`, naming the key values. Leave out what the wrapped error already says.
+- Return a sentinel that an interface's contract names, such as `io.EOF` from `Read`, unwrapped, because callers such as `io.ReadAll` compare it with `==`. In your own code, match it with `errors.Is`. A thin `io.Reader` or `io.Writer` that wraps another returns the inner error unchanged.
 - Handle an error once: return it, or log it and carry on, not both.
 - Match with `errors.Is` and `errors.As`. A `==` comparison or a type assertion misses a wrapped error.
 - Return the literal `nil` for no error, never a nil pointer of a concrete error type.
@@ -62,7 +64,7 @@ Rules for writing Go. Apply them to every Go change, and read the reference for 
 - Never set `InsecureSkipVerify` outside tests, put a secret in source, or log a secret.
 - Build SQL with placeholders. Never concatenate input into a query, or format it in.
 - Check paths, sizes, and other input from outside the process. Use `html/template` for HTML and `crypto/rand` for secrets.
-- Run `gosec` and `govulncheck`. Where the repository uses `golangci-lint`, run `gosec` through it.
+- Run `gosec` and `govulncheck` as the check suite sets them up. See [references/checks.md](references/checks.md).
 
 ### Performance
 
@@ -98,4 +100,5 @@ Read the reference for each area the change touches. Each one states the Go vers
 | [references/security.md](references/security.md) | TLS clients or servers, secrets and credentials, SQL, file paths, request bodies, HTML, shell commands, tokens and random values, security linters |
 | [references/performance.md](references/performance.md) | Code on a hot path, slice and map sizing, string building, allocation, benchmarks, profiling |
 | [references/dependencies.md](references/dependencies.md) | Adding, updating or removing a module, `go mod tidy`, vulnerability checks, outdated dependencies, major versions, raising the `go` line |
+| [references/checks.md](references/checks.md) | The checks CI runs on every pull request: golangci-lint, govulncheck, semgrep, race-enabled tests with coverage, Fuzz targets for code that parses untrusted input, and their pinned versions |
 | [references/wazero.md](references/wazero.md) | Code that imports `github.com/tetratelabs/wazero`: host functions, sharing or closing a module, context cancellation, reading and freeing guest memory, the module config, custom memory allocators |

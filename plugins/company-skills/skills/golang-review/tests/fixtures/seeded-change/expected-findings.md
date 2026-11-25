@@ -1,13 +1,13 @@
 # Seeded-defect fixture: expected findings
 
-A sample Go change with one planted defect in each of the ten checklist areas, and the findings a correct review must report. Run it by hand: nothing in CI drives an agent. `tests/test_fixture.py` checks that each location below is exactly the line it quotes, that the base is clean, and, where a tool or a short probe can show a defect, that it does.
+A sample Go change with at least one planted defect in each of the ten checklist areas, and the findings a correct review must report. Run it by hand: nothing in CI drives an agent. `tests/test_fixture.py` checks that each location below is exactly the line it quotes, that the base is clean, and, where a tool or a short probe can show a defect, that it does.
 
 ## Contents
 
 - [The change](#the-change)
 - [Run it](#run-it)
 - [Checks a correct review reports](#checks-a-correct-review-reports)
-- Findings G1 to G10, one per area in priority order
+- Findings G1 to G10, one per area in priority order, then G11, a second in testing and coverage
 - [May report](#may-report)
 - [Must not report](#must-not-report)
 
@@ -16,7 +16,7 @@ A sample Go change with one planted defect in each of the ten checklist areas, a
 `base/` is a Go module (`go 1.22`, standard library only) whose `orders.Summarise` decodes JSON order records one at a time and returns an error naming the first record that does not decode. `head/` is the same module after a change titled "orders: decode records concurrently and add reporting helpers". It:
 
 - starts one goroutine per record in `Summarise`, and drops the test that a bad record is rejected;
-- adds `orders/report.go` (`DefaultCurrency`, `AverageCents`, `Merge`, `SKUs`), `orders/query.go` (`LinesQuery`), `orders/units.go` (`UnitsPerLine`), and tests for all of them but `Merge`;
+- adds `orders/report.go` (`DefaultCurrency`, `AverageCents`, `Merge`, `SKUs`), `orders/query.go` (`LinesQuery`), `orders/units.go` (`UnitsPerLine`), `orders/upload.go` (`ParseLine`), and tests for all of them but `Merge`;
 - removes the exported method `Summary.Empty`;
 - adds a requirement on `example.com/pricing`, replaced by the local directory `pricing/`, which nothing imports.
 
@@ -43,12 +43,14 @@ Then, in a session started in `$work`, ask for a review of the last commit, for 
 With Go 1.24 and no linters installed. The skill runs the checks over the changed package, `./orders`, and adds `./...` for `go vet`, because the change touches `go.mod` and exported identifiers. A review that runs every check over `./...` is also correct: in this module the two scopes hold the same package, since `pricing/` is a separate module with no packages.
 
 - `go vet ./orders ./...` passes. It detects none of the planted defects, so a clean vet is not a clean review.
-- `go test -race -count=1 -timeout 5m -coverprofile=<temp dir>/cover.out ./orders` fails with `WARNING: DATA RACE`: writes in `(*Summary).add` (`orders/orders.go:43` to `:45`) from goroutines started at `orders/orders.go:31`, reached through `orders/orders.go:35`. The profile is still written: coverage 95.8% of statements, and `go tool cover -func` shows `Merge` (`orders/report.go:13`) at 0.0%.
+- `go test -race -count=1 -timeout 5m -coverprofile=<temp dir>/cover.out ./orders` fails with `WARNING: DATA RACE`: writes in `(*Summary).add` (`orders/orders.go:43` to `:45`) from goroutines started at `orders/orders.go:31`, reached through `orders/orders.go:35`. The profile is still written: coverage 97.1% of statements, and `go tool cover -func` shows `Merge` (`orders/report.go:13`) at 0.0%.
 - `gofmt -l` on the changed files lists `orders/units.go`.
 - `go mod tidy -diff` fails and prints a diff that removes `require example.com/pricing v0.0.0` from `go.mod`.
-- The exported API, compared with `go doc -all ./orders` at the base and the head, has lost `func (s Summary) Empty() bool`, and gained `DefaultCurrency`, `AverageCents`, `Merge`, `SKUs`, `LinesQuery`, and `UnitsPerLine`. The repository has no remote and no version tags.
+- The exported API, compared with `go doc -all ./orders` at the base and the head, has lost `func (s Summary) Empty() bool`, and gained `DefaultCurrency`, `AverageCents`, `Merge`, `SKUs`, `LinesQuery`, `UnitsPerLine`, and `ParseLine`. The repository has no remote and no version tags.
 - `govulncheck` is not run: it needs the Go vulnerability database over the network, which the review does not fetch unless the user allows it. This is a limit. With network allowed and `govulncheck` installed, it finds nothing in the module's dependencies, since `example.com/pricing` is a local directory with no code. It may report standard-library vulnerabilities fixed in a newer Go release than the local toolchain; those are not caused by the change.
 - `staticcheck`, `gosec`, and `apidiff` are each recorded as not run because they are not installed, or run and quoted if they are. `gosec` reports G104 (unhandled error) at `orders/orders.go:34`, which is G1, and nothing at `orders/query.go:6`: its SQL rules, G201 and G202, look only at `database/sql` call sites, and `LinesQuery` only returns the query, so G6 comes from reading.
+- `golangci-lint` is not run: the base commit has no config for it. `semgrep` is not run: it is not installed, or the review has no network access for its ruleset.
+- The repository has no CI. The check suite section lists four checks as missing, one line each: `golangci-lint`, `govulncheck`, `semgrep`, and the race-enabled tests with coverage. None of them is a finding. The Fuzz target rule is not a missing line. CI cannot tell that a Fuzz target is missing, so the review enforces the rule, as G11 does.
 - The Go version, read from `go.mod`, is 1.22.
 - The `golang-practices` references read, one or more for each area, as SKILL.md's areas table names them. If the skill could not be loaded, the review says so as a limit instead.
 
@@ -79,7 +81,7 @@ The verdict is `REQUEST_CHANGES`: G6 is critical, and G1, G2, and G4 are major.
 - Line: `func (s Summary) Merge(o Summary) Summary {`
 - Cause: the change adds the exported method `Merge` with no test.
 - Rule: golang-practices, testing: look at uncovered new code and decide whether a regression there would go unnoticed. A `Merge` that dropped one of its three fields would pass every test.
-- Evidence: `go tool cover -func` shows `Merge` at 0.0%, the only function at 0.0%. Coverage is 95.8% of statements.
+- Evidence: `go tool cover -func` shows `Merge` at 0.0%, the only function at 0.0%. Coverage is 97.1% of statements.
 - A correct fix adds a table test for `Merge`, including merging with an empty summary.
 
 ## G4 · major · concurrency safety
@@ -97,9 +99,9 @@ The verdict is `REQUEST_CHANGES`: G6 is critical, and G1, G2, and G4 are major.
 - Location: `head/orders/units.go:5`
 - Line: `func (this Summary) UnitsPerLine() float64{`
 - Cause: the new method's receiver is named `this`, where every other `Summary` method uses `s`, and the file is not formatted: `gofmt` adds a space before the `{`.
-- Rule: golang-practices, naming: a receiver is one or two letters from its type, the same on every method, never `this` or `self`; and format with `gofmt`.
+- Rule: golang-practices, naming: a receiver is one or two letters from its type, the same on every method, never `this` or `self`; and general: format with `gofumpt`, through the suite.
 - Evidence: `gofmt -l` lists `orders/units.go`, and `gofmt -d` changes this line.
-- A correct fix renames the receiver to `s` and runs `gofmt -w orders/units.go`.
+- A correct fix renames the receiver to `s` and formats the file with `golangci-lint fmt` (`gofumpt`).
 
 ## G6 · critical · security
 
@@ -147,11 +149,21 @@ The verdict is `REQUEST_CHANGES`: G6 is critical, and G1, G2, and G4 are major.
 - Evidence: `go doc -all ./orders` at the base lists `func (s Summary) Empty() bool`, and at the head does not.
 - A correct fix keeps `Empty`, or, if it must go, names the removal in the release notes and bumps the version: the minor version at v0, a new major version at v1 or later.
 
+## G11 · minor · testing and coverage
+
+- Location: `head/orders/upload.go:11`
+- Line: `func ParseLine(row string) (Line, error) {`
+- Cause: the change adds `ParseLine` with no Fuzz target. `ParseLine` parses a row of a file that a customer uploads. That row is untrusted input.
+- Rule: golang-practices, the Go check suite: a function that parses or decodes untrusted input must have a Fuzz target. CI cannot tell that one is missing, so the review reports it.
+- Evidence: reading the function and its doc comment. No test file in the module declares a `Fuzz` function. `TestParseLine` covers it with fixed rows only.
+- A correct fix adds `FuzzParseLine` to `orders/upload_test.go`, with the rows from `TestParseLine` as its seed corpus through `f.Add`.
+
 ## May report
 
 These neither count for nor against the review. For example:
 
 - Testing and coverage: the change deleted `TestSummariseRejectsABadRecord`. This may also be folded into G1, as above.
+- Correctness and edge cases: `ParseLine` accepts a negative quantity or price. Its doc comment sets no range.
 - Performance: one goroutine per record has no bound, so a very large batch starts that many goroutines.
 - Dependency management: the `replace` to `./pricing`, as part of G8. On its own it breaks no build, since the directory is in the repository.
 - Documentation: the doc comment on `Summarise` says records are decoded concurrently "so large batches finish sooner", which no benchmark shows.

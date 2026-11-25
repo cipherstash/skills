@@ -27,7 +27,7 @@ The examples target Go 1.22, the `go` line in [`examples/go.mod`](../examples/go
 - The sender closes a channel, once. Receivers never close it.
 - A stop or shutdown method is safe to call more than once and from several goroutines.
 - Report a goroutine's error to whoever waits for it. A goroutine that drops its error hides the failure.
-- Run tests with `-race`. A data race is a bug even when the test passes.
+- Run tests with `-race`. [checks.md](checks.md) gives the command CI runs. A data race is a bug even when the test passes.
 
 ## Run work in the background and wait for it
 

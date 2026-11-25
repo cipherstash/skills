@@ -46,7 +46,7 @@ A programming language gets a pair of skills with the language as the shared pre
 
 To build a new pair, follow the [`building-language-pairs`](.claude/skills/building-language-pairs/SKILL.md) project skill. It takes a language ticket through an audit and tickets to the main PR.
 
-Rust already has convention skills: `rust-sdk-dx`, `rust-security`, and `rust-testing`. Go is the first language pair, and Rust follows it. What the Go pair settles decides how far those three skills are refactored: whether they move under a `rust-practices` skill with an `examples/` module and script test, or stay as they are. The Rust design (#63) sets that scope once the Go pair is released. Until then, Rust is exempt from the practices-skill rules below, and a `rust-review` skill may read the three skills as they are. The exemption ends when a `rust-practices` skill is added.
+Rust already has convention skills: `rust-sdk-dx`, `rust-security`, and `rust-testing`. Rust is exempt from the practices-skill rules below for now. A `rust-review` skill may read those three as they are, with no check suite, `examples/` module, script test, or short `SKILL.md`. The exemption ends when a `rust-practices` skill is added.
 
 Any other language that already has convention skills needs a decision like this before you build its pair.
 
@@ -56,13 +56,15 @@ Any other language that already has convention skills needs a decision like this
 - In the review skill, invoke the practices skill by name to read its references. Loading it gives its directory, and its reference paths resolve from there. No file in the review skill may link to or read `../<lang>-practices/`. The validator rejects a Markdown link in `SKILL.md` that leaves the skill directory. The validator does not check other files or plain-text paths, so check those by hand.
 - If the practices skill cannot be loaded, the review carries on with its own steps. The report lists each reference it could not read as a limit of the review.
 - Keep the practices skill's `SKILL.md` safe to load during a review. Give it a short rule list and a table saying when to read each reference. Leave out any authoring workflow, output template, or persona.
+- Every language pair defines a check suite (see [GLOSSARY.md](GLOSSARY.md)): the checks that gate every pull request, run in CI. Define it in one practices reference, with every tool version pinned. Other references and both skills link to it instead of repeating its commands. The Go pair's is `golang-practices`' [checks.md](plugins/company-skills/skills/golang-practices/references/checks.md).
 - Keep reference examples as real source that CI builds and tests. Put them in a small module under the practices skill's `examples/`, with tests. Quote each code block in a reference word for word from that source, with a link to the file on the line before it.
 - Keep each example to the smallest code that shows one rule the reference states. Where prose can state the rule, write no code. Add no features, error paths, or tests beyond what shows the example works. The pair's spec lists the examples each reference needs, and a reviewer flags any example not on that list.
 - Aim to keep each reference under 100 lines. The spec names any reference planned to run longer, and why.
-- Add a script test to the practices skill that runs the language's checks over the examples. For Go, these are `go vet`, `gofmt`, and `go test -race`. The test also checks that every quoted block matches its source. CI runs it with the other skill script tests, so install the language's toolchain in the validate workflow.
+- Run the language's check suite over the examples in CI, in the validate workflow. Add a workflow test under `scripts/tests/` that checks each suite check is in place there and that its pinned version matches the reference.
+- Add a script test to the practices skill that checks every quoted block matches its source. It runs none of the suite's checks. golang-practices' test also runs each benchmark once, because benchmarks are not a suite check. CI runs it with the other skill script tests.
 - State in each reference the language version its examples target.
-- Include a seeded-defect fixture in the review skill, under `tests/fixtures/`. The fixture is a small change, as a `base/` tree and a `head/` tree, with one planted defect for each area the skill covers. The fixture's `expected-findings.md` lists the findings a correct review must report.
-- Add a script test to the review skill that checks the fixture. The test checks that the base is clean, that each defect comes from the change, and that the tools catch what they should. Where no tool shows a defect, add a probe test to a temporary copy of the module. The fixture stays unchanged. The test also checks that each expected location quotes its line. Nothing in CI runs an agent, so run the review against the fixture by hand.
+- Include a seeded-defect fixture in the review skill, under `tests/fixtures/`. The fixture is a small change, as `base/` and `head/` trees, with at least one planted defect for each area the skill covers. The fixture's `expected-findings.md` lists the findings a correct review must report.
+- Add a script test to the review skill that checks the fixture. The test checks that the base is clean, that each defect comes from the change, and that the tools catch what they should. Where no tool shows a defect, add a probe test to a temporary copy of the module. The fixture stays unchanged. The test also checks that each expected location quotes its line. Run the review against the fixture by hand, as [Behavior cases](#behavior-cases) says.
 - Report each finding with a severity of `critical`, `major`, or `minor`. Those are the values `review-cross-check`, `review-post`, and `review-fix` take unchanged. Copy their meanings from the [Finding contract](plugins/company-skills/skills/golang-review/SKILL.md#finding-contract) in `golang-review`. Change only the Go-specific examples. Do not paraphrase them.
 - End the review report with a verdict of `APPROVE` or `REQUEST_CHANGES`. The verdict stays in the report: the review skill never submits an approving or blocking review on GitHub.
 - Keep the review skill read-only. `review-fix` fixes findings and `review-post` posts them, so the review skill does neither. Write the review steps to run in sequence, so the skill works on hosts without subagents.
@@ -101,7 +103,7 @@ Every skill must include `tests/prompts.md` with these sections:
 - An observable end-to-end result, including important edge cases and facts the agent must not invent.
 ```
 
-Use the cases for forward testing; they are evaluation inputs, not exact-output snapshots.
+Use the cases for forward testing; they are evaluation inputs, not exact-output snapshots. Nothing in CI runs an agent, so run an agent against the cases by hand.
 
 ## Codex compatibility
 

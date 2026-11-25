@@ -89,6 +89,57 @@ func TestLoadConfigErrorsLeaveValuesOut(t *testing.T) {
 	}
 }
 
+var loadConfigMessages = map[string]bool{
+	"ADDR is set but empty":                      true,
+	"READ_TIMEOUT is not a duration such as 30s": true,
+	"READ_TIMEOUT must be more than zero":        true,
+	"DATABASE_URL is required":                   true,
+}
+
+// LoadConfig parses environment variables, so it has a Fuzz target.
+func FuzzLoadConfig(f *testing.F) {
+	f.Add(true, ":8080", true, "3s", true, "postgres://db")
+	f.Add(true, "", true, "0s", true, "")
+	f.Add(true, ":9090", true, "soon", true, "postgres://db")
+	f.Add(false, "", false, "", true, "postgres://db")
+	f.Fuzz(func(t *testing.T, setAddr bool, addr string, setTimeout bool, timeout string, setDB bool, dbURL string) {
+		// A variable that is not set is left out of the map.
+		vars := map[string]string{}
+		if setAddr {
+			vars["ADDR"] = addr
+		}
+		if setTimeout {
+			vars["READ_TIMEOUT"] = timeout
+		}
+		if setDB {
+			vars["DATABASE_URL"] = dbURL
+		}
+		cfg, err := project.LoadConfig(env(vars))
+		if err != nil {
+			// Errors leave the values out: each line is a fixed message.
+			msgs, ok := strings.CutPrefix(err.Error(), "load config: ")
+			if !ok {
+				t.Fatalf("error %q does not start with load config:", err)
+			}
+			for _, msg := range strings.Split(msgs, "\n") {
+				if !loadConfigMessages[msg] {
+					t.Fatalf("error %q has the line %q, want only fixed messages", err, msg)
+				}
+			}
+			return
+		}
+		if cfg.Addr == "" || cfg.ReadTimeout <= 0 || cfg.DatabaseURL == "" {
+			t.Fatalf("LoadConfig(%q) = %+v with no error, want every setting valid", vars, cfg)
+		}
+		if !setAddr && cfg.Addr != ":8080" {
+			t.Errorf("ADDR unset: Addr = %q, want the default :8080", cfg.Addr)
+		}
+		if !setTimeout && cfg.ReadTimeout != 10*time.Second {
+			t.Errorf("READ_TIMEOUT unset: ReadTimeout = %v, want the default 10s", cfg.ReadTimeout)
+		}
+	})
+}
+
 func TestRevisionAndVersion(t *testing.T) {
 	if project.Version != "dev" {
 		t.Errorf("Version = %q, want the default dev without -ldflags", project.Version)

@@ -20,7 +20,7 @@ func writeFixture(t *testing.T, name, content string) string {
 
 func TestWriteFixture(t *testing.T) {
 	path := writeFixture(t, "in.txt", "hello")
-	got, err := os.ReadFile(path)
+	got, err := os.ReadFile(path) // #nosec G304 -- writeFixture chose the path, in t.TempDir
 	if err != nil {
 		t.Fatalf("read fixture: %v", err)
 	}

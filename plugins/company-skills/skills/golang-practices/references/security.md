@@ -22,7 +22,7 @@ The examples target Go 1.22, the `go` line in [`examples/go.mod`](../examples/go
 - Build SQL with placeholders and pass values as arguments. Never build it by concatenating or formatting input into the query text.
 - Check every value from outside the process before use: paths, sizes, and anything placed in HTML, SQL, a shell, or a URL.
 - Make tokens, keys, and nonces with `crypto/rand`, never `math/rand`. Compare secrets with `crypto/subtle.ConstantTimeCompare`.
-- Run the security linter `gosec`, through `golangci-lint` where the repository uses it, and `govulncheck`. Explain each finding you suppress.
+- Run the security linter `gosec` and `govulncheck` as the check suite sets them up, in [checks.md](checks.md). Explain each finding you suppress.
 
 ## Verify TLS certificates
 
@@ -99,22 +99,7 @@ func RenameUser(ctx context.Context, db Execer, id int64, name string) error {
 }
 ```
 
-Never format or concatenate input into the query. A test in the module shows the name below adding a `DROP TABLE` to the query:
-
-From [`examples/security/sql.go`](../examples/security/sql.go):
-
-```go
-// RenameUserFormatted shows the mistake RenameUser avoids: it formats the
-// name into the SQL text, so a name containing a quote ends the string and
-// the rest runs as SQL. Never build queries like this.
-func RenameUserFormatted(ctx context.Context, db Execer, id int64, name string) error {
-	query := fmt.Sprintf("UPDATE users SET name = '%s' WHERE id = %d", name, id) // wrong: injectable
-	if _, err := db.ExecContext(ctx, query); err != nil {
-		return fmt.Errorf("rename user %d: %w", id, err)
-	}
-	return nil
-}
-```
+Never format or concatenate input into the query, as in `fmt.Sprintf("UPDATE users SET name = '%s' ...", name)`. A name containing a quote ends the string, and the rest of the name runs as SQL.
 
 Placeholders work only for values. A table or column name, or a sort direction, cannot be a placeholder. Map the caller's choice onto a fixed list, so only strings from the source reach the query:
 
@@ -247,15 +232,7 @@ Use MD5 (Message Digest 5) and SHA-1 only for checksums that face no attacker. N
 
 ## Tools to run
 
-```sh
-# Security lint. If the repository uses golangci-lint, enable gosec in its config and run:
-golangci-lint run ./...
-# Without golangci-lint:
-go run github.com/securego/gosec/v2/cmd/gosec@latest ./...
-
-# Known vulnerabilities in dependencies and the standard library. It reports first the ones the code calls:
-go run golang.org/x/vuln/cmd/govulncheck@latest ./...
-```
+`gosec` runs through golangci-lint. `govulncheck` finds known vulnerabilities in dependencies and the standard library, and reports first the ones the code calls. Both are in the Go check suite. [checks.md](checks.md) gives their commands and pinned versions.
 
 `gosec` finds the problems in this reference, among others. Its rule IDs for them:
 
@@ -270,6 +247,6 @@ go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
 `gosec` also reports false positives. To suppress one, put `// #nosec G304 -- <reason>` on the line, naming the rule. Both `gosec` and golangci-lint honour it; `gosec` alone ignores `//nolint:gosec`.
 
-A function that takes a path from its caller, such as a library's `WriteLines(path, ...)`, gets G304 although the caller owns the check. In test code, findings such as G304 on a golden-file path or G104 on `Close` are low risk; many repositories exclude `_test.go` files from `gosec` instead of suppressing each one.
+A function that takes a path from its caller, such as a library's `WriteLines(path, ...)`, gets G304 although the caller owns the check. In test code, findings such as G304 on a golden-file path or G104 on `Close` are low risk. Suppress each one with a reason. The Go check suite lints the tests too, so do not exclude `_test.go` files from `gosec`.
 
-`go run tool@latest` downloads and runs the latest release. Pin a version, or use the module's `tool` directive (Go 1.24), where the repository needs repeatable results. Updating dependencies after `govulncheck` reports one is in `dependencies.md`.
+Updating dependencies after `govulncheck` reports one is in `dependencies.md`.

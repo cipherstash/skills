@@ -83,7 +83,9 @@ func TestDebugHandlerServesProfiles(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GET %s: %v", path, err)
 		}
-		resp.Body.Close()
+		if err := resp.Body.Close(); err != nil {
+			t.Fatalf("close %s: %v", path, err)
+		}
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("GET %s: status %d", path, resp.StatusCode)
 		}

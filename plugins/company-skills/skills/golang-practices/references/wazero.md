@@ -105,7 +105,7 @@ Whichever you pick, also do these:
 - Set a closed flag under the lock. Late callers then get a clear error, such as `ErrModuleClosed`, and not a freed instance.
 - Check the result of `ExportedFunction`. Never cache a nil handle.
 - Initialise once. Hold one mutex through load and publish, and use the same mutex for release.
-- Test with `go test -race` and many goroutines. Add a test that closes during a call.
+- Test with `go test -race` and many goroutines. [checks.md](checks.md) gives the command CI runs. Add a test that closes during a call.
 
 References: spotify/confidence-resolver#511 and #512, 1Password/onepassword-sdk-go#18 and #285, hoophq/hoop#1574, daltoniam/switchboard#181, llehouerou/go-faad2#1, meokit/opus#1, flipt-io/flipt-client-sdks#787 (closed without merging).
 

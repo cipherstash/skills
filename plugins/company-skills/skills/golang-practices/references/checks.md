@@ -33,9 +33,9 @@ Profiling, with `-bench` or pprof, is not part of the suite. [performance.md](pe
 A check is in place when it is a GitHub Actions step that:
 
 - runs on `pull_request`;
-- blocks: it has no `continue-on-error`, no `|| true`, and no other way of ignoring the tool's exit status, such as a shell set without `-e` (`shell: bash {0}`), which lets a failing line pass when a later line passes;
+- blocks: it has no `continue-on-error`, no `|| true`, and no other way of ignoring the tool's exit status, such as a shell set without `-e` (`shell: bash {0}`), which lets a failing line pass when a later line passes, or a pipe such as `govulncheck ./... | tee out.txt` under the default shell, which sets no `pipefail`, so the step takes the exit status of `tee`;
 - covers every Go module, except test fixtures that contain planted defects;
-- pins its tool version, as in the pinned versions table. `@latest` does not count. In a module whose `go` line is 1.24 or later, a `tool` directive in `go.mod`, run with `go tool <name>`, also counts as pinned, because `go.mod` fixes its version.
+- pins an exact tool version. `@latest` does not count. Which version to pin is the pinned versions table's job; a step pinned at another exact version is still in place. In a module whose `go` line is 1.24 or later, a `tool` directive in `go.mod`, run with `go tool <name>`, also counts as pinned, because `go.mod` fixes its version.
 
 ## Exemptions
 

@@ -71,5 +71,13 @@ The canonical set of checks that gate every pull request, run in CI, in every re
 _Avoid_: Toolchain, the language's checks
 
 **Untrusted input**:
-Bytes that come from outside the process, such as a request body, a file, or a message. A function that parses or decodes untrusted input must have a Fuzz target.
+Bytes that come from outside the process, such as a request body, a file, or a message. A function that parses or decodes untrusted input must have a fuzz target or a property test, whichever the language's check suite names. Go's is a Fuzz target.
 _Avoid_: User input, external data
+
+**In place**:
+A check is in place when it is a GitHub Actions step that runs on `pull_request`, blocks when it fails, covers every module except fixtures with planted defects, and pins its version. Nothing may ignore its exit status: no `continue-on-error`, no `|| true`, and no `continue-on-error` step that a later step enforces. A path-filtered trigger counts only alongside a changes job that fails closed. A version is pinned when it is exact, or fixed by a committed lockfile that CI installs frozen or locked. The language runtime floats.
+_Avoid_: Enabled, configured, present
+
+**Execution surface**:
+The files and flags through which a change runs its own code when a tool builds, lints, or tests it, such as Python's `conftest.py`, Rust's `build.rs`, or Go's `-toolexec`. Each language's skills list theirs. A review runs nothing when the change touches its execution surface, unless the user says yes.
+_Avoid_: Attack surface, hooks

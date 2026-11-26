@@ -14,7 +14,7 @@ Merge order into the integration branch: 1, 2, 3, 4, 5. Tickets 2 and 3 can be b
 
 When the grill, design step 4, decided that `<lang>-review` reads existing convention skills instead of a new practices skill, drop tickets 1 and 2. Ticket 3 is then blocked by nothing, and ticket 4 by 3 only. The examples module and its checker are not built. Ticket 3 takes over the CI toolchain install. Its fixture test needs it.
 
-Go had a sixth ticket, #61, for the convention in CONTRIBUTING.md. A later language changes CONTRIBUTING.md only when it settles something new, such as the grill's answer on existing convention skills. Put a change that design settles in the first ticket of the layout. Put a change found during build in the ticket that finds it.
+Go had a sixth ticket, #61, for the convention in CONTRIBUTING.md. A later language changes CONTRIBUTING.md only when it settles something new, such as the grill's answer on existing convention skills. A language's PRs never change CONTRIBUTING.md, because it is shared text. Put a change that design settles in the shared-text ticket from design step 4, which blocks the first ticket of the layout. A gap found during build gets a shared-text ticket of its own, filed by the ticket that finds it.
 
 ## What each ticket proves
 

@@ -106,7 +106,7 @@ Scope:
 
 Pull requests:
 
-- A language's PRs change only its own skill directories, its own CI job, and its own drift test, so several languages can build at once.
+- A language's PRs change only its own skill directories, its own CI job, and its own drift test, so several languages can build at once. Two exceptions: the main PR bumps the version, as [Releases](#releases) says, after merging `main`; and the release ticket PR updates the catalogs, the company-skills dependencies, and the README, as [Taking in upstream material](#taking-in-upstream-material) says.
 - Shared text, such as this file, GLOSSARY.md, and the process skill, changes only through its own ticket. A language that finds a gap in shared text files a ticket for it.
 
 ### Taking in upstream material

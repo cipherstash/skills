@@ -18,7 +18,7 @@
 - "File an issue for this bug." That is filing-github-issues.
 - "Open a PR for this fix." That is authoring-pull-requests. That skill points here only if the base branch is not the default.
 - "Stack these three branches." That is stacking-pull-requests.
-- "Link CIP-123 to this Linear project." Linear is not GitHub. The agent does not open this skill.
+- "Link CIP-123 to this Linear project." Linear is not GitHub. The agent does not follow this skill. Codex may read the skill's file before it declines.
 
 ## Expected behavior
 

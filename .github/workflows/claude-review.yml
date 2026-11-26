@@ -12,9 +12,9 @@
 #
 # Needs, as organisation or repository settings:
 #   secret CLAUDE_ROUTINE_TOKEN           the code-review routine's bearer token
-#   secret CLAUDE_REVIEW_APP_ID           the membership GitHub App's id
 #   secret CLAUDE_REVIEW_APP_PRIVATE_KEY  the membership GitHub App's private key
 #   variable CLAUDE_ROUTINE_TRIGGER_ID    the routine's trigger id (`trig_…`)
+#   variable CLAUDE_REVIEW_APP_CLIENT_ID  the membership GitHub App's client ID (`Iv…`)
 name: Claude review
 
 on:
@@ -48,10 +48,11 @@ jobs:
     # command; its other jobs hold no permissions.
     permissions:
       issues: write
-    uses: cipherstash/workflows/.github/workflows/claude-review.yml@b493c5e4aa442991f40a8929e35383a30f3a9298 # main, 2026-11-20 (pre-release)
+      pull-requests: write
+    uses: cipherstash/workflows/.github/workflows/claude-review.yml@38f13f4210ddc6e81d4e8ac69011ceb1069880c6 # v1.0.0
     with:
       routine-trigger-id: ${{ vars.CLAUDE_ROUTINE_TRIGGER_ID }}
+      app-client-id: ${{ vars.CLAUDE_REVIEW_APP_CLIENT_ID }}
     secrets:
       CLAUDE_ROUTINE_TOKEN: ${{ secrets.CLAUDE_ROUTINE_TOKEN }}
-      CLAUDE_REVIEW_APP_ID: ${{ secrets.CLAUDE_REVIEW_APP_ID }}
       CLAUDE_REVIEW_APP_PRIVATE_KEY: ${{ secrets.CLAUDE_REVIEW_APP_PRIVATE_KEY }}

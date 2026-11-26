@@ -145,6 +145,38 @@ class ChecklistStepTest(unittest.TestCase):
         self.assertIn("check suite", done)
         self.assertIn("execution surface", done)
 
+    def test_its_done_condition_covers_fixed_fuzz_inputs(self):
+        done = self.step.split("Done when", 1)[1]
+        self.assertIn("how pull request CI keeps its inputs fixed", done)
+
+    def test_it_skips_the_suite_draft_under_option_two(self):
+        self.assertIn("option two", self.step)
+        self.assertIn("skips the check suite draft", self.step)
+
+
+def option_two():
+    """Return the paragraph in tickets.md that says what changes when the grill, design step 4, picks option two."""
+    for paragraph in TICKETS.split("\n\n"):
+        if paragraph.startswith("When the grill, design step 4, decided"):
+            return paragraph
+    raise AssertionError("tickets.md has no paragraph for the grill's option two")
+
+
+class OptionTwoTest(unittest.TestCase):
+    """With tickets 1 and 2 dropped, no ticket builds the suite, so the paragraph must say what happens to it."""
+
+    def test_it_says_the_pair_has_no_check_suite(self):
+        text = option_two()
+        for phrase in ("no check suite", "Rust exemption", "CONTRIBUTING.md"):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, text)
+
+    def test_it_changes_tickets_three_and_four(self):
+        text = option_two()
+        for phrase in ("Ticket 3 fetches no tools", "limit", "Ticket 4 has no Repository standards step"):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, text)
+
 
 class LinksTest(unittest.TestCase):
     def test_relative_links_resolve(self):

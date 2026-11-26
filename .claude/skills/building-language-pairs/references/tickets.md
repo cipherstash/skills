@@ -4,7 +4,7 @@ Split a pair into five tickets. Each first slice is a tracer bullet: it runs the
 
 | # | Ticket | Go ticket | Blocked by |
 | --- | --- | --- | --- |
-| 1 | `<lang>-practices`: first slice | #57 | none |
+| 1 | `<lang>-practices`: first slice | #57 | the shared-text ticket from design step 4, if one exists |
 | 2 | `<lang>-practices`: remaining references | #58 | 1 |
 | 3 | `<lang>-review`: first slice, from target to verdict | #59 | 1 |
 | 4 | `<lang>-review`: remaining checklist areas | #60 | 2, 3 |
@@ -12,9 +12,9 @@ Split a pair into five tickets. Each first slice is a tracer bullet: it runs the
 
 Merge order into the integration branch: 1, 2, 3, 4, 5. Tickets 2 and 3 can be built in parallel. Ticket 4 branches from 3 and merges 2 in.
 
-When design step 1 decided that `<lang>-review` reads existing convention skills instead of a new practices skill, drop tickets 1 and 2. Ticket 3 is then blocked by nothing, and ticket 4 by 3 only. The examples module and its checker are not built. Ticket 3 takes over the CI toolchain install. Its fixture test needs it.
+When the grill, design step 4, decided that `<lang>-review` reads existing convention skills instead of a new practices skill, drop tickets 1 and 2. Ticket 3 is then blocked only by the shared-text ticket from design step 4, if one exists, and ticket 4 by 3 only. The examples module and its checker are not built. Ticket 3 takes over the CI toolchain install. Its fixture test needs it.
 
-Go had a sixth ticket, #61, for the convention in CONTRIBUTING.md. A later language changes CONTRIBUTING.md only when it settles something new, such as the answer to design step 1. Put a change that design settles in the first ticket of the layout. Put a change found during build in the ticket that finds it.
+Go had a sixth ticket, #61, for the convention in CONTRIBUTING.md. A later language needs a CONTRIBUTING.md change only when its design settles something new, such as the grill's answer on existing convention skills. That change goes in the shared-text ticket from design step 4, because a language's PRs never change shared text. The agent that finds a gap during build files a shared-text ticket for it.
 
 ## What each ticket proves
 
@@ -26,4 +26,4 @@ Go had a sixth ticket, #61, for the convention in CONTRIBUTING.md. A later langu
 
 ## Writing each ticket
 
-Each ticket has a `## Parent` line and a `## What to build` section saying what a user can do once it merges. Its `## Acceptance criteria` checklist is one a reviewer can check against the PR. The last criterion is that the checks in build step 7 pass. Every ticket says its work merges into `feat/<lang>-skills`.
+Each ticket has a `## Parent` line and a `## What to build` section saying what a user can do once it merges. Its `## Acceptance criteria` checklist is one a reviewer can check against the PR. The last criterion is that the checks in build step 8 pass. Every ticket says its work merges into `feat/<lang>-skills`.

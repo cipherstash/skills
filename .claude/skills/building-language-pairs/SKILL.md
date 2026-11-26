@@ -1,6 +1,6 @@
 ---
 name: building-language-pairs
-description: Builds a language's skill pair in this repository, `<lang>-practices` and `<lang>-review`, from its parent ticket through an audit, a ticket breakdown, a stack of draft PRs, and the PR to main. Use when starting or continuing the Python, TypeScript, Rust, or another language pair, when replacing a bundled upstream language plugin (`python-pro`, `typescript-pro`, `rust-engineer`), or when breaking a language ticket into buildable tickets. Not for changing one skill of an existing pair, which CONTRIBUTING.md covers.
+description: Builds a language's skill pair in this repository, `<lang>-practices` and `<lang>-review`, from its parent ticket through research, an audit, a grill, a ticket breakdown, a stack of draft PRs, and the PR to main. Use when starting or continuing the Python, TypeScript, Rust, or another language pair, when replacing a bundled upstream language plugin (`python-pro`, `typescript-pro`, `rust-engineer`), or when breaking a language ticket into buildable tickets. Not for changing one skill of an existing pair, which CONTRIBUTING.md covers.
 ---
 
 # Building a language pair
@@ -9,7 +9,7 @@ This skill is the process. The rules a pair must meet live in the **Language ski
 
 The Go pair is the worked example to copy: spec #56, tickets #57 to #62, PRs #70 to #75, and the skills `golang-practices` and `golang-review`. Go stacked each PR on the one before. Its main PR is #102, opened from a working branch that held `feat/golang-skills` plus the merge of `origin/main`, because the agent could not push to the integration branch. Go's references and spec predate the examples-list and reference-length rules in CONTRIBUTING.md, so follow those rules, not Go's sizes.
 
-The work has two phases with a person between them. **Design** turns a high-level language ticket, such as #64 for Python, into an audit and buildable tickets, then stops. Design may start on a parent ticket labelled `ready-for-human`, because it ends in a proposal for the person. **Build** turns approved tickets into a stack of draft PRs and a PR to `main`.
+The work has two phases with a person between them. **Design** turns a high-level language ticket, such as #64 for Python, into buildable tickets, then stops. On the way it researches the language, audits the upstream skill, and grills the person on the language's own decisions. Design may start on a parent ticket labelled `ready-for-human`, because it ends in a proposal for the person. **Build** turns approved tickets into a stack of draft PRs and a PR to `main`.
 
 Two PRs carry the release. The **release ticket PR** is the last PR in the stack and merges into the integration branch. The **main PR** merges the integration branch into `main`.
 
@@ -20,13 +20,16 @@ Two PRs carry the release. The **release ticket PR** is the last PR in the stack
 
 ## Resuming
 
-Before step 1, look for work already done: a spec sub-issue under the parent, its tickets, a `feat/<lang>-skills` branch, and stacked PRs. Resume at the first step whose done condition is unmet.
+Before step 1, look for work already done. Read the parent ticket's comments: they hold the research report, the checklist, the audit, and the grill outcome from steps 1 to 4. They also list the shared tickets that steps 1 to 3 filed or linked. Build on them, and do not redo them.
+
+Then look for a spec sub-issue under the parent, its tickets, a `feat/<lang>-skills` branch, and stacked PRs. Resume at the first step whose done condition is unmet.
 
 ## Tools by host
 
 Where this skill names another skill, use it when the host has it. Otherwise do the step by hand as written:
 
 - **`tdd`**: write a failing test, watch it fail, then write the code that passes it.
+- **`grilling`**: ask the person one question at a time, each with your recommended answer, until they confirm shared understanding.
 - **`code-review`**: check the diff against the ticket's acceptance criteria and CONTRIBUTING.md. Report each defect with its file, line, and severity.
 - **`authoring-pull-requests`**, **`review-fix`**, **`review-audit`**, and **`run-report`** ship in company-skills. When company-skills is not installed, read `plugins/company-skills/skills/<name>/SKILL.md` in this repository and follow it.
 
@@ -38,21 +41,43 @@ Keep the log with the `run-report` skill. When a step needs a person, stop and r
 
 ## Design
 
-1. **Settle existing skills.** If the language already has convention skills in `plugins/company-skills/skills/`, ask the person to choose. Option one adds a `<lang>-practices` skill beside them. Option two builds no practices skill, and `<lang>-review` reads them as they are. For Rust this is #63's open question. Record the answer in the spec. Any CONTRIBUTING.md change it needs goes in the first ticket of the chosen layout. Done when the spec records the answer, or the language has no convention skills.
+Every design step posts its result as a comment on the parent ticket, and this repository is public. Leave out the names of private repositories, and any security gap in CI that is not fixed yet. Do this before you post any comment or file any issue. When a result cannot be posted without them, stop and ask the person what to post.
 
-2. **Write the checklist.** Draft the review skill's areas table, modelled on the ten areas in `golang-review`'s SKILL.md. Give each area its priority and the tool that gives evidence for it. Go used `go vet`, `gofmt`, race-enabled tests with coverage, `govulncheck`, `go mod tidy -diff`, and an exported-API comparison. List the examples each area's reference needs: one per rule that prose cannot state, marked as upstream as is, upstream with a fix, or new. Name the language and runtime versions the references will target. Name the toolchain CI must install. Answer each open question in the parent ticket, or list it for the person. Done when every area names its evidence or says it has none, and lists its examples or says it needs none. Every open question must have an answer or be on the list.
+1. **Research the language.** Read the parent ticket, the upstream skill, and the language's own documentation and tools. Write a report that lists the language's open decisions. Mark each one shared, when every language must answer it, or language-only. Sort each shared one as ADR 0003 says:
+   - Check it against CONTRIBUTING.md **Language skills** and the ADRs in `docs/adr/`. If they settle it, mark it settled and cite the rule or ADR.
+   - Otherwise, search the open issues for a ticket on it, as `filing-github-issues` does, and link the match. With no match, file the question as its own ticket. It never goes to this language's grill.
 
-3. **Audit the upstream skill** against that checklist, at the `sha` pinned for it in `.claude-plugin/marketplace.json`. Read every reference, and build and run every example. Record each defect with its file, line, and checklist area. Record which areas upstream covers fully, partly, or not at all. Then update step 2's examples list: an upstream example with no defect stays as it is, and one with a defect gets the smallest fix. With no upstream skill, record that and go to step 4. Done when you have read each upstream file and run each example, or recorded it as unbuildable.
+   If the language already has convention skills in `plugins/company-skills/skills/`, list one more language-only decision. Either add a `<lang>-practices` skill beside them, or build no practices skill and have `<lang>-review` read them as they are. For Rust this is #63's open question. Answer no open decision yourself: step 4 takes the language-only ones to the person. Done when:
+   - the report is posted as a comment on the parent ticket;
+   - each shared question that the rules and ADRs do not settle has its own ticket;
+   - the comment lists the shared tickets this step filed or linked.
 
-4. **Write the spec and tickets.** Read [references/gotchas.md](references/gotchas.md) first: some of its items become ticket criteria. Write a spec issue shaped like #56, with the checklist and the full audit in it or in a comment on it. Split it into tickets using [references/tickets.md](references/tickets.md). File the spec as a sub-issue of the parent, and each ticket as a sub-issue of the spec, following `docs/agents/issue-tracker.md`. Set each ticket's blocked-by links from the tickets table, as that file's **Blocking** entry says. Label each `needs-triage`. Done when the spec and every ticket are filed, linked, and labelled.
+2. **Write the checklist.** Draft the review skill's areas table, modelled on the ten areas in `golang-review`'s SKILL.md. Give each area its priority and the tool that gives evidence for it. Go used `go vet`, `gofmt`, race-enabled tests with coverage, `govulncheck`, `go mod tidy -diff`, and an exported-API comparison. List the examples each area's reference needs: one per rule that prose cannot state, marked as upstream as is, upstream with a fix, or new. Name the language and runtime versions the references will target. Name the toolchain CI must install. Do not answer open questions yourself. Add each one this step raises to step 1's list, and sort it as step 1 says. Done when:
+   - every area names its evidence, or says it has none;
+   - every area lists its examples, or says it needs none;
+   - each shared question this step raised is settled or has its own ticket;
+   - the checklist is posted as a comment on the parent ticket, with the shared tickets this step filed or linked.
 
-5. **Stop for the person.** Post a comment on the parent ticket that links the spec and lists the tickets and the open questions. Ask the person to approve or change the tickets. Done when the person has labelled the tickets `ready-for-agent`. Build only those.
+3. **Audit the upstream skill** against that checklist, at the `sha` pinned for it in `.claude-plugin/marketplace.json`. Read every reference, and build and run every example. Record each defect with its file, line, and checklist area. Record which areas upstream covers fully, partly, or not at all. Then update step 2's examples list. An upstream example with no defect stays as it is. One with a defect gets the smallest fix. Add each open question the audit raises to step 1's list, and sort it as step 1 says. With no upstream skill, post a comment on the parent ticket saying so, and go to step 4. Done when a comment on the parent ticket says there is no upstream skill, or when:
+   - you have read each upstream file;
+   - you have run each example, or recorded it as unbuildable;
+   - each shared question the audit raised is settled or has its own ticket;
+   - the audit is posted as a comment on the parent ticket, with the shared tickets this step filed or linked.
+
+4. **Grill the person.** Start only once every shared ticket that steps 1 to 3 name is settled, whoever filed it, as ADR 0003 orders. Their comments on the parent ticket list those tickets. If any is still open, stop and report those tickets to the person. Use `grilling` to take the language-only decisions from steps 1 to 3 to the person. Ask one question at a time, each with your recommended answer. Ask nothing that CONTRIBUTING.md or an ADR already settles. The grill drafts only GLOSSARY entries and ADRs, and writes no code. GLOSSARY.md and the ADRs are shared text. A language's PRs never change shared text, as CONTRIBUTING.md **Pull requests** says. So write each draft in the body of one shared-text ticket, with any CONTRIBUTING.md change that design settles. The files are written when that ticket is built. The shared-text ticket blocks the first ticket of the language's layout. The grill ends when the person confirms shared understanding. A "yes" there is not a go-ahead to build. Building waits for tickets labelled `ready-for-agent`, as step 6 says. Done when:
+   - the person has confirmed shared understanding;
+   - the shared-text ticket is filed, if the grill drafted any ADR or GLOSSARY entry;
+   - the grill outcome is posted as a comment on the parent ticket: each question, its answer, and the draft that records it.
+
+5. **Write the spec and tickets.** Read [references/gotchas.md](references/gotchas.md) first: some of its items become ticket criteria. Write a spec issue shaped like #56, with the checklist and the full audit in it or in a comment on it. For each decision the grill settled, cite its draft in the shared-text ticket. Split the spec into tickets using [references/tickets.md](references/tickets.md). File the spec as a sub-issue of the parent, and each ticket as a sub-issue of the spec, following `docs/agents/issue-tracker.md`. Set each ticket's blocked-by links from the tickets table, as that file's **Blocking** entry says. If step 4 filed a shared-text ticket, block the layout's first ticket on it. Label each `needs-triage`. Done when the spec and every ticket are filed, linked, and labelled.
+
+6. **Stop for the person.** Post a comment on the parent ticket. Link the spec, the grill outcome, and the shared tickets, and list the tickets. Ask the person to approve or change the tickets. Answer no new open question yourself. A new question goes back to step 1's list and is sorted as step 1 says. A language-only one goes to the grill, and a shared one to its own ticket. Done when the person has labelled the tickets `ready-for-agent`. Build only those.
 
 ## Build
 
-6. **Open the integration branch.** Create `feat/<lang>-skills` from the latest `origin/main` and push it. Every ticket PR stacks on it. Done when the branch is on `origin`.
+7. **Open the integration branch.** Create `feat/<lang>-skills` from the latest `origin/main` and push it. Every ticket PR stacks on it. Done when the branch is on `origin`.
 
-7. **Build each ticket** in dependency order, with one branch and one draft PR per ticket. Base each branch on the branch of the ticket that blocks it. A ticket with two blockers branches from one and merges the other in. Start each ticket with `tdd`. Use the `authoring-pull-requests` skill for commits and the PR body, with two changes for a stack:
+8. **Build each ticket** in dependency order, with one branch and one draft PR per ticket. Base each branch on the branch of the ticket that blocks it. A ticket with two blockers branches from one and merges the other in. Start each ticket with `tdd`. Use the `authoring-pull-requests` skill for commits and the PR body, with two changes for a stack:
    - its `<base>` is the blocking ticket's branch, for both the signature range and the PR;
    - a stacked branch is never re-signed by rebase. If a commit needs a new signature, stop and report it.
 
@@ -61,13 +86,13 @@ Keep the log with the `run-report` skill. When a step needs a person, stop and r
    - the `tests/` suite of each skill on the branch;
    - with Claude Code installed, `claude plugin validate . --strict`, and `claude plugin validate plugins/company-skills --strict`.
 
-8. **Review each PR independently.** The author of a PR does not review it. A separate agent or session reviews it against its ticket with `code-review`. Without subagents, start a fresh session for the review. Then work the findings with `review-fix`, red first. When a person or bot review lands later, run `review-audit`, then `review-fix`. Before the release ticket PR opens, also run a security review on the tip of the stack, as **The stack** in [references/gotchas.md](references/gotchas.md) explains. Done when no finding is open, or each open one is reported to the person with the reason.
+9. **Review each PR independently.** The author of a PR does not review it. A separate agent or session reviews it against its ticket with `code-review`. Without subagents, start a fresh session for the review. Then work the findings with `review-fix`, red first. When a person or bot review lands later, run `review-audit`, then `review-fix`. Before the release ticket PR opens, also run a security review on the tip of the stack, as **The stack** in [references/gotchas.md](references/gotchas.md) explains. Done when no finding is open, or each open one is reported to the person with the reason.
 
-9. **Merge fixes through the stack.** After any push to a branch, merge it into every branch stacked on it, in stack order. Rerun the checks on each. Fix each line on the branch that added it, and check each PR's base branch right before it merges, as **The stack** in [references/gotchas.md](references/gotchas.md) says. Done when every branch stacked on the fixed one has the fix and passes its checks.
+10. **Merge fixes through the stack.** After any push to a branch, merge it into every branch stacked on it, in stack order. Rerun the checks on each. Fix each line on the branch that added it, and check each PR's base branch right before it merges, as **The stack** in [references/gotchas.md](references/gotchas.md) says. Done when every branch stacked on the fixed one has the fix and passes its checks.
 
-10. **Test on both hosts.** Run both skills' behavior cases in Claude Code and in Codex, and run the review skill against its seeded-defect fixture. Build the fixture repository from the fixture's `base/` and `head/` outside the plugin, as `expected-findings.md` says. Load the review skill from a scratch copy of the plugin with every skill's `tests/` folder removed, so the reviewer cannot read the expected findings. **Host testing** in [references/gotchas.md](references/gotchas.md) covers making that copy and other host problems. Compare the fixture review with `expected-findings.md`. Check that each run lists the references and step files it read. Record the host, version, and observed result for each case in the release ticket PR body. Fix a trigger miss in the skill's `description`, and add a behavior case only when none covers the request. Fix a wrong finding red first. A host you cannot run is reported to the person by name. Done when every case has a recorded result on both hosts, or the missing host is reported.
+11. **Test on both hosts.** Run both skills' behavior cases in Claude Code and in Codex, and run the review skill against its seeded-defect fixture. Build the fixture repository from the fixture's `base/` and `head/` outside the plugin, as `expected-findings.md` says. Load the review skill from a scratch copy of the plugin with every skill's `tests/` folder removed, so the reviewer cannot read the expected findings. **Host testing** in [references/gotchas.md](references/gotchas.md) covers making that copy and other host problems. Compare the fixture review with `expected-findings.md`. Check that each run lists the references and step files it read. Record the host, version, and observed result for each case in the release ticket PR body. Fix a trigger miss in the skill's `description`, and add a behavior case only when none covers the request. Fix a wrong finding red first. A host you cannot run is reported to the person by name. Done when every case has a recorded result on both hosts, or the missing host is reported.
 
-11. **Open the main PR.** After the person merges the stack into the integration branch, merge `origin/main` into it. Open the main PR from `feat/<lang>-skills` to `main`, and link the host results from the release ticket PR. Done when the main PR is open with its checks passing.
+12. **Open the main PR.** After the person merges the stack into the integration branch, merge `origin/main` into it. Open the main PR from `feat/<lang>-skills` to `main`, and link the host results from the release ticket PR. Done when the main PR is open with its checks passing.
 
 ## Report
 

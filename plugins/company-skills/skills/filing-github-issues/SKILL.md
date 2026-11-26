@@ -27,7 +27,7 @@ Needs the GitHub MCP server's tools: `search_issues`, `issue_read`, `get_label`,
 
 5. **File** only on the user's request or approval. Call `issue_write` with `method: "create"`, `owner`, `repo`, `title`, `body`, and `labels`. Report the new issue's URL.
 
-6. **Leave back-links.** For each related issue named in the body, post a short comment on it with `add_issue_comment` pointing to the new issue (`owner/repo#N`), so the link works in both directions. These comments are part of the filing the user approved; list them in the draft.
+6. **Leave back-links.** On each related issue named in the body, post a short comment with `add_issue_comment` that names the new issue (`owner/repo#N`). Readers of either issue then find the other. These comments are part of the filing the user approved; list them in the draft. A comment is only a mention. When the user asks for a stored link, such as a sub-issue, "blocked by", or "relates to", make it with the linking-github-issues skill.
 
 ## Structure
 

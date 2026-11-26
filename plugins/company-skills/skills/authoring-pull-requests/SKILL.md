@@ -73,7 +73,7 @@ Sections, in order:
 - **Summary** — what and why, in two or three plain sentences. Lead with the user-visible effect.
 - **Changes** — grouped by area, one line each.
 - **Verification** — exactly what was run and what it showed. Be honest: state a failing, skipped, or unrun check rather than omitting it. "Ran `cargo test -p stack-core`: 214 passed" beats "should work".
-- **Related** — `Closes #N` or `Refs #N` for the GitHub issues this serves; cross-repository refs in full `owner/repo#N` form. No Linear refs.
+- **Related** — `Closes #N` or `Refs #N` for the GitHub issues this serves; cross-repository refs in full `owner/repo#N` form. No Linear refs. `Closes #N` links the pull request to the issue only when its base is the default branch. For any other base, link it with the linking-github-issues skill after you open the pull request.
 - **Review notes** *(optional)* — where to look first, and anything deliberately deferred with the reason.
 
 The PR title follows the commit-subject convention.

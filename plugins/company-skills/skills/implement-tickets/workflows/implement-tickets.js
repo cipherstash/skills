@@ -437,6 +437,8 @@ re-signed by rebase (if a commit needs a new signature, record a deviation inste
 The body links the ticket (Closes #${t.number}), says where the PR sits in the stack, and marks each
 acceptance criterion met or open, from this build record:
 ${JSON.stringify({ criteria: build.criteria, checks: build.checks }, null, 2)}
+\`Closes #${t.number}\` links the PR to the ticket only when its base is the default branch. If \`${build.base}\` is not
+the default branch, link the PR to ticket #${t.number} with the \`company-skills:linking-github-issues\` skill, and read the link back.
 Keep it a draft. ${USE_ROUTINE ? `Then start the Claude review routine: ${ROUTINE}
 Record whether the request went through.` : 'This repository has no Claude review routine: request no review.'}`, {
       label: `pr #${t.number}`, phase: 'Build', model: SONNET, schema: PR_SCHEMA,

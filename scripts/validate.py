@@ -21,10 +21,15 @@ RESERVED_WORDS = ("anthropic", "claude")
 XML_TAG_RE = re.compile(r"<[^>]+>")
 errors: list[str] = []
 
-# Plugins the Claude catalog lists for users to install by name. They are not
-# company-skills dependencies, because installing them for everyone costs too
-# much (plugin-dev adds a whole toolkit to every session).
-CLAUDE_OPT_IN_PLUGINS = frozenset({"code-improver", "plugin-dev"})
+# Plugins each catalog lists beside company-skills, for users to install by
+# name. company-skills must not declare them as dependencies: Claude Code
+# disables a plugin while a dependency is missing, and the claude.ai
+# organisation sync delivers company-skills without its sibling plugins.
+# Removing a bundled plugin means removing it here and from every catalog.
+CODEX_BUNDLED_PLUGINS = frozenset({"differential-review", "insecure-defaults"})
+CLAUDE_BUNDLED_PLUGINS = CODEX_BUNDLED_PLUGINS | frozenset(
+    {"code-improver", "plugin-dev", "python-pro", "rust-engineer", "typescript-pro"}
+)
 
 
 def fail(path: Path, message: str) -> None:
@@ -196,31 +201,28 @@ def validate_manifests() -> None:
     ):
         fail(claude_market_path, "must publish ./plugins/company-skills")
 
-    # Same-marketplace dependencies by bare name: the git-subdir SHA is the pin,
-    # so version ranges and cross-marketplace names are not used here.
     claude_manifest_path = PLUGIN / ".claude-plugin" / "plugin.json"
-    dependencies = load_json(claude_manifest_path).get("dependencies", [])
-    listed = {entry.get("name") for entry in claude_entries if isinstance(entry, dict)}
-    if not isinstance(dependencies, list) or not all(
-        isinstance(name, str) and name in listed and name != portable.get("name") for name in dependencies
+    if "dependencies" in load_json(claude_manifest_path):
+        fail(
+            claude_manifest_path,
+            "must not declare dependencies: Claude Code disables company-skills when a synced copy lacks them",
+        )
+    # Any catalog entry not in its bundled list is a half-finished addition or
+    # removal: update the list and every catalog together.
+    for path, entries, bundled in (
+        (claude_market_path, claude_entries, CLAUDE_BUNDLED_PLUGINS),
+        (codex_market_path, codex_entries, CODEX_BUNDLED_PLUGINS),
     ):
-        fail(claude_manifest_path, "dependencies must name plugins in the company marketplace")
-    # Each catalog bundles other plugins only so company-skills can install them
-    # (Codex users add them by hand, as Codex has no plugin dependencies). Any
-    # other entry that is not a dependency, whatever its source type, is a
-    # half-finished removal. A malformed list has already failed above, so skip
-    # the check rather than report every entry.
-    # The only exceptions are the Claude catalog's opt-in plugins, which users
-    # install by name (README, "Bundled Trail of Bits plugins and plugin-dev").
-    if isinstance(dependencies, list) and all(isinstance(name, str) for name in dependencies):
-        allowed = set(dependencies) | {portable.get("name")}
-        for path, entries, extra in (
-            (claude_market_path, claude_entries, CLAUDE_OPT_IN_PLUGINS),
-            (codex_market_path, codex_entries, frozenset()),
-        ):
-            for entry in entries:
-                if isinstance(entry, dict) and entry.get("name") not in allowed | extra:
-                    fail(path, f"{entry.get('name')}: a bundled plugin in the catalog must be a company-skills dependency")
+        for entry in entries:
+            if isinstance(entry, dict) and entry.get("name") not in bundled | {portable.get("name")}:
+                fail(path, f"{entry.get('name')}: a bundled plugin in the catalog must be listed in validate.py")
+    for path, entries, bundled in (
+        (claude_market_path, claude_entries, CLAUDE_BUNDLED_PLUGINS),
+        (codex_market_path, codex_entries, CODEX_BUNDLED_PLUGINS),
+    ):
+        listed = {entry.get("name") for entry in entries if isinstance(entry, dict)}
+        for name in sorted(bundled - listed):
+            fail(path, f"{name}: listed in validate.py as bundled but missing from the catalog")
 
     claude_pins = git_subdir_pins(claude_entries)
     codex_pins = git_subdir_pins(codex_entries)

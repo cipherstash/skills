@@ -72,5 +72,56 @@ class TicketOneTest(unittest.TestCase):
                 self.assertIn(phrase, text)
 
 
+class ReviewTicketsTest(unittest.TestCase):
+    def test_ticket_three_quotes_ci_and_fetches_pinned_tools(self):
+        text = proves(3)
+        for phrase in (
+            "quotes CI's result",
+            "fetches only",
+            "version the practices skill pins",
+            "`.<lang>-review-tools/`",
+            "install scripts off",
+            "execution surface",
+            "until the user says yes",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, text)
+
+    def test_ticket_four_adds_the_repository_standards_step(self):
+        text = proves(4)
+        for phrase in (
+            "Repository standards step",
+            "A missing check is a line in the report, not a finding",
+            "A weakened check is a `major` finding",
+            "A missing untrusted-input test is a `minor` finding",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, text)
+
+
+def option_two():
+    """Return the tickets.md paragraph on design step 1's option two, which drops tickets 1 and 2."""
+    for paragraph in TICKETS.split("\n\n"):
+        if paragraph.startswith("When design step 1 decided"):
+            return paragraph
+    raise AssertionError("tickets.md has no paragraph for design step 1's option two")
+
+
+class OptionTwoTest(unittest.TestCase):
+    """With ticket 1 dropped, nothing builds a suite, so tickets 3 and 4 cannot rely on one."""
+
+    def test_it_says_there_is_no_check_suite(self):
+        text = option_two()
+        for phrase in ("no check suite", "Rust exemption"):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, text)
+
+    def test_it_changes_tickets_three_and_four(self):
+        text = option_two()
+        for phrase in ("Ticket 3 fetches no tools", "limit of the review", "Ticket 4 has no Repository standards step"):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, text)
+
+
 if __name__ == "__main__":
     unittest.main()

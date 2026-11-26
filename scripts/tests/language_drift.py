@@ -32,6 +32,8 @@ REPO = Path(__file__).resolve().parents[2]
 Pin = namedtuple("Pin", "version package")
 
 ROW = re.compile(r"\| *`?([\w.@/-]+)`? *\| *`([^`]+)` *\| *(.*?) *\|")
+# The section heading on a line of its own, so "### Pinned versions" or "## Pinned versions history" never match.
+PINNED_HEADING = re.compile(r"^## Pinned versions[ \t]*$", re.MULTILINE)
 SEPARATOR = re.compile(r"\|( *:?-+:? *\|)+")
 
 
@@ -43,9 +45,10 @@ def read_pins(checks_md):
     read, gives a tool no package, or lists a tool twice, since each would leave a tool's pin unchecked.
     """
     text = checks_md.read_text(encoding="utf-8")
-    if "## Pinned versions" not in text:
+    heading = PINNED_HEADING.search(text)
+    if not heading:
         raise ValueError(f"{checks_md} has no ## Pinned versions section")
-    section = text.split("## Pinned versions", 1)[1].split("\n## ", 1)[0]
+    section = text[heading.end():].split("\n## ", 1)[0]
     lines = [line.strip() for line in section.splitlines()]
     pins = {}
     for index, line in enumerate(lines):

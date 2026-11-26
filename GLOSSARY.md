@@ -71,7 +71,7 @@ The canonical set of checks that gate every pull request, run in CI, in every re
 _Avoid_: Toolchain, the language's checks
 
 **Untrusted input**:
-Bytes that come from outside the process, such as a request body, a file, or a message. A function that parses or decodes untrusted input must have a fuzz target or a property test, whichever the language's check suite names. Go's is a Fuzz target.
+Bytes that come from outside the process, such as a request body, a file, or a message. A function that parses or decodes untrusted input must have a fuzz target or a property test, whichever the language's check suite names, unless that suite says why neither fits. Go's is a Fuzz target.
 _Avoid_: User input, external data
 
 **In place**:

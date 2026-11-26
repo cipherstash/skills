@@ -2,6 +2,7 @@
 
 The suite and its pinned versions are listed in golang-practices' references/checks.md. These tests check that each
 suite check is in place over the golang-practices examples module, and that each pinned version matches that list.
+The checks every language shares come from language_drift.DriftTests; the rest are Go's own.
 """
 
 import os
@@ -13,35 +14,17 @@ import unittest
 
 import yaml
 
+import language_drift
 
-REPO = Path(__file__).resolve().parents[2]
+
+REPO = language_drift.REPO
 PRACTICES = REPO / "plugins/company-skills/skills/golang-practices"
 EXAMPLES = "plugins/company-skills/skills/golang-practices/examples"
 WORKFLOW = yaml.safe_load((REPO / ".github/workflows/validate.yml").read_text())
-# PyYAML reads the bare key `on` as the boolean true.
-TRIGGERS = WORKFLOW.get("on", WORKFLOW.get(True))
-SUITE = WORKFLOW["jobs"]["go-check-suite"]
+SUITE_JOB = "go-check-suite"
+SUITE = WORKFLOW["jobs"][SUITE_JOB]
 STEPS = SUITE["steps"]
-
-
-def pinned_versions():
-    """Return {tool: version} from the pinned versions table in references/checks.md."""
-    text = (PRACTICES / "references/checks.md").read_text(encoding="utf-8")
-    section = text.split("## Pinned versions", 1)[1].split("\n## ", 1)[0]
-    rows = re.findall(r"^\| *`?([\w-]+)`? *\| *`([^`]+)` *\|", section, re.MULTILINE)
-    return dict(rows)
-
-
-PINS = pinned_versions()
-
-
-def run_lines():
-    """Yield (working directory, command line with whitespace collapsed) for each line of each run step."""
-    default = SUITE.get("defaults", {}).get("run", {}).get("working-directory", ".")
-    for step in STEPS:
-        for line in step.get("run", "").splitlines():
-            if line.strip():
-                yield step.get("working-directory", default), re.sub(r"\s+", " ", line).strip()
+PINS = {tool: pin.version for tool, pin in language_drift.read_pins(PRACTICES / "references/checks.md").items()}
 
 
 def semgrep_ignored(patterns, paths):
@@ -75,10 +58,13 @@ def step_using(action):
 
 
 def commands_in(directory):
-    return [command for cwd, command in run_lines() if cwd == directory]
+    return [command for cwd, command in language_drift.run_lines(WORKFLOW, SUITE_JOB) if cwd == directory]
 
 
-class CheckSuiteWorkflowTests(unittest.TestCase):
+class CheckSuiteWorkflowTests(language_drift.DriftTests, unittest.TestCase):
+    CHECKS = PRACTICES / "references/checks.md"
+    JOB = SUITE_JOB
+
     def assertRuns(self, pattern, directory=EXAMPLES):
         commands = commands_in(directory)
         self.assertTrue(
@@ -86,21 +72,12 @@ class CheckSuiteWorkflowTests(unittest.TestCase):
             f"no step in {directory} runs {pattern!r}; steps there run: {commands}",
         )
 
-    def test_runs_on_every_pull_request(self):
-        self.assertIn("pull_request", TRIGGERS)
-        # A branch or path filter would let some pull requests skip the suite.
-        self.assertFalse(TRIGGERS["pull_request"])
-        self.assertNotIn("if", SUITE)
+    # DriftTests checks that the suite runs on every pull request with no filter or job condition, and that no job,
+    # step or default sets continue-on-error, a condition, or a shell.
 
     def test_no_check_may_fail_without_failing_the_job(self):
-        self.assertNotIn("continue-on-error", SUITE)
-        for step in STEPS:
-            with self.subTest(step=step.get("name") or step.get("uses") or step.get("run")):
-                self.assertNotIn("continue-on-error", step)
-                self.assertNotIn("if", step)
-                # A shell set without -e, such as `bash {0}`, would let a failing line pass if a later line passes.
-                self.assertNotIn("shell", step)
-        # The same goes for a shell set in the workflow's or the job's defaults.
+        super().test_no_check_may_fail_without_failing_the_job()
+        # Go's suite also sets no defaults but the examples module's working directory.
         self.assertNotIn("defaults", WORKFLOW)
         self.assertEqual(SUITE["defaults"], {"run": {"working-directory": EXAMPLES}})
 

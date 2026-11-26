@@ -69,6 +69,7 @@ Any other language that already has convention skills needs a decision like this
 - The examples-list and reference-length rules start with the next pair. Go's references and spec #56 predate them, so do not copy Go's sizes.
 - Run the language's check suite over the examples in CI, in the validate workflow. Add a workflow test under `scripts/tests/` that checks each suite check is in place there and that its pinned version matches the reference.
 - Add a script test to the practices skill that checks every quoted block matches its source. It runs none of the suite's checks. golang-practices' test also runs each benchmark once, because benchmarks are not a suite check. CI runs it with the other skill script tests.
+- State in each reference the language version its examples target.
 - Include a seeded-defect fixture in the review skill, under `tests/fixtures/`. The fixture is a small change, as `base/` and `head/` trees, with at least one planted defect for each area the skill covers. The fixture's `expected-findings.md` lists the findings a correct review must report.
 - Add a script test to the review skill that checks the fixture. The test checks that the base is clean, that each defect comes from the change, and that the tools catch what they should. Where no tool shows a defect, add a probe test to a temporary copy of the module. The fixture stays unchanged. The test also checks that each expected location quotes its line. Run the review against the fixture by hand, as [Behavior cases](#behavior-cases) says.
 - Report each finding with a severity of `critical`, `major`, or `minor`. Those are the values `review-cross-check`, `review-post`, and `review-fix` take unchanged. Copy their meanings from the [Finding contract](plugins/company-skills/skills/golang-review/SKILL.md#finding-contract) in `golang-review`. Change only the Go-specific examples. Do not paraphrase them.
@@ -79,7 +80,7 @@ Any other language that already has convention skills needs a decision like this
 
 ### Shared rules for every language
 
-These rules were settled once for every language, in [ADR 0001](docs/adr/0001-one-check-suite-policy-for-every-language.md), [ADR 0002](docs/adr/0002-reviews-run-no-code-from-the-change-without-a-yes.md), and [ADR 0003](docs/adr/0003-settle-shared-language-decisions-once.md). The terms are defined under [Language skills](GLOSSARY.md#language-skills) in GLOSSARY.md. Apply them to each language's skills. Do not decide them again in a language's grill or spec. Go's [checks.md](plugins/company-skills/skills/golang-practices/references/checks.md) predates them and does not yet state every case, such as path-filtered triggers. Where it is silent, these rules hold.
+These rules were settled once for every language, in [ADR 0001](docs/adr/0001-one-check-suite-policy-for-every-language.md) and [ADR 0003](docs/adr/0003-settle-shared-language-decisions-once.md). The terms are defined under [Language skills](GLOSSARY.md#language-skills) in GLOSSARY.md. Apply them to each language's skills. Do not decide them again in a language's grill or spec. Go's [checks.md](plugins/company-skills/skills/golang-practices/references/checks.md) already meets them, in Go's own words.
 
 The check suite:
 
@@ -90,18 +91,12 @@ The check suite:
 - semgrep has one pin, shared by every language. Move it for every language in one PR. The ruleset floats. Before you pin semgrep for a new language, check that its `p/<lang>` ruleset exists.
 - Each reference states the minimum language version it targets. CI floats the latest stable or LTS release.
 - A language's review skill may add review areas beyond Go's ten when a suite tool gives evidence for the area and the review fixture can plant a defect in it. The spec records why.
-- Every language's drift test reads the pinned-versions table with one shared parser in `scripts/tests/`. Do not write a parser of your own. #129 adds the parser and moves Go's drift test onto it.
 
 When a check is in place:
 
 - A check is in place when it meets the **In place** entry in [GLOSSARY.md](GLOSSARY.md#language-skills): a GitHub Actions step that runs on `pull_request`, blocks when it fails, covers every module except fixtures with planted defects, and pins its version. This one definition holds for every language.
 - A path-filtered trigger counts only alongside a changes job that fails closed.
 - A `continue-on-error` step does not count, even when a later step enforces its result.
-
-Reviews:
-
-- A review may fetch only its check suite's own tools, at the versions the practices skill pins, into `.<lang>-review-tools/`, with install scripts turned off. It never installs the change's dependencies. It reports a check that needs them as a limit of the review.
-- Each language's skills list their execution surface (see [GLOSSARY.md](GLOSSARY.md#language-skills)). The review reads tool configuration from the base commit. When the change touches the execution surface, the review runs nothing until the user says yes.
 
 Scope:
 
@@ -111,7 +106,7 @@ Scope:
 
 Pull requests:
 
-- A language's PRs change only its own skill directories, its own CI job, and its own drift test, so several languages can build at once. The drift test may use the shared parser; it does not change it. Two exceptions: the main PR bumps the version, as [Releases](#releases) says, after merging `main`; and the release ticket PR updates the catalogs, the company-skills dependencies, and the README, as [Taking in upstream material](#taking-in-upstream-material) says.
+- A language's PRs change only its own skill directories, its own CI job, and its own drift test, so several languages can build at once. Two exceptions: the main PR bumps the version, as [Releases](#releases) says, after merging `main`; and the release ticket PR updates the catalogs, the company-skills dependencies, and the README, as [Taking in upstream material](#taking-in-upstream-material) says.
 - Shared text, such as this file, GLOSSARY.md, and the process skill, changes only through its own ticket. A language that finds a gap in shared text files a ticket for it.
 
 ### Taking in upstream material

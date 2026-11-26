@@ -12,43 +12,12 @@ import unittest
 
 REPO = Path(__file__).resolve().parents[2]
 CONTRIBUTING = REPO / "CONTRIBUTING.md"
-# A link's target: bare, or in angle brackets when it holds spaces, optionally followed by a quoted title.
-LINK = re.compile(r'\[[^\]]*\]\(\s*(?:<([^>\n]+)>|([^)\s]+))(?:\s+"[^"]*")?\s*\)')
-# A fenced code block opens with three or more backticks or tildes, indented by at most three spaces.
-FENCE = re.compile(r" {0,3}(`{3,}|~{3,})")
-CODE_SPAN = re.compile(r"(`+).+?\1")
+LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
 
 
 def section(text, heading):
     """Return the body of the level-2 section with this heading, up to the next level-2 heading."""
-    marker = f"\n## {heading}\n"
-    text = "\n" + text
-    if marker not in text:
-        raise ValueError(f"no '## {heading}' heading")
-    return text.split(marker, 1)[1].split("\n## ", 1)[0]
-
-
-def unfenced_lines(text):
-    """Yield the lines of Markdown text that are outside fenced code blocks.
-
-    As CommonMark does, a fence closes only on the same character as the one that opened it, at least as long, with
-    nothing after it.
-    """
-    fence = None
-    for line in text.splitlines():
-        match = FENCE.match(line)
-        if fence is None:
-            if match:
-                fence = match.group(1)
-            else:
-                yield line
-        elif (
-            match
-            and match.group(1)[0] == fence[0]
-            and len(match.group(1)) >= len(fence)
-            and not line[match.end():].strip()
-        ):
-            fence = None
+    return text.split(f"\n## {heading}\n", 1)[1].split("\n## ", 1)[0]
 
 
 def anchors(path):
@@ -59,8 +28,12 @@ def anchors(path):
     """
     found = set()
     seen = {}
-    for line in unfenced_lines(path.read_text(encoding="utf-8")):
-        match = re.match(r"#{1,6} +(.*?) *#*$", line)
+    in_fence = False
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.startswith("```"):
+            in_fence = not in_fence
+            continue
+        match = None if in_fence else re.match(r"#{1,6} +(.*?) *#*$", line)
         if match:
             slug = re.sub(r"[^\w\- ]", "", match.group(1).lower()).replace(" ", "-")
             count = seen.get(slug, 0)
@@ -70,10 +43,8 @@ def anchors(path):
 
 
 def relative_links(text):
-    """Yield each link target that is not an absolute URL, skipping links quoted in code."""
-    prose = "\n".join(CODE_SPAN.sub("", line) for line in unfenced_lines(text))
-    for angled, bare in LINK.findall(prose):
-        target = angled or bare
+    """Yield each link target that is not an absolute URL."""
+    for target in LINK.findall(text):
         if not re.match(r"[a-z]+:", target):
             yield target
 
@@ -97,52 +68,16 @@ class AnchorsTest(unittest.TestCase):
             self.anchors_of("## Setup\n\n### Setup\n\n## Setup\n"),
         )
 
-    def test_skips_headings_in_tilde_and_indented_fences(self):
-        for fence in ("~~~", "  ```"):
-            with self.subTest(fence=fence):
-                self.assertEqual({"setup"}, self.anchors_of(f"{fence}\n# Setup\n{fence}\n\n## Setup\n"))
-
-    def test_closes_a_fence_only_on_its_own_marker_at_its_length(self):
-        self.assertEqual(
-            {"setup"},
-            self.anchors_of("````\n```\n# Setup\n```\n~~~\n````\n\n## Setup\n"),
-        )
-
-
-class RelativeLinksTest(unittest.TestCase):
-    def test_reads_titled_and_angle_bracket_targets(self):
-        self.assertEqual(
-            ["GLOSARY.md", "a b.md"],
-            list(relative_links('[x](GLOSARY.md "t") and [y](<a b.md>)')),
-        )
-
-    def test_skips_links_quoted_in_code(self):
-        self.assertEqual(
-            ["real.md"],
-            list(relative_links("`[x](y)`\n\n```\n[x](z)\n```\n\n[r](real.md)\n")),
-        )
-
-
-class SectionTest(unittest.TestCase):
-    def test_names_a_missing_heading(self):
-        with self.assertRaises(Exception) as raised:
-            section("# x\n## Other\n", "Language skills")
-        self.assertIsInstance(raised.exception, ValueError)
-        self.assertIn("## Language skills", str(raised.exception))
-
-    def test_matches_only_a_level_2_heading(self):
-        self.assertEqual("b", section("# x\n### Pinned\na\n## Pinned\nb\n## Next\n", "Pinned"))
-
 
 class ContributingLinksTest(unittest.TestCase):
     def setUp(self):
         self.text = CONTRIBUTING.read_text(encoding="utf-8")
+        self.language_skills = section(self.text, "Language skills")
 
     def test_language_skills_links_the_shared_decisions(self):
-        links = set(relative_links(section(self.text, "Language skills")))
+        links = set(relative_links(self.language_skills))
         for target in (
             "docs/adr/0001-one-check-suite-policy-for-every-language.md",
-            "docs/adr/0002-reviews-run-no-code-from-the-change-without-a-yes.md",
             "docs/adr/0003-settle-shared-language-decisions-once.md",
             "GLOSSARY.md#language-skills",
         ):

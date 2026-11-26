@@ -6,7 +6,7 @@ A language's review skill may fetch only its check suite's own tools, at the ver
 
 Each language's skills list their execution surface (see GLOSSARY). The review reads tool configuration from the base commit. When the change touches anything on that list, the review runs nothing until the user says yes.
 
-This replaces the "No installs during a review" gotcha in `building-language-pairs`, which contradicted golang-review: golang-review fetches its pinned tools. #128 makes that change to the gotcha.
+This replaces the "No installs during a review" gotcha in `building-language-pairs`, which contradicted golang-review: golang-review fetches its pinned tools.
 
 ## Considered options
 

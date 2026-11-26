@@ -5,9 +5,23 @@ ticket #128: design step 2 drafts the check suite and lists the execution surfac
 ADR 0002's rule, and the ticket breakdown matches CONTRIBUTING.md's Language skills section.
 """
 
+import importlib.util
 from pathlib import Path
 import re
 import unittest
+
+
+def _load_link_helpers():
+    """Load the link helpers from test_contributing_links.py by path, however the tests are started."""
+    spec = importlib.util.spec_from_file_location(
+        "contributing_links", Path(__file__).with_name("test_contributing_links.py")
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.anchors, module.relative_links
+
+
+anchors, relative_links = _load_link_helpers()
 
 
 REPO = Path(__file__).resolve().parents[2]
@@ -100,11 +114,11 @@ class ReviewTicketsTest(unittest.TestCase):
 
 
 def option_two():
-    """Return the tickets.md paragraph on design step 1's option two, which drops tickets 1 and 2."""
-    for paragraph in TICKETS.split("\n\n"):
-        if paragraph.startswith("When design step 1 decided"):
-            return paragraph
-    raise AssertionError("tickets.md has no paragraph for design step 1's option two")
+    """Return the tickets.md paragraphs on design step 1's option two, which drops tickets 1 and 2."""
+    found = [p for p in TICKETS.split("\n\n") if p.startswith(("When design step 1 decided", "Under option two"))]
+    if not found:
+        raise AssertionError("tickets.md has no paragraph for design step 1's option two")
+    return "\n\n".join(found)
 
 
 class OptionTwoTest(unittest.TestCase):
@@ -121,6 +135,69 @@ class OptionTwoTest(unittest.TestCase):
         for phrase in ("Ticket 3 fetches no tools", "limit of the review", "Ticket 4 has no Repository standards step"):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, text)
+
+
+def design_step(number):
+    """Return the numbered step under "## Design" in SKILL.md, up to the next step."""
+    section = SKILL.split("\n## Design\n", 1)[1].split("\n## ", 1)[0]
+    for item in re.split(r"\n(?=\d+\. \*\*)", section):
+        if item.lstrip().startswith(f"{number}. **"):
+            return item
+    raise AssertionError(f"SKILL.md has no design step {number}")
+
+
+class DesignStepTwoTest(unittest.TestCase):
+    def setUp(self):
+        self.step = design_step(2)
+        self.done = self.step.split("Done when", 1)[1]
+
+    def test_it_drafts_the_check_suite(self):
+        for phrase in (
+            "check suite",
+            "**Tools**",
+            "**Pinned versions**",
+            "**What floats**",
+            "**Untrusted input**",
+            "fuzz target or a property test",
+            "why neither fits",
+            "#87",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, self.step)
+
+    def test_it_lists_the_execution_surface_for_ticket_three(self):
+        for phrase in ("execution surface", "GLOSSARY.md#language-skills", "files and flags", "ticket 3"):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, self.step)
+
+    def test_the_spec_records_both(self):
+        self.assertRegex(self.step, r"The spec records [^.]*check suite[^.]*execution surface")
+
+    def test_it_allows_review_areas_beyond_gos_ten(self):
+        for phrase in ("beyond Go's ten", "CONTRIBUTING.md#shared-rules-for-every-language", "the spec records why"):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, self.step)
+
+    def test_it_skips_the_suite_under_option_two(self):
+        self.assertIn("option two", self.step)
+        self.assertIn("no check suite", self.done)
+
+    def test_its_done_condition_covers_the_suite_and_surface(self):
+        for phrase in ("pinned version", "floats", "untrusted-input", "execution surface"):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, self.done)
+
+
+class LinksTest(unittest.TestCase):
+    def test_relative_links_resolve(self):
+        for path in (SKILL_DIR / "SKILL.md", SKILL_DIR / "references/gotchas.md", SKILL_DIR / "references/tickets.md"):
+            for target in relative_links(path.read_text(encoding="utf-8")):
+                with self.subTest(file=path.name, target=target):
+                    file, _, anchor = target.partition("#")
+                    resolved = (path.parent / file) if file else path
+                    self.assertTrue(resolved.exists(), f"{target} does not exist")
+                    if anchor and resolved.suffix == ".md":
+                        self.assertIn(anchor, anchors(resolved))
 
 
 if __name__ == "__main__":

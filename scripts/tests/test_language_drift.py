@@ -62,6 +62,19 @@ class ReadPinsTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     language_drift.read_pins(self.checks_md(table + row + "\n"))
 
+    def test_rejects_a_row_with_no_package(self):
+        # An empty package would match every step, so only the version would have to appear.
+        table = "## Pinned versions\n\n| Tool | Version | Package |\n| --- | --- | --- |\n| ruff | `1.2.3` |  |\n"
+        with self.assertRaises(ValueError):
+            language_drift.read_pins(self.checks_md(table))
+
+    def test_rejects_a_tool_listed_twice(self):
+        # The second row would overwrite the first, so the first pin would go unchecked.
+        table = "## Pinned versions\n\n| Tool | Version | Package |\n| --- | --- | --- |\n"
+        rows = "| ruff | `1.2.3` | `ruff` |\n| ruff | `9.9.9` | `ruff` |\n"
+        with self.assertRaises(ValueError):
+            language_drift.read_pins(self.checks_md(table + rows))
+
     def test_rejects_a_checks_md_with_no_pinned_versions_table(self):
         # A drift test with no pins would check nothing.
         with self.assertRaises(ValueError):
@@ -125,7 +138,24 @@ class BlocksTests(unittest.TestCase):
             "lint . ||\n  exit 1",
             "[ ! -f go.sum ] && echo no go.sum; lint .",
             "if ! lint .; then exit 1; fi",
+            "if ! lint .; then\n  echo failed\n  exit 1\nfi",
+            "if lint .; then echo ok; else exit 1; fi",
+            "if [ -d src ]; then lint src; fi",
+            "while [ -n \"$x\" ]; do lint \"$x\"; x=; done",
             "echo 'a || b'",
+            # A multi-line group that ends in a failing command.
+            "lint . || {\n  echo failed\n  exit 1\n}",
+            # A comment is not syntax.
+            "lint . # a || true comment",
+            "lint .  # runs lint & tests | nothing",
+            # pipefail makes a pipe fail when any command in it does.
+            "set -o pipefail\nlint . | tee out",
+            "set -euo pipefail; lint . | tee out",
+            # The last command of a step sets its exit status, so a failure before its final && fails the step.
+            "cd src && lint .",
+            "echo start\ncd src && lint .",
+            # Redirections are not background jobs.
+            "lint . 2>&1\nlint . >&2\nlint . &>out.txt",
         ):
             with self.subTest(run):
                 self.assertEqual(language_drift.exit_problems(workflow(job({"run": run})), "suite"), [])
@@ -150,10 +180,38 @@ class BlocksTests(unittest.TestCase):
             "set +o errexit": workflow(job({"run": "set +o errexit; lint ."})),
             "negated": workflow(job({"run": "! lint ."})),
             "negated after another command": workflow(job({"run": "cd src && ! lint ."})),
+            # Under bash -e without pipefail, a pipe fails only when its last command does.
+            "a pipe": workflow(job({"run": "lint . | tee out"})),
+            "a pipe before pipefail is set": workflow(job({"run": "lint . | tee out\nset -o pipefail"})),
+            # A failing condition takes the other branch, or ends the loop.
+            "an if condition": workflow(job({"run": "if lint .; then echo ok; fi"})),
+            "a multi-line if condition": workflow(job({"run": "if lint .; then\n  echo ok\nfi"})),
+            "an if whose else passes": workflow(job({"run": "if lint .; then echo ok; else echo failed; fi"})),
+            "a negated if that does not fail": workflow(job({"run": "if ! lint .; then echo failed; fi"})),
+            "a while condition": workflow(job({"run": "while lint .; do break; done"})),
+            "an until condition": workflow(job({"run": "until lint .; do sleep 1; done"})),
+            # A background job's exit status is never read.
+            "a background job": workflow(job({"run": "lint . &"})),
+            "a background job mid-line": workflow(job({"run": "lint . & test ."})),
+            # Only the command after the final && of a list fails the shell, unless the list ends the step.
+            "a command before && that is not last": workflow(job({"run": "lint . && echo ok\necho done"})),
+            "a command before && mid-line": workflow(job({"run": "lint . && echo ok; echo done"})),
+            "a multi-line group that does not fail": workflow(job({"run": "lint . || {\n  echo failed\n}"})),
         }
         for case, flow in cases.items():
             with self.subTest(case):
                 self.assertNotEqual(language_drift.exit_problems(flow, "suite"), [])
+
+    def test_reads_empty_defaults(self):
+        # YAML loads `defaults:` and `run:` with nothing after them as None.
+        for defaults in (None, {"run": None}):
+            with self.subTest(defaults=defaults):
+                for flow in (
+                    workflow(job({"run": "lint ."}), defaults=defaults),
+                    workflow(job({"run": "lint ."}, defaults=defaults)),
+                ):
+                    self.assertEqual(language_drift.exit_problems(flow, "suite"), [])
+                    self.assertEqual(list(language_drift.run_lines(flow, "suite")), [(".", "lint .")])
 
 
 PINS = {"vulncheck": Pin("v1.10.0", "example.com/vulncheck"), "linter": Pin("2.0.0", "linter")}
@@ -178,6 +236,16 @@ class ExactPinTests(unittest.TestCase):
         )
         self.assertEqual(language_drift.pin_problems(flow, "suite", PINS), [])
 
+    def test_a_step_that_runs_a_pinned_tool_without_installing_it_passes(self):
+        flow = workflow(
+            job(
+                {"run": "go install example.com/vulncheck@v1.10.0"},
+                {"run": "vulncheck ./..."},
+                {"run": "pip install linter==2.0.0\nlinter --strict ."},
+            )
+        )
+        self.assertEqual(language_drift.pin_problems(flow, "suite", PINS), [])
+
     def test_a_tool_at_another_version_or_none_fails(self):
         linter = {"run": "pip install linter==2.0.0"}
         cases = {
@@ -189,6 +257,21 @@ class ExactPinTests(unittest.TestCase):
             "version on another step": [{"run": "vulncheck ./..."}, {"run": "pip install linter==2.0.0 x==v1.10.0"}],
             # A step's name labels it; it installs nothing.
             "version only in the name": [{"name": "vulncheck v1.10.0", "run": "go install example.com/vulncheck"}, linter],
+            # The version belongs to another package in the same step.
+            "version on another package": [{"run": "pip install vulncheck other==v1.10.0"}, linter],
+            # One pinned step does not excuse another that installs the tool at another version.
+            "pinned and latest": [
+                {"run": "go run example.com/vulncheck@v1.10.0 ./..."},
+                {"run": "go install example.com/vulncheck@latest"},
+                linter,
+            ],
+            "pinned and unversioned": [
+                {"run": "go run example.com/vulncheck@v1.10.0 ./..."},
+                {"run": "pip install vulncheck"},
+                linter,
+            ],
+            # govulncheck is another tool whose name holds vulncheck.
+            "a tool whose name holds this one": [{"run": "go install x/govulncheck@v1.10.0"}, linter],
         }
         for case, steps in cases.items():
             with self.subTest(case):
@@ -201,7 +284,7 @@ class LockfilePinTests(unittest.TestCase):
     """A version also counts as pinned when a committed lockfile fixes it and CI installs it frozen or locked."""
 
     FIXTURE = Path(__file__).resolve().parent / "fixtures/lockfile-pin"
-    LOCKFILES = {"fixlint": "tools/tools.lock"}
+    LOCKFILES = {"fixlint": "tools/uv.lock"}
 
     def setUp(self):
         self.workflow = yaml.safe_load((self.FIXTURE / "workflow.yml").read_text(encoding="utf-8"))
@@ -224,16 +307,34 @@ class LockfilePinTests(unittest.TestCase):
         self.assertEqual(self.problems(), [])
 
     def test_each_locked_or_frozen_install_flag_counts(self):
-        for command in ("pkg install --locked", "pkg sync --frozen-lockfile", "pkg install --immutable", "npm ci"):
+        for command in ("uv sync --locked", "uv sync --frozen", "UV_PYTHON=3.13 uv sync --locked --all-groups"):
             with self.subTest(command):
                 flow = copy.deepcopy(self.workflow)
                 self.install_step(flow)["run"] = command
                 self.assertEqual(self.problems(flow), [])
 
     def test_an_install_that_may_change_the_lockfile_fails(self):
-        flow = copy.deepcopy(self.workflow)
-        self.install_step(flow)["run"] = "pkg install"
-        self.assertEqual(len(self.problems(flow)), 1)
+        for command in (
+            "uv sync",
+            # The flag must belong to the lockfile's own install command.
+            "echo --frozen; uv sync",
+            "uv sync # --frozen",
+            "npm ci",
+            "cargo build --locked",
+        ):
+            with self.subTest(command):
+                flow = copy.deepcopy(self.workflow)
+                self.install_step(flow)["run"] = command
+                self.assertEqual(len(self.problems(flow)), 1)
+
+    def test_another_step_that_installs_the_tool_unpinned_fails(self):
+        for command in ("pip install fixlint", "uvx fixlint ../src", "pip install fixlint==2.4.2"):
+            with self.subTest(command):
+                flow = copy.deepcopy(self.workflow)
+                flow["jobs"]["suite"]["steps"].append({"run": command})
+                problems = self.problems(flow)
+                self.assertEqual(len(problems), 1, problems)
+                self.assertIn("fixlint", problems[0])
 
     def test_a_frozen_install_in_another_directory_fails(self):
         flow = copy.deepcopy(self.workflow)
@@ -305,6 +406,15 @@ source = { registry = "https://pypi.org/simple" }
         self.assertTrue(language_drift.locks_version(lock, "eslint", "9.10.0"))
         self.assertFalse(language_drift.locks_version(lock, "eslint", "9.9.0"))
 
+    def test_reads_only_the_top_level_entry_of_package_lock_json(self):
+        # A nested copy is another package's dependency; the suite runs the top-level one.
+        lock = self.lockfile(
+            '{\n  "packages": {\n    "node_modules/eslint": {\n      "version": "9.10.0"\n    },\n'
+            '    "node_modules/foo/node_modules/eslint": {\n      "version": "9.9.0"\n    }\n  }\n}\n'
+        )
+        self.assertTrue(language_drift.locks_version(lock, "eslint", "9.10.0"))
+        self.assertFalse(language_drift.locks_version(lock, "eslint", "9.9.0"))
+
     def test_reads_pnpm_lock_yaml(self):
         lock = self.lockfile(
             "importers:\n  .:\n    devDependencies:\n      eslint:\n        specifier: 9.9.0\n        version: 9.10.0\n\n"
@@ -319,6 +429,37 @@ source = { registry = "https://pypi.org/simple" }
         lock = self.lockfile('"eslint@npm:9.9.0":\n  version: 9.10.0\n  resolution: "eslint@npm:9.10.0"\n')
         self.assertTrue(language_drift.locks_version(lock, "eslint", "9.10.0"))
         self.assertFalse(language_drift.locks_version(lock, "eslint", "9.9.0"))
+
+
+class FrozenInstallTests(unittest.TestCase):
+    """frozen_install knows each lockfile's own frozen or locked install."""
+
+    def test_each_lockfile_has_its_own_frozen_install(self):
+        cases = {
+            "Cargo.lock": ("cargo build --locked", "cargo test --frozen"),
+            "uv.lock": ("uv sync --locked", "uv run --frozen pytest"),
+            "package-lock.json": ("npm ci", "npm clean-install"),
+            "pnpm-lock.yaml": ("pnpm install --frozen-lockfile",),
+            "yarn.lock": ("yarn install --immutable", "yarn --frozen-lockfile"),
+        }
+        for lockfile, commands in cases.items():
+            for command in commands:
+                with self.subTest(lockfile=lockfile, command=command):
+                    self.assertTrue(language_drift.frozen_install(f"tools/{lockfile}", command))
+
+    def test_an_install_that_may_change_the_lockfile_or_belongs_to_another_does_not_count(self):
+        cases = {
+            "Cargo.lock": ("cargo build", "uv sync --locked", "echo --locked; cargo build"),
+            "uv.lock": ("uv sync", "uv lock", "npm ci", "echo uv sync --locked"),
+            "package-lock.json": ("npm install", "pnpm install --frozen-lockfile"),
+            "pnpm-lock.yaml": ("pnpm install", "npm ci"),
+            "yarn.lock": ("yarn install", "npm ci"),
+            "tools.lock": ("pkg install --frozen",),
+        }
+        for lockfile, commands in cases.items():
+            for command in commands:
+                with self.subTest(lockfile=lockfile, command=command):
+                    self.assertFalse(language_drift.frozen_install(lockfile, command))
 
 
 class DriftTestsTests(unittest.TestCase):

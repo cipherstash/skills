@@ -1,6 +1,6 @@
 # Checks for a made-up language
 
-A fixture for test_language_drift.py. Its one tool is pinned through the lockfile `tools/tools.lock`, which the
+A fixture for test_language_drift.py. Its one tool is pinned through the lockfile `tools/uv.lock`, which the
 workflow installs frozen.
 
 ## Pinned versions

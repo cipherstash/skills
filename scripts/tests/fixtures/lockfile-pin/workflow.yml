@@ -1,4 +1,4 @@
-# A fixture for test_language_drift.py: a suite whose one tool, fixlint, is pinned by tools/tools.lock and installed
+# A fixture for test_language_drift.py: a suite whose one tool, fixlint, is pinned by tools/uv.lock and installed
 # frozen. GitHub never runs it, because it is not under .github/workflows/.
 on:
   pull_request:
@@ -12,6 +12,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install the locked tools
-        run: pkg install --frozen
+        run: uv sync --frozen
       - name: fixlint
-        run: pkg exec fixlint ../src
+        run: uv run fixlint ../src

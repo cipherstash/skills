@@ -45,6 +45,20 @@ class ReadPinsTests(unittest.TestCase):
             },
         )
 
+    def test_ignores_a_deeper_pinned_versions_heading(self):
+        text = "# Checks\n\n### Pinned versions\n\n| Tool | Version | Package |\n| --- | --- | --- |\n| old | `0.1.0` | `old` |\n\n" + TABLE.split("# Checks\n\n", 1)[1]
+        self.assertNotIn("old", language_drift.read_pins(self.checks_md(text)))
+
+    def test_rejects_a_document_with_only_a_deeper_heading(self):
+        text = "# Checks\n\n### Pinned versions\n\n| Tool | Version | Package |\n| --- | --- | --- |\n| ruff | `0.6.0` | `ruff` |\n"
+        with self.assertRaisesRegex(ValueError, "no ## Pinned versions section"):
+            language_drift.read_pins(self.checks_md(text))
+
+    def test_ignores_a_heading_that_only_starts_with_pinned_versions(self):
+        text = "# Checks\n\n## Pinned versions history\n\n| Tool | Version | Package |\n| --- | --- | --- |\n| ruff | `0.6.0` | `ruff` |\n"
+        with self.assertRaisesRegex(ValueError, "no ## Pinned versions section"):
+            language_drift.read_pins(self.checks_md(text))
+
     def test_reads_a_row_with_trailing_whitespace(self):
         # Editors and table formatters leave spaces after the last pipe.
         table = "## Pinned versions\n\n| Tool | Version | Package |\n| --- | --- | --- |\n"

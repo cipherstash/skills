@@ -184,6 +184,7 @@ Each skill is authored once under `plugins/company-skills/skills/`. The portable
 | `filing-github-issues` | Draft and file well-structured GitHub issues on CipherStash repos | Explicit or automatic |
 | `authoring-pull-requests` | Branch, commit, and open draft pull requests with a consistent structure | Explicit or automatic |
 | `plain-language` | Write, rewrite, and review prose in plain language (ISO 24495 and GOV.UK), with a bundled checker | Explicit or automatic |
+| `implement-tickets` | Build a spec's `ready-for-agent` tickets into stacked draft PRs, review and fix each one, and write a run report | Claude Code only: a person types `/company-skills:implement-tickets <spec number>` |
 
 Code review skills (`review-*`) work with the findings of a code review: auditing a PR's existing feedback, cross-checking new findings against it, posting them, and fixing them. None of them performs the review itself. `golang-review` performs one for a Go change and reports findings in the severities they take.
 
@@ -194,6 +195,11 @@ Convention skills (`rust-*` and `golang-practices`) carry coding rules rather th
 The Vanta skills also need the Linear connector, read-only Vanta API credentials (`vanta-api.all:read`) with network access to `api.vanta.com` for `vanta-triage`, either as an environment network secret of type OAuth 2.0 client credentials for `api.vanta.com` or as `VANTA_CLIENT_ID` and `VANTA_CLIENT_SECRET`, and each target ecosystem's toolchain (`cargo`, `pnpm`/`npm`/`yarn`/`bun`, `go`, `poetry`/`uv`) for `vanta-remediate`. `vanta-remediate` also needs the GitHub MCP server for pull requests and `git` push access to the target repos; it does not use the `gh` CLI. Both run unattended, so they suit Claude Code routines.
 
 `plain-language` is ported from [auxesis/plain-language-skill](https://github.com/auxesis/plain-language-skill) under the Apache License 2.0; its `LICENSE` and `NOTICE` files carry the licence, the Open Government Licence credit for the GOV.UK material, and the changes made here. The port ships the skill and its checker, `scripts/check.py`, which needs Python 3.9 or later and no packages. It does not ship the upstream plugin's hooks, which add the rules to every session and send back chat replies that break them; install that plugin separately if you want them.
+
+`implement-tickets` runs a Claude Code workflow script that ships inside the skill, so the command is found in any repository. Only a person can start it, because typing the command is their opt-in to a run of up to four agents at once. It never merges a PR or marks one ready. Codex cannot run workflows, so in Codex it says so and stops. It needs Git and GitHub access for its agents. It uses two more things where they are there:
+
+- The `mattpocock-skills` plugin, whose `tdd` and `code-review` skills its agents call. company-skills does not install it. Without it, the agents follow its steps themselves: red, green, refactor to build, and a review of the diff against the ticket. Each records a deviation.
+- The Claude review routine in [`.github/workflows/claude-review.yml`](.github/workflows/claude-review.yml), which a review request for `cipherstash-agent` starts. The script's `routine` argument defaults to whether the repository has that file. Without it, the run requests no routine review and waits for none, a Haiku step waits for CI only, and each fix round audits the independent review, the PR's threads and CI.
 
 `run-report` publishes through Claude's Artifact tool; on a host without it, the report goes in the run's final message. List it first in a routine's prompt so it logs problems from the start of the run, for example:
 

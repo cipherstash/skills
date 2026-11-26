@@ -25,7 +25,7 @@ anchors, relative_links = _load_link_helpers()
 
 
 REPO = Path(__file__).resolve().parents[2]
-# Found by prefix, so the tests survive the planned rename to building-language-skills.
+# Found by prefix, so the tests outlive a rename of the process skill.
 _SKILL_DIRS = sorted((REPO / ".claude/skills").glob("building-language-*"))
 assert len(_SKILL_DIRS) == 1, f"expected one building-language-* skill, found {_SKILL_DIRS}"
 SKILL_DIR = _SKILL_DIRS[0]

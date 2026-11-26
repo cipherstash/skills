@@ -49,5 +49,28 @@ class ReviewToolsGotchaTest(unittest.TestCase):
                 self.assertIn(phrase, text)
 
 
+def proves(number):
+    """Return ticket number's entry under "What each ticket proves" in tickets.md."""
+    section = TICKETS.split("\n## What each ticket proves\n", 1)[1].split("\n## ", 1)[0]
+    for item in re.split(r"\n(?=\d+\. \*\*)", section):
+        if item.lstrip().startswith(f"{number}. **"):
+            return item
+    raise AssertionError(f"tickets.md proves nothing for ticket {number}")
+
+
+class TicketOneTest(unittest.TestCase):
+    def test_its_script_test_runs_no_checks(self):
+        self.assertNotIn("runs the language's checks", TICKETS)
+        text = proves(1)
+        self.assertIn("runs none of the suite's checks", text)
+        self.assertIn("matches every quoted block to its source", text)
+
+    def test_it_builds_the_check_suite(self):
+        text = proves(1)
+        for phrase in ("`references/checks.md`", "pinned-versions table", "CI job", "over the examples", "drift test"):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, text)
+
+
 if __name__ == "__main__":
     unittest.main()

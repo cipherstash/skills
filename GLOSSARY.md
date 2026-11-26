@@ -75,7 +75,7 @@ Bytes that come from outside the process, such as a request body, a file, or a m
 _Avoid_: User input, external data
 
 **In place**:
-A check is in place when it is a GitHub Actions step that runs on `pull_request`, blocks when it fails, covers every module except fixtures with planted defects, and pins its version. Nothing may ignore its exit status: no `continue-on-error`, no `|| true`, and no `continue-on-error` step that a later step enforces. A path-filtered trigger counts only alongside a changes job that fails closed. A version is pinned when it is exact, or fixed by a committed lockfile that CI installs frozen or locked. The language runtime floats.
+A check is in place when it is a GitHub Actions step that runs on `pull_request`, blocks when it fails, covers every module except fixtures with planted defects, and pins its version. Nothing may ignore its exit status: no `continue-on-error`, even when a later step enforces its result; no `|| true`; and no other way, such as a shell without `-e` or a pipe without `pipefail`. A path-filtered trigger counts only alongside a changes job that fails closed. A version is pinned when it is exact, or fixed by a committed lockfile that CI installs frozen or locked. The language runtime floats.
 _Avoid_: Enabled, configured, present
 
 **Execution surface**:

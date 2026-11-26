@@ -52,11 +52,23 @@ Every design step posts its result as a comment on the parent ticket, and this r
    - each shared question that the rules and ADRs do not settle has its own ticket;
    - the comment lists the shared tickets this step filed or linked.
 
-2. **Write the checklist.** Draft the review skill's areas table, modelled on the ten areas in `golang-review`'s SKILL.md. Give each area its priority and the tool that gives evidence for it. Go used `go vet`, `gofmt`, race-enabled tests with coverage, `govulncheck`, `go mod tidy -diff`, and an exported-API comparison. List the examples each area's reference needs: one per rule that prose cannot state, marked as upstream as is, upstream with a fix, or new. Name the language and runtime versions the references will target. Name the toolchain CI must install. Do not answer open questions yourself. Add each one this step raises to step 1's list, and sort it as step 1 says. Done when:
+2. **Write the checklist and draft the check suite.** Draft the review skill's areas table, modelled on the ten areas in `golang-review`'s SKILL.md. Give each area its priority and the tool that gives evidence for it. Go used `go vet`, `gofmt`, race-enabled tests with coverage, `govulncheck`, `go mod tidy -diff`, and an exported-API comparison. You may add a review area beyond Go's ten under the rule in CONTRIBUTING.md's [Shared rules for every language](../../../CONTRIBUTING.md#shared-rules-for-every-language): a suite tool gives evidence for the area, and the review fixture can plant a defect in it. For each one you add, the spec records why. List the examples each area's reference needs: one per rule that prose cannot state, marked as upstream as is, upstream with a fix, or new. Name the minimum language and runtime versions the references will target.
+
+   Then draft the language's check suite, which ticket 1 builds. Follow the shared rules in that CONTRIBUTING.md section, and decide only what is the language's own. Go's draft is spec #87, and its result is `golang-practices`' `references/checks.md`. The draft names:
+   - **Tools**: each check the suite runs, the areas it gives evidence for, and the toolchain CI must install.
+   - **Pinned versions**: an exact pinned version for each tool, or the committed lockfile that CI installs frozen or locked.
+   - **What floats**: the language runtime, which CI takes at its latest stable or LTS release, and anything else that floats by choice, such as the semgrep ruleset.
+   - **Untrusted input**: the tool that tests a function that parses or decodes untrusted input, a fuzz target or a property test, and how pull request CI keeps its inputs fixed. If neither fits the language, say why neither fits.
+
+   List the language's [execution surface](../../../GLOSSARY.md#language-skills): the files and flags through which a change runs its own code when the suite's tools build, lint, or test it. Examples are Python's `conftest.py`, Rust's `build.rs`, and Go's `-toolexec`. The review runs nothing when a change touches one, until the user says yes, so ticket 3's criteria name each entry, as [references/tickets.md](references/tickets.md) says.
+
+   The spec records the areas table, the check suite draft, and the execution surface, as #87 did for Go's check suite. Do not answer open questions yourself. Add each one this step raises to step 1's list, and sort it as step 1 says. Done when:
    - every area names its evidence, or says it has none;
    - every area lists its examples, or says it needs none;
+   - the check suite draft names each tool, its pinned version, what floats, and the untrusted-input test tool or why none fits;
+   - the execution surface is listed;
    - each shared question this step raised is settled or has its own ticket;
-   - the checklist is posted as a comment on the parent ticket, with the shared tickets this step filed or linked.
+   - the checklist, the check suite draft, and the execution surface are posted as a comment on the parent ticket, with the shared tickets this step filed or linked.
 
 3. **Audit the upstream skill** against that checklist, at the `sha` pinned for it in `.claude-plugin/marketplace.json`. Read every reference, and build and run every example. Record each defect with its file, line, and checklist area. Record which areas upstream covers fully, partly, or not at all. Then update step 2's examples list. An upstream example with no defect stays as it is. One with a defect gets the smallest fix. Add each open question the audit raises to step 1's list, and sort it as step 1 says. With no upstream skill, post a comment on the parent ticket saying so, and go to step 4. Done when a comment on the parent ticket says there is no upstream skill, or when:
    - you have read each upstream file;

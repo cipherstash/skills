@@ -45,6 +45,23 @@ class ReadPinsTests(unittest.TestCase):
             },
         )
 
+    def test_reads_a_row_with_trailing_whitespace(self):
+        # Editors and table formatters leave spaces after the last pipe.
+        table = "## Pinned versions\n\n| Tool | Version | Package |\n| --- | --- | --- |\n"
+        rows = "| ruff | `0.6.0` | `ruff` |\n| mypy | `1.11.0` | `mypy` | \t\n"
+        self.assertEqual(
+            language_drift.read_pins(self.checks_md(table + rows)),
+            {"ruff": Pin("0.6.0", "ruff"), "mypy": Pin("1.11.0", "mypy")},
+        )
+
+    def test_rejects_a_table_line_it_cannot_read(self):
+        # A row the parser skipped would leave that tool's pin unchecked.
+        table = "## Pinned versions\n\n| Tool | Version | Package |\n| --- | --- | --- |\n| ruff | `0.6.0` | `ruff` |\n"
+        for row in ("| mypy | 1.11.0 | `mypy` |", "| mypy | `1.11.0` |"):
+            with self.subTest(row):
+                with self.assertRaises(ValueError):
+                    language_drift.read_pins(self.checks_md(table + row + "\n"))
+
     def test_rejects_a_checks_md_with_no_pinned_versions_table(self):
         # A drift test with no pins would check nothing.
         with self.assertRaises(ValueError):
@@ -99,6 +116,20 @@ class BlocksTests(unittest.TestCase):
         )
         self.assertEqual(language_drift.exit_problems(flow, "suite"), [])
 
+    def test_an_or_that_still_fails_the_job_passes(self):
+        for run in (
+            "lint . || exit 1",
+            "lint . || exit",
+            "lint . || false",
+            "lint . || { echo failed; exit 1; }",
+            "lint . ||\n  exit 1",
+            "[ ! -f go.sum ] && echo no go.sum; lint .",
+            "if ! lint .; then exit 1; fi",
+            "echo 'a || b'",
+        ):
+            with self.subTest(run):
+                self.assertEqual(language_drift.exit_problems(workflow(job({"run": run})), "suite"), [])
+
     def test_a_step_that_can_fail_without_failing_the_job_fails(self):
         cases = {
             "job continue-on-error": workflow(job({"run": "lint ."}, **{"continue-on-error": True})),
@@ -112,6 +143,13 @@ class BlocksTests(unittest.TestCase):
             "or true": workflow(job({"run": "lint . || true"})),
             "or colon": workflow(job({"run": "lint .  ||  :"})),
             "or true mid-line": workflow(job({"run": "lint . || true; echo done"})),
+            "or echo": workflow(job({"run": "lint . || echo failed"})),
+            "or exit 0": workflow(job({"run": "lint . || exit 0"})),
+            "or a group that does not fail": workflow(job({"run": "lint . || { echo failed; }"})),
+            "set +e": workflow(job({"run": "set +e\nlint ."})),
+            "set +o errexit": workflow(job({"run": "set +o errexit; lint ."})),
+            "negated": workflow(job({"run": "! lint ."})),
+            "negated after another command": workflow(job({"run": "cd src && ! lint ."})),
         }
         for case, flow in cases.items():
             with self.subTest(case):
@@ -131,6 +169,15 @@ class ExactPinTests(unittest.TestCase):
         )
         self.assertEqual(language_drift.pin_problems(flow, "suite", PINS), [])
 
+    def test_a_version_in_a_step_env_pins_it(self):
+        flow = workflow(
+            job(
+                {"env": {"VULNCHECK_VERSION": "v1.10.0"}, "run": "go install example.com/vulncheck@$VULNCHECK_VERSION"},
+                {"run": "pip install linter==2.0.0"},
+            )
+        )
+        self.assertEqual(language_drift.pin_problems(flow, "suite", PINS), [])
+
     def test_a_tool_at_another_version_or_none_fails(self):
         linter = {"run": "pip install linter==2.0.0"}
         cases = {
@@ -140,6 +187,8 @@ class ExactPinTests(unittest.TestCase):
             "missing": [linter],
             # The version belongs to another step, so it does not pin this tool.
             "version on another step": [{"run": "vulncheck ./..."}, {"run": "pip install linter==2.0.0 x==v1.10.0"}],
+            # A step's name labels it; it installs nothing.
+            "version only in the name": [{"name": "vulncheck v1.10.0", "run": "go install example.com/vulncheck"}, linter],
         }
         for case, steps in cases.items():
             with self.subTest(case):
@@ -197,8 +246,79 @@ class LockfilePinTests(unittest.TestCase):
             with self.subTest(version):
                 self.assertEqual(len(self.problems(pins={"fixlint": Pin(version, "fixlint")})), 1)
 
+    def test_a_frozen_install_in_the_workflow_default_directory_passes(self):
+        flow = copy.deepcopy(self.workflow)
+        flow["defaults"] = flow["jobs"]["suite"].pop("defaults")
+        self.assertEqual(self.problems(flow), [])
+
     def test_a_missing_lockfile_fails(self):
         self.assertEqual(len(self.problems(lockfiles={"fixlint": "tools/missing.lock"})), 1)
+
+
+class LocksVersionTests(unittest.TestCase):
+    """locks_version reads the version from the package's own entry, in each common lockfile layout."""
+
+    def lockfile(self, text):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        path = Path(directory.name, "lockfile")
+        path.write_text(text, encoding="utf-8")
+        return path
+
+    UV_LOCK = """version = 1
+
+[[package]]
+name = "project"
+version = "0.1.0"
+dependencies = [
+    { name = "ruff" },
+]
+
+[package.metadata.requires-dev]
+dev = [{ name = "ruff", specifier = ">=0.6.0" }]
+
+[[package]]
+name = "ruff"
+version = "0.7.4"
+source = { registry = "https://pypi.org/simple" }
+"""
+
+    def test_reads_the_resolved_version_not_a_requirement_that_names_the_package(self):
+        lock = self.lockfile(self.UV_LOCK)
+        self.assertTrue(language_drift.locks_version(lock, "ruff", "0.7.4"))
+        self.assertFalse(language_drift.locks_version(lock, "ruff", "0.6.0"))
+
+    def test_reads_cargo_lock(self):
+        lock = self.lockfile(
+            '[[package]]\nname = "cargo-deny"\nversion = "0.16.1"\ndependencies = [\n "serde 1.0.200",\n]\n\n'
+            '[[package]]\nname = "serde"\nversion = "1.0.200"\n'
+        )
+        self.assertTrue(language_drift.locks_version(lock, "cargo-deny", "0.16.1"))
+        self.assertTrue(language_drift.locks_version(lock, "serde", "1.0.200"))
+        self.assertFalse(language_drift.locks_version(lock, "cargo-deny", "1.0.200"))
+
+    def test_reads_package_lock_json(self):
+        lock = self.lockfile(
+            '{\n  "packages": {\n    "": {\n      "devDependencies": {\n        "eslint": "9.9.0"\n      }\n    },\n'
+            '    "node_modules/eslint": {\n      "version": "9.10.0",\n      "dev": true\n    }\n  }\n}\n'
+        )
+        self.assertTrue(language_drift.locks_version(lock, "eslint", "9.10.0"))
+        self.assertFalse(language_drift.locks_version(lock, "eslint", "9.9.0"))
+
+    def test_reads_pnpm_lock_yaml(self):
+        lock = self.lockfile(
+            "importers:\n  .:\n    devDependencies:\n      eslint:\n        specifier: 9.9.0\n        version: 9.10.0\n\n"
+            "packages:\n  eslint@9.10.0:\n    resolution: {integrity: sha512-x}\n  '@scope/tool@1.2.3':\n"
+            "    resolution: {integrity: sha512-y}\n"
+        )
+        self.assertTrue(language_drift.locks_version(lock, "eslint", "9.10.0"))
+        self.assertFalse(language_drift.locks_version(lock, "eslint", "9.9.0"))
+        self.assertTrue(language_drift.locks_version(lock, "@scope/tool", "1.2.3"))
+
+    def test_reads_yarn_lock(self):
+        lock = self.lockfile('"eslint@npm:9.9.0":\n  version: 9.10.0\n  resolution: "eslint@npm:9.10.0"\n')
+        self.assertTrue(language_drift.locks_version(lock, "eslint", "9.10.0"))
+        self.assertFalse(language_drift.locks_version(lock, "eslint", "9.9.0"))
 
 
 class DriftTestsTests(unittest.TestCase):

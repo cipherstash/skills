@@ -12,6 +12,8 @@ import unittest
 
 REPO = Path(__file__).resolve().parents[2]
 SKILL = REPO / ".claude" / "skills" / "building-language-pairs" / "SKILL.md"
+TICKETS = SKILL.parent / "references" / "tickets.md"
+CONTRIBUTING = REPO / "CONTRIBUTING.md"
 STEP = re.compile(r"^(\d+)\. \*\*(.+?)\*\*(.*)$", re.MULTILINE)
 
 
@@ -72,6 +74,48 @@ class DesignLoopTest(unittest.TestCase):
         _, _, body = step_named(self.design, "checklist")
         self.assertNotIn("Answer each open question", body)
         self.assertIn("grill", body)
+
+    def test_steps_two_and_three_send_new_shared_questions_to_their_own_ticket(self):
+        # ADR 0003 item 2 and #127: a shared question goes to its own ticket, never to the language's grill.
+        for word in ("checklist", "audit"):
+            _, title, body = step_named(self.design, word)
+            with self.subTest(step=title):
+                self.assertIn("its own ticket", body)
+                self.assertIn("Only language-only questions go to the grill", body)
+                done = body.split("Done when", 1)[1]
+                self.assertIn("settled or has its own ticket", done)
+
+    def test_grill_waits_for_the_shared_tickets_to_be_settled(self):
+        # ADR 0003 item 2: settle the shared questions before any language grill.
+        _, _, body = step_named(self.design, "grill")
+        self.assertIn("Start only once every shared ticket filed in steps 1 to 3 is settled", body)
+        self.assertIn("stop and report", body)
+
+    def test_grill_adrs_and_glossary_entries_do_not_land_in_a_language_pr(self):
+        # CONTRIBUTING.md Pull requests and ADR 0003 item 5: shared text changes only through its own ticket.
+        _, _, body = step_named(self.design, "grill")
+        self.assertNotIn("first ticket, and", body)
+        self.assertNotIn("land with the language's first ticket", body)
+        self.assertIn("shared-text ticket", body)
+        self.assertIn("blocks the first ticket of the language's layout", body)
+        self.assertIn("shared-text ticket", body.split("Done when", 1)[1])
+
+    def test_spec_step_blocks_the_first_ticket_on_the_shared_text_ticket(self):
+        _, _, body = step_named(self.design, "spec")
+        self.assertIn("shared-text ticket", body)
+
+    def test_ticket_breakdown_sends_contributing_changes_to_their_own_ticket(self):
+        text = TICKETS.read_text(encoding="utf-8")
+        self.assertNotIn("Put a change that design settles in the first ticket", text)
+        self.assertNotIn("in the ticket that finds it", text)
+        self.assertIn("shared-text ticket", text)
+
+    def test_contributing_names_research_and_the_grill(self):
+        text = CONTRIBUTING.read_text(encoding="utf-8")
+        line = next(l for l in text.splitlines() if "project skill. It takes a language ticket" in l)
+        for phrase in ("research", "grill"):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, line)
 
     def test_resuming_reads_the_design_state_from_the_parent_ticket(self):
         resuming = section(self.text, "Resuming")

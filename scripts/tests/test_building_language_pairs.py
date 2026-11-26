@@ -216,6 +216,7 @@ STEP_REFERENCES = {
         "from steps 1 to 4": {1: "research", 4: "grill"},
         "shared tickets that steps 1 to 3 filed": {1: "research", 3: "audit"},
         "step 4 takes the language-only": {4: "grill"},
+        "the grill in step 4 may pick": {4: "grill"},
         "to step 1's list, and sort it as step 1 says": {1: "research"},
         "update step 2's examples list": {2: "checklist"},
         "go to step 4": {4: "grill"},

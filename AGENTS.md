@@ -2,9 +2,9 @@
 
 Every published skill lives once, in `plugins/company-skills/skills/`; Codex and Claude Code both publish from that directory. Skills for working on this repository live in `.claude/skills/` and are not published.
 
-When adding, changing, renaming, or releasing a published skill, follow [CONTRIBUTING.md](CONTRIBUTING.md). The change is done when it meets every authoring rule and behavior case, the README's installation and invocation instructions are current for both hosts, and `python3 scripts/validate.py` passes. Skills in `.claude/skills/` are exempt from these rules and checks.
+When adding, changing, renaming, or releasing a published skill, follow [CONTRIBUTING.md](CONTRIBUTING.md). The change is done when it meets every authoring rule and behavior case, the README's installation and invocation instructions are current for both hosts, and `python3 scripts/validate.py` passes. Skills in `.claude/skills/` are exempt from these rules and checks. A language's ticket PRs into its integration branch leave the README to its release ticket PR, as CONTRIBUTING.md's pull request rules say.
 
-To build a language's skill pair (`<lang>-practices` and `<lang>-review`), read and follow `.claude/skills/building-language-pairs/SKILL.md`.
+To build a language's skills (`<lang>-practices`, `<lang>-review`, and its check suite), read and follow `.claude/skills/building-language-skills/SKILL.md`.
 
 In Claude Code, to build a spec's approved tickets into a chain of reviewed PRs, a person types `/company-skills:implement-tickets <spec number>`. The published `implement-tickets` skill starts the workflow script that ships inside it, so company-skills 0.16.0 or later must be installed. The installed copy is cached, so to try an edit to the script, start the session with `claude --plugin-dir <clone>/plugins/company-skills`. Codex cannot run it.
 

@@ -1,13 +1,13 @@
 ---
-name: building-language-pairs
-description: Builds a language's skill pair in this repository, `<lang>-practices` and `<lang>-review`, from its parent ticket through research, an audit, a grill, a ticket breakdown, a stack of draft PRs, and the PR to main. Use when starting or continuing the Python, TypeScript, Rust, or another language pair, when replacing a bundled upstream language plugin (`python-pro`, `typescript-pro`, `rust-engineer`), or when breaking a language ticket into buildable tickets. Not for changing one skill of an existing pair, which CONTRIBUTING.md covers.
+name: building-language-skills
+description: Builds a language's skills in this repository, `<lang>-practices`, `<lang>-review`, and the language's check suite, from its parent ticket through research, an audit, a grill, a ticket breakdown, a stack of draft PRs, and the PR to main. Use when starting or continuing the Python, TypeScript, Rust, or another language's skills, including requests worded as the "Python pair" or a "language pair", when replacing a bundled upstream language plugin (`python-pro`, `typescript-pro`, `rust-engineer`), or when breaking a language ticket into buildable tickets. Not for changing one skill of an existing language, which CONTRIBUTING.md covers.
 ---
 
-# Building a language pair
+# Building a language's skills
 
-This skill is the process. The rules a pair must meet live in the **Language skills** section of [CONTRIBUTING.md](../../../CONTRIBUTING.md#language-skills). Read that section before step 1, and check every change against it.
+This skill is the process. The rules a language's skills must meet live in the **Language skills** section of [CONTRIBUTING.md](../../../CONTRIBUTING.md#language-skills). Read that section before step 1, and check every change against it.
 
-The Go pair is the worked example to copy: spec #56, tickets #57 to #62, PRs #70 to #75, and the skills `golang-practices` and `golang-review`. Go stacked each PR on the one before. Its main PR is #102, opened from a working branch that held `feat/golang-skills` plus the merge of `origin/main`, because the agent could not push to the integration branch. Go's references and spec predate the examples-list and reference-length rules in CONTRIBUTING.md, so follow those rules, not Go's sizes.
+The Go skills are the worked example to copy: spec #56, tickets #57 to #62, PRs #70 to #75, and the skills `golang-practices` and `golang-review`. Go stacked each PR on the one before. Its main PR is #102, opened from a working branch that held `feat/golang-skills` plus the merge of `origin/main`, because the agent could not push to the integration branch. Go's references and spec predate the examples-list and reference-length rules in CONTRIBUTING.md, so follow those rules, not Go's sizes.
 
 The work has two phases with a person between them. **Design** turns a high-level language ticket, such as #64 for Python, into buildable tickets, then stops. On the way it researches the language, audits the upstream skill, and grills the person on the language's own decisions. Design may start on a parent ticket labelled `ready-for-human`, because it ends in a proposal for the person. **Build** turns approved tickets into a stack of draft PRs and a PR to `main`.
 
@@ -16,7 +16,7 @@ Two PRs carry the release. The **release ticket PR** is the last PR in the stack
 ## Inputs
 
 - **The language** and its parent ticket. Without a ticket, ask which language and whether a ticket exists.
-- **The upstream skill** the pair replaces, if any: the bundled plugin named in the README's **Bundled language practice skills** table.
+- **The upstream skill** the language's skills replace, if any: the bundled plugin named in the README's **Bundled language practice skills** table.
 
 ## Resuming
 
@@ -96,18 +96,22 @@ Every design step posts its result as a comment on the parent ticket, and this r
    - its `<base>` is the blocking ticket's branch, for both the signature range and the PR;
    - a stacked branch is never re-signed by rebase. If a commit needs a new signature, stop and report it.
 
+   A ticket's PR changes only its own skill directories, its own CI job, and its own drift test, as the pull request rules in [CONTRIBUTING.md](../../../CONTRIBUTING.md#shared-rules-for-every-language) say, so other languages can build at the same time. It leaves shared files alone: CONTRIBUTING.md, GLOSSARY.md, this skill, the README, the catalogs, and the plugin manifests. A gap found in shared text gets its own ticket. It has two exceptions: the release ticket PR updates the README, the catalogs, and the company-skills dependencies, as [references/tickets.md](references/tickets.md) says. The main PR bumps the version, as step 12 says.
+
    Run tickets with no dependency between them in parallel when the host has subagents. A ticket is done when the PR body marks each acceptance criterion met. An open criterion needs its reason in the body and a report to the person. Its checks must pass:
    - `python3 scripts/validate.py` and `python3 -m unittest discover -s scripts/tests`;
    - the `tests/` suite of each skill on the branch;
    - with Claude Code installed, `claude plugin validate . --strict`, and `claude plugin validate plugins/company-skills --strict`.
 
-9. **Review each PR independently.** The author of a PR does not review it. A separate agent or session reviews it against its ticket with `code-review`. Without subagents, start a fresh session for the review. Then work the findings with `review-fix`, red first. When a person or bot review lands later, run `review-audit`, then `review-fix`. Before the release ticket PR opens, also run a security review on the tip of the stack, as **The stack** in [references/gotchas.md](references/gotchas.md) explains. Done when no finding is open, or each open one is reported to the person with the reason.
+9. **Review each PR independently.** The author of a PR does not review it. A separate agent or session reviews it against its ticket with `code-review`. Without subagents, start a fresh session for the review. Then work the findings with `review-fix`, red first. When a person or bot review lands later, run `review-audit`, then `review-fix`. Fix each finding as **Fix a PR's findings where the line was added, never on a later branch** in [references/gotchas.md](references/gotchas.md) says. Before a PR merges, each finding deferred from it is filed as an issue and linked from the PR body, so none is lost when the PR closes. Before the release ticket PR opens, also run a security review on the tip of the stack, as **The stack** in [references/gotchas.md](references/gotchas.md) explains. Done when no finding is open, or each open one is filed as an issue, linked from the PR body, and reported to the person with the reason.
 
-10. **Merge fixes through the stack.** After any push to a branch, merge it into every branch stacked on it, in stack order. Rerun the checks on each. Fix each line on the branch that added it, and check each PR's base branch right before it merges, as **The stack** in [references/gotchas.md](references/gotchas.md) says. Done when every branch stacked on the fixed one has the fix and passes its checks.
+10. **Merge fixes through the stack.** After any push to a branch, merge it into every branch stacked on it, in stack order. Rerun the checks on each. Fix each finding as **Fix a PR's findings where the line was added, never on a later branch** says. Check each PR's base branch right before it merges, as **The stack** in [references/gotchas.md](references/gotchas.md) says. Done when every branch stacked on the fixed one has the fix and passes its checks.
 
 11. **Test on both hosts.** Run both skills' behavior cases in Claude Code and in Codex, and run the review skill against its seeded-defect fixture. Build the fixture repository from the fixture's `base/` and `head/` outside the plugin, as `expected-findings.md` says. Load the review skill from a scratch copy of the plugin with every skill's `tests/` folder removed, so the reviewer cannot read the expected findings. **Host testing** in [references/gotchas.md](references/gotchas.md) covers making that copy and other host problems. Compare the fixture review with `expected-findings.md`. Check that each run lists the references and step files it read. Record the host, version, and observed result for each case in the release ticket PR body. Fix a trigger miss in the skill's `description`, and add a behavior case only when none covers the request. Fix a wrong finding red first. A host you cannot run is reported to the person by name. Done when every case has a recorded result on both hosts, or the missing host is reported.
 
-12. **Open the main PR.** After the person merges the stack into the integration branch, merge `origin/main` into it. Open the main PR from `feat/<lang>-skills` to `main`, and link the host results from the release ticket PR. Done when the main PR is open with its checks passing.
+12. **Open the main PR.** After the person merges the stack into the integration branch, merge `origin/main` into it. If you cannot push to the integration branch, make a working branch from it and merge there, as Go did for #102. Then, after that merge, bump the version in all three manifests, as the pull request rules in [CONTRIBUTING.md](../../../CONTRIBUTING.md#shared-rules-for-every-language) say. Only the main PR bumps the version, as [Releases](../../../CONTRIBUTING.md#releases) says. Pick the next version after the one `main` has, so languages building at the same time do not collide. A gap in shared text gets its own ticket, as step 8 says. Run step 8's checks again. Open the main PR to `main` from `feat/<lang>-skills` or the working branch, and link the host results from the release ticket PR. Done when the main PR is open with its checks passing. Its diff bumps the version in all three manifests past the one `main` has.
+
+13. **File what the run learned.** After the main PR opens, file one issue against the `building-language-skills` process skill. List the run's deviations from this skill, such as a skipped step, a retry, or a workaround, and its process findings: anything this skill, its gotchas, or CONTRIBUTING.md got wrong or left out. The issue is linked from the main PR body. That issue starts the next pass, as ADR 0003 says: a shared ticket fixes the shared text, and no language's PR does. Done when the issue is filed and the main PR body links it.
 
 ## Report
 
@@ -115,4 +119,6 @@ When pausing or finishing, tell the person:
 
 - each PR, its place in the stack, its CI state, and its open findings;
 - the merge order for the stack;
+- each finding deferred from a PR, and the issue that records it;
+- the issue from step 13 that lists the run's deviations and process findings, once the main PR is open;
 - what is waiting on them: approvals, reviews, merges, and host runs.

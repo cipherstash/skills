@@ -10,7 +10,7 @@ Each language's skills list their execution surface (see GLOSSARY). The review r
 
 For example, a change to a `.syso` file makes golang-review hold back `go test`. golang-review still runs `go vet`, because vet does not link.
 
-This replaces the "No installs during a review" gotcha in `building-language-pairs`, which contradicted golang-review: golang-review fetches its pinned tools. #128 makes that change to the gotcha.
+This replaces the "No installs during a review" gotcha in `building-language-skills`, which contradicted golang-review: golang-review fetches its pinned tools. #128 makes that change to the gotcha.
 
 ## Considered options
 

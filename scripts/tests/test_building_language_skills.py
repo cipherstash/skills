@@ -1,4 +1,4 @@
-"""Tests that the building-language-pairs process skill runs ADR 0003's design loop, steps 1 to 4.
+"""Tests that the building-language-skills process skill runs ADR 0003's design loop, steps 1 to 4.
 
 ADR 0003 (docs/adr/0003-settle-shared-language-decisions-once.md) has each language researched, its open decisions
 sorted into shared and language-only, and only the language-only ones taken to a grill that writes docs and no code.
@@ -14,7 +14,7 @@ from test_contributing_links import section
 
 
 REPO = Path(__file__).resolve().parents[2]
-SKILL = REPO / ".claude" / "skills" / "building-language-pairs" / "SKILL.md"
+SKILL = REPO / ".claude" / "skills" / "building-language-skills" / "SKILL.md"
 TICKETS = SKILL.parent / "references" / "tickets.md"
 CONTRIBUTING = REPO / "CONTRIBUTING.md"
 STEP_START = re.compile(r"^(\d+)\. \*\*(.+?)\*\*", re.MULTILINE)
@@ -195,7 +195,7 @@ class DesignLoopTest(unittest.TestCase):
     def test_contributing_names_research_and_the_grill(self):
         text = CONTRIBUTING.read_text(encoding="utf-8")
         line = next((l for l in text.splitlines() if "project skill. It takes a language ticket" in l), None)
-        self.assertIsNotNone(line, "CONTRIBUTING.md no longer names the building-language-pairs skill")
+        self.assertIsNotNone(line, "CONTRIBUTING.md no longer names the building-language-skills skill")
         for phrase in ("research", "grill"):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, line)
@@ -225,11 +225,16 @@ STEP_REFERENCES = {
         "as step 6 says": {6: "stop"},
         "If step 4 filed": {4: "grill"},
         "goes back to step 1's list and is sorted as step 1 says": {1: "research"},
+        "The main PR bumps the version, as step 12 says": {12: "main pr"},
+        "its own ticket, as step 8 says": {8: "build each ticket"},
+        "Run step 8's checks": {8: "build each ticket"},
+        "the issue from step 13": {13: "file what the run learned"},
     },
     TICKETS: {
         "When the grill, design step 4": {4: "grill"},
         "shared-text ticket from design step 4": {4: "grill"},
         "checks in build step 8": {8: "build each ticket"},
+        "as build step 12 says": {12: "main pr"},
     },
 }
 

@@ -78,6 +78,37 @@ Any other language that already has convention skills needs a decision like this
 - Run the checks in a temporary worktree. The checkout must run none of the change. The review must remove the worktree on every exit. The review must never remove the records of the user's other worktrees. Copy the steps from `golang-review`'s [target.md](plugins/company-skills/skills/golang-review/references/target.md#the-temporary-worktree).
 - Read all the changed code the tests will run before you run them. If that code does more than the change needs, record the tests as not run and say why. Copy the steps from `golang-review`'s [checks.md](plugins/company-skills/skills/golang-review/references/checks.md#before-running-tests).
 
+### Shared rules for every language
+
+These rules were settled once for every language, in [ADR 0001](docs/adr/0001-one-check-suite-policy-for-every-language.md) and [ADR 0003](docs/adr/0003-settle-shared-language-decisions-once.md). The terms are defined under [Language skills](GLOSSARY.md#language-skills) in GLOSSARY.md. Apply them to each language's skills. Do not decide them again in a language's grill or spec. Go's [checks.md](plugins/company-skills/skills/golang-practices/references/checks.md) already meets them, in Go's own words.
+
+The check suite:
+
+- A function that parses or decodes untrusted input needs a fuzz target or a property test. The language's `checks.md` names which one, or says why neither fits.
+- In pull request CI, fuzz and property tests use fixed inputs. They replay the seed corpus, or run a derandomized profile with a bounded number of examples, as Go's CI runs only its `f.Add` seeds. Random and long runs go on a schedule, never in pull request CI.
+- A version is pinned when it is exact, or when a committed lockfile fixes it and CI installs that lockfile frozen or locked. A version range with no frozen install is not pinned. The language runtime floats.
+- Coverage is reported, with no threshold. A coverage gate, such as a CRAP score, stays in the repository that wants it.
+- semgrep has one pin, shared by every language. Move it for every language in one PR. The ruleset floats. Before you pin semgrep for a new language, check that its `p/<lang>` ruleset exists.
+- Each reference states the minimum language version it targets. CI floats the latest stable or LTS release.
+- A language's review skill may add review areas beyond Go's ten when a suite tool gives evidence for the area and the review fixture can plant a defect in it. The spec records why.
+
+When a check is in place:
+
+- A check is in place when it meets the **In place** entry in [GLOSSARY.md](GLOSSARY.md#language-skills): a GitHub Actions step that runs on `pull_request`, blocks when it fails, covers every module except fixtures with planted defects, and pins its version. This one definition holds for every language.
+- A path-filtered trigger counts only alongside a changes job that fails closed.
+- A `continue-on-error` step does not count, even when a later step enforces its result.
+
+Scope:
+
+- A language's skills do not roll their check suite out to other repositories. A review's "missing check" lines are each repository's own backlog.
+- A language's skills cover that language's files wherever they are, such as JavaScript in a TypeScript repository or Python scripts in a Rust repository.
+- SHA-pinned actions and zizmor are not part of any language's suite. One ticket covers them for every language.
+
+Pull requests:
+
+- A language's PRs change only its own skill directories, its own CI job, and its own drift test, so several languages can build at once.
+- Shared text, such as this file, GLOSSARY.md, and the process skill, changes only through its own ticket. A language that finds a gap in shared text files a ticket for it.
+
 ### Taking in upstream material
 
 A language pair often starts from an upstream skill. Take its material in like this:

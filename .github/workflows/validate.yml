@@ -23,6 +23,10 @@ jobs:
           go-version: stable
           cache: false
       - run: python3 scripts/validate.py
+      # Fetches each pinned git-subdir source and checks it has no nested
+      # plugin.json, which Claude Code refuses, and that each vendored copy
+      # still matches its upstream commit.
+      - run: python3 scripts/check_pinned_sources.py
       - run: python3 -m unittest discover -s scripts/tests
       - name: Run skill script tests
         run: |

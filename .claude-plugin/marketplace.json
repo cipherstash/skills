@@ -42,13 +42,8 @@
     },
     {
       "name": "code-improver",
-      "source": {
-        "source": "git-subdir",
-        "url": "https://github.com/trailofbits/skills.git",
-        "path": "./plugins/code-improver",
-        "sha": "149d7b21f4067765b82e67029730b42d228ef4b4"
-      },
-      "description": "Trail of Bits review-and-fix loop for skills, plugins, or a branch's changes (skill-improver, code-improver, pr-improver).",
+      "source": "./plugins/code-improver",
+      "description": "Trail of Bits review-and-fix loop for skills, plugins, or a branch's changes (skill-improver, code-improver, pr-improver). A copy of the upstream plugin without its test fixtures.",
       "license": "CC-BY-SA-4.0",
       "author": {
         "name": "Trail of Bits",
@@ -85,7 +80,9 @@
         "url": "https://github.com/Jeffallan"
       },
       "strict": false,
-      "skills": ["./"]
+      "skills": [
+        "./"
+      ]
     },
     {
       "name": "rust-engineer",
@@ -102,7 +99,9 @@
         "url": "https://github.com/Jeffallan"
       },
       "strict": false,
-      "skills": ["./"]
+      "skills": [
+        "./"
+      ]
     },
     {
       "name": "typescript-pro",
@@ -119,7 +118,9 @@
         "url": "https://github.com/Jeffallan"
       },
       "strict": false,
-      "skills": ["./"]
+      "skills": [
+        "./"
+      ]
     }
   ]
 }

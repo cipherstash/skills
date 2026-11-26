@@ -120,6 +120,42 @@ def git_subdir_pins(entries: list) -> dict[str, tuple]:
     return pins
 
 
+def nested_manifests(plugin_root: Path) -> list[str]:
+    """Every plugin.json under plugin_root except the manifests at its root.
+
+    Claude Code refuses to install or update a plugin with one of these.
+    """
+    allowed = {Path(".claude-plugin/plugin.json"), Path(".codex-plugin/plugin.json"), Path("plugin.json")}
+    return [
+        path.relative_to(plugin_root).as_posix()
+        for path in sorted(plugin_root.rglob("plugin.json"))
+        if path.relative_to(plugin_root) not in allowed
+    ]
+
+
+def validate_local_sources(path: Path, entries: list) -> None:
+    """A catalog's local plugin folders must exist and hold no nested plugin.json."""
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        source = entry.get("source")
+        if isinstance(source, dict) and source.get("source") == "local":
+            source = source.get("path")
+        if not isinstance(source, str):
+            continue
+        folder = ROOT / source
+        if not folder.is_dir():
+            fail(path, f"{entry.get('name')}: local source {source} is not a folder")
+            continue
+        nested = nested_manifests(folder)
+        if nested:
+            fail(
+                path,
+                f"{entry.get('name')}: {source} holds plugin.json below its root, "
+                f"which Claude Code refuses to install or update: {', '.join(nested)}",
+            )
+
+
 def validate_manifests() -> None:
     portable_path = PLUGIN / "plugin.json"
     portable = load_json(portable_path)
@@ -239,6 +275,9 @@ def validate_manifests() -> None:
             fail(path, f"{name}: a bundled plugin in the catalog must be listed in validate.py")
         for name in sorted(bundled - listed):
             fail(path, f"{name}: listed in validate.py as bundled but missing from the catalog")
+
+    validate_local_sources(claude_market_path, claude_entries)
+    validate_local_sources(codex_market_path, codex_entries)
 
     claude_pins = git_subdir_pins(claude_entries)
     codex_pins = git_subdir_pins(codex_entries)

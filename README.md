@@ -43,7 +43,7 @@ claude plugin update company-skills@company
 
 Updating from a release before 0.15.0 leaves the removed `golang-pro` plugin installed but failing to load. Uninstall it as described in [Bundled language practice skills](#bundled-language-practice-skills).
 
-Updating from 0.12.0 to 0.18.0 keeps the five plugins those releases installed as dependencies, but Claude Code now treats them as orphans: `claude plugin prune` would remove them. To keep one, install it by name as shown above.
+Updating from 0.12.0 to 0.18.0 keeps the five plugins those releases installed as dependencies, but Claude Code now treats them as orphans, so `claude plugin prune` removes them. To keep one, run its `claude plugin install` line above, which marks it as installed by you. Checked with Claude Code 2.1.332 by updating 0.18.0 to this release.
 
 Updating company-skills does not update the bundled plugins. When a release moves the pinned commit of a bundled plugin, update that plugin by name as well:
 

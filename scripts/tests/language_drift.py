@@ -14,7 +14,8 @@ as #133 words it:
 
 This helper checks the trigger, the blocking and the pin. Coverage is each language's own test to check. The helper is
 stricter than the rule on triggers: it cannot tell whether a changes job fails closed, so it fails any filtered
-`pull_request` trigger.
+`pull_request` trigger, and any suite job that `needs` another job. It is stricter on lockfiles too: it cannot tell
+which of a package's versions the suite runs, so it fails a lockfile that holds the package at more than one.
 """
 
 from collections import namedtuple
@@ -90,8 +91,13 @@ def trigger_problems(workflow, job_name):
         # A branch or path filter would let some pull requests skip the suite. In place allows a path filter beside a
         # changes job that fails closed, which this helper cannot check, so it fails every filter.
         problems.append(f"the pull_request trigger has a filter: {on['pull_request']}")
-    if "if" in workflow["jobs"][job_name]:
-        problems.append(f"job {job_name} runs only if {workflow['jobs'][job_name]['if']}")
+    job = workflow["jobs"][job_name]
+    if "if" in job:
+        problems.append(f"job {job_name} runs only if {job['if']}")
+    if job.get("needs"):
+        # A job is skipped when a job it needs is skipped or fails, and GitHub reports a skipped required job as
+        # passing. Whether each needed job runs and passes on every pull request is more than this helper can check.
+        problems.append(f"job {job_name} needs {job['needs']}, so it is skipped when that job is skipped or fails")
     return problems
 
 
@@ -201,6 +207,26 @@ def sets_pipefail(line, pipefail):
     return pipefail
 
 
+def turns_off_errexit(line):
+    """Report whether line runs a `set` that turns errexit off: `+e` alone or among other options, or `+o errexit`."""
+    for command in re.finditer(COMMAND_START + r"set\s+([^;&|]*)", line):
+        words = command.group(1).split()
+        index = 0
+        while index < len(words):
+            option = re.fullmatch(r"([-+])([a-zA-Z]+)", words[index])
+            if not option:
+                break  # `--`, or the positional arguments that follow the options.
+            sign, letters = option.groups()
+            if sign == "+" and "e" in letters:
+                return True
+            if "o" in letters:
+                index += 1  # The option's operand, such as errexit or pipefail.
+                if sign == "+" and index < len(words) and words[index] == "errexit":
+                    return True
+            index += 1
+    return False
+
+
 def is_test(command):
     return TEST.match(command.strip()) is not None
 
@@ -261,7 +287,7 @@ def ignores_exit_status(line, last=False, pipefail=False):
     Under `bash -e`, which GitHub Actions uses by default, a failing command fails the step unless the shell reads its
     status as a result. A line lets a failure pass when it:
 
-    - turns errexit off with `set +e` or `set +o errexit`;
+    - turns errexit off with `set +e`, `+e` among other options such as `set +ex`, or `set +o errexit`;
     - negates a command with `!`, outside an `if` condition whose branch fails;
     - follows `||` with a command that succeeds;
     - pipes a command into another with `|` while pipefail is off (pipefail says whether it is on for this line);
@@ -273,7 +299,7 @@ def ignores_exit_status(line, last=False, pipefail=False):
     approximately, and may be reported when they are safe.
     """
     line = blank_quotes(line)
-    if re.search(COMMAND_START + r"set\s+(\+e\b|\+o\s+errexit\b)", line):
+    if turns_off_errexit(line):
         return True
     if re.search(COMMAND_START + r"!\s", line):
         return True
@@ -395,10 +421,18 @@ def lock_entries(lines, package):
             yield found
 
 
+def locked_versions(lockfile, package):
+    """Return the set of versions that package's own entries in the lockfile at path lockfile record."""
+    return set(lock_entries(lockfile.read_text(encoding="utf-8").splitlines(), package))
+
+
 def locks_version(lockfile, package, version):
-    """Report whether lockfile fixes package at version, in the version of one of package's own entries."""
-    lines = lockfile.read_text(encoding="utf-8").splitlines()
-    return version in lock_entries(lines, package)
+    """Report whether lockfile fixes package at version: every one of package's own entries records that version.
+
+    A package at several versions, such as a transitive copy beside the project's own, is fixed at none of them, since
+    this helper cannot tell which one the suite runs.
+    """
+    return locked_versions(lockfile, package) == {version}
 
 
 def lockfile_problems(workflow, job_name, tool, pin, root, lockfile):
@@ -407,7 +441,10 @@ def lockfile_problems(workflow, job_name, tool, pin, root, lockfile):
     if not path.is_file():
         return [f"{tool}'s lockfile {lockfile} is not in the repository"]
     problems = []
-    if not locks_version(path, pin.package, pin.version):
+    versions = locked_versions(path, pin.package)
+    if len(versions) > 1:
+        problems.append(f"{lockfile} holds {pin.package} at several versions: {', '.join(sorted(versions))}")
+    elif versions != {pin.version}:
         problems.append(f"{lockfile} does not fix {pin.package} at {pin.version}")
     directory = PurePosixPath(lockfile).parent
     if PurePosixPath(lockfile).name not in FROZEN_INSTALLS:
@@ -427,7 +464,9 @@ INSTALLER = re.compile(
     r"|yarn\s+(?:global\s+)?add|gem\s+install|brew\s+install)(?=\s|$)"
 )
 # A version spec written onto a package name: `@` or `==` pins it, and the others leave it free to move.
-SPEC = r"(@|===|==|~=|>=|<=|!=)([^\s'\";,)]+)"
+SPEC = r"(@|===|==|~=|>=|<=|!=|<|>)([^\s'\";,)]+)"
+# Extras written onto a Python package name, as in `semgrep[all]`.
+EXTRAS = r"(?:\[[^\]\s]*\])?"
 
 
 def words_of(command):
@@ -451,7 +490,8 @@ def step_pins(step, tool, pin):
     """Return (whether step pins tool at pin.version, how step installs tool at another version or none).
 
     A step pins the tool when what it runs or sets, its `run`, `with` and `env`, writes the tool or its package
-    followed straight by `@<version>` or `==<version>` (a `$VAR` in the step's env counts as its value), when it
+    followed straight by `@<version>` or `==<version>`, with or without extras such as `[all]` between them (a `$VAR`
+    in the step's env counts as its value), when it
     installs the tool with `--version <version>`, or when it uses the tool's own action, such as
     `golangci/golangci-lint-action`, with the version as an input. Its `name` is a label and counts for neither.
     """
@@ -462,7 +502,7 @@ def step_pins(step, tool, pin):
     # By where each spec ends, so that the tool and its package, both written in `example.com/tool@latest`, count once.
     specs = {}
     for name in names:
-        for match in re.finditer(rf"(?<![\w.@-]){re.escape(name)}{SPEC}", text):
+        for match in re.finditer(rf"(?<![\w.@-]){re.escape(name)}{EXTRAS}{SPEC}", text):
             if match.end() not in specs or len(match.group(0)) > len(specs[match.end()].group(0)):
                 specs[match.end()] = match
     wrong = []
@@ -483,8 +523,10 @@ def step_pins(step, tool, pin):
             words = words_of(command[installer.end() :])
             flag = version_flag(words)
             for word in words:
-                if word not in names:
-                    continue
+                # The package name, without the extras and version spec written onto it.
+                package = re.split(r"[\[<>=!~;@]", word)[0]
+                if package not in names or re.fullmatch(rf"{EXTRAS}{SPEC}", word[len(package) :]):
+                    continue  # Another package, or a spec that the loop over specs above has read.
                 if flag == pin.version:
                     pinned = True
                 elif flag is None:

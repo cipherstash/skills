@@ -107,6 +107,15 @@ class TriggerTests(unittest.TestCase):
             with self.subTest(case):
                 self.assertNotEqual(language_drift.trigger_problems(flow, "suite"), [])
 
+    def test_a_job_that_needs_another_job_fails(self):
+        # A job whose needed job is skipped or fails is skipped, and GitHub reports a skipped required job as passing.
+        for needs in ("changes", ["changes"]):
+            for changes in (job(), job(**{"if": "false"}), job(**{"continue-on-error": True})):
+                with self.subTest(needs=needs, changes=changes):
+                    flow = workflow(job(needs=needs))
+                    flow["jobs"]["changes"] = changes
+                    self.assertNotEqual(language_drift.trigger_problems(flow, "suite"), [])
+
     def test_reads_the_on_key_whether_or_not_yaml_turned_it_into_true(self):
         flow = {"on": {"pull_request": None}, "jobs": {"suite": job()}}
         self.assertEqual(language_drift.trigger_problems(flow, "suite"), [])
@@ -151,6 +160,10 @@ class BlocksTests(unittest.TestCase):
             # pipefail makes a pipe fail when any command in it does.
             "set -o pipefail\nlint . | tee out",
             "set -euo pipefail; lint . | tee out",
+            # Turning off other options leaves errexit on.
+            "set +x\nlint .",
+            "set +u -x; lint .",
+            "set -e +o nounset\nlint .",
             # The last command of a step sets its exit status, so a failure before its final && fails the step.
             "cd src && lint .",
             "echo start\ncd src && lint .",
@@ -178,6 +191,11 @@ class BlocksTests(unittest.TestCase):
             "or a group that does not fail": workflow(job({"run": "lint . || { echo failed; }"})),
             "set +e": workflow(job({"run": "set +e\nlint ."})),
             "set +o errexit": workflow(job({"run": "set +o errexit; lint ."})),
+            # +e combined with other options still turns errexit off.
+            "set +ex": workflow(job({"run": "set +ex\nlint ."})),
+            "set +xe": workflow(job({"run": "set +xe; lint ."})),
+            "set -u +e": workflow(job({"run": "set -u +e\nlint ."})),
+            "set -x +o errexit": workflow(job({"run": "set -x +o errexit\nlint ."})),
             "negated": workflow(job({"run": "! lint ."})),
             "negated after another command": workflow(job({"run": "cd src && ! lint ."})),
             # Under bash -e without pipefail, a pipe fails only when its last command does.
@@ -246,6 +264,12 @@ class ExactPinTests(unittest.TestCase):
         )
         self.assertEqual(language_drift.pin_problems(flow, "suite", PINS), [])
 
+    def test_a_package_with_extras_at_its_pinned_version_passes(self):
+        flow = workflow(
+            job({"run": "go install example.com/vulncheck@v1.10.0"}, {"run": "pip install 'linter[all]==2.0.0'"})
+        )
+        self.assertEqual(language_drift.pin_problems(flow, "suite", PINS), [])
+
     def test_a_tool_at_another_version_or_none_fails(self):
         linter = {"run": "pip install linter==2.0.0"}
         cases = {
@@ -270,6 +294,20 @@ class ExactPinTests(unittest.TestCase):
                 {"run": "pip install vulncheck"},
                 linter,
             ],
+            # A strict range leaves the version free to move.
+            "pinned and below a bound": [
+                {"run": "pip install vulncheck==v1.10.0"},
+                {"run": "pip install -U 'vulncheck<2'"},
+                linter,
+            ],
+            "above a bound": [{"run": 'pip install "vulncheck>1"'}, linter],
+            # A package written with extras is the same package.
+            "pinned and with extras, unversioned": [
+                {"run": "pip install vulncheck==v1.10.0"},
+                {"run": "pip install --upgrade vulncheck[all]"},
+                linter,
+            ],
+            "with extras at another version": [{"run": "pip install 'vulncheck[all]==v1.10.1'"}, linter],
             # govulncheck is another tool whose name holds vulncheck.
             "a tool whose name holds this one": [{"run": "go install x/govulncheck@v1.10.0"}, linter],
         }
@@ -346,6 +384,17 @@ class LockfilePinTests(unittest.TestCase):
         for version in ("2.4.2", "9.9.9"):
             with self.subTest(version):
                 self.assertEqual(len(self.problems(pins={"fixlint": Pin(version, "fixlint")})), 1)
+
+    def test_a_lockfile_that_holds_the_tool_at_several_versions_fails(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        root = Path(directory.name)
+        (root / "tools").mkdir()
+        lock = (self.FIXTURE / "tools/uv.lock").read_text(encoding="utf-8")
+        (root / "tools/uv.lock").write_text(lock + '\n[[package]]\nname = "fixlint"\nversion = "2.3.0"\n', encoding="utf-8")
+        problems = language_drift.pin_problems(self.workflow, "suite", self.pins, root=root, lockfiles=self.LOCKFILES)
+        self.assertEqual(len(problems), 1, problems)
+        self.assertIn("several versions", problems[0])
 
     def test_a_frozen_install_in_the_workflow_default_directory_passes(self):
         flow = copy.deepcopy(self.workflow)
@@ -424,6 +473,38 @@ source = { registry = "https://pypi.org/simple" }
         self.assertTrue(language_drift.locks_version(lock, "eslint", "9.10.0"))
         self.assertFalse(language_drift.locks_version(lock, "eslint", "9.9.0"))
         self.assertTrue(language_drift.locks_version(lock, "@scope/tool", "1.2.3"))
+
+    def test_a_package_at_several_versions_is_not_fixed_at_any(self):
+        # A transitive copy may hold the pinned version while the suite runs another, so neither counts as fixed.
+        cases = {
+            "uv.lock": (
+                "ruff",
+                '[[package]]\nname = "ruff"\nversion = "0.6.0"\nresolution-markers = ["python_version < \'3.10\'"]\n\n'
+                '[[package]]\nname = "ruff"\nversion = "0.7.4"\n',
+                ("0.6.0", "0.7.4"),
+            ),
+            "Cargo.lock": (
+                "syn",
+                '[[package]]\nname = "syn"\nversion = "1.0.109"\n\n[[package]]\nname = "syn"\nversion = "2.0.77"\n',
+                ("1.0.109", "2.0.77"),
+            ),
+            "pnpm-lock.yaml": (
+                "typescript",
+                "importers:\n  .:\n    devDependencies:\n      typescript:\n        specifier: 5.6.2\n"
+                "        version: 5.6.2\n\npackages:\n  typescript@5.4.5:\n    resolution: {integrity: sha512-x}\n"
+                "  typescript@5.6.2:\n    resolution: {integrity: sha512-y}\n",
+                ("5.4.5", "5.6.2"),
+            ),
+            "yarn.lock": (
+                "typescript",
+                '"typescript@npm:^5.4.0":\n  version: 5.4.5\n\n"typescript@npm:5.6.2":\n  version: 5.6.2\n',
+                ("5.4.5", "5.6.2"),
+            ),
+        }
+        for layout, (package, text, versions) in cases.items():
+            for version in versions:
+                with self.subTest(layout=layout, version=version):
+                    self.assertFalse(language_drift.locks_version(self.lockfile(text), package, version))
 
     def test_reads_yarn_lock(self):
         lock = self.lockfile('"eslint@npm:9.9.0":\n  version: 9.10.0\n  resolution: "eslint@npm:9.10.0"\n')

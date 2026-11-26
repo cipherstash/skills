@@ -179,6 +179,19 @@ class PackagingTests(unittest.TestCase):
                     self.check_result(1, f"{manifest}: must not declare dependencies")
             shutil.copy(REPO / manifest, self.root / manifest)
 
+    def test_local_plugin_must_not_hold_nested_manifest(self):
+        for plugin in ("company-skills", "code-improver"):
+            nested = self.root / "plugins" / plugin / "tests/fixtures/fake/.claude-plugin/plugin.json"
+            with self.subTest(plugin=plugin):
+                nested.parent.mkdir(parents=True)
+                nested.write_text("{}")
+                self.check_result(1, f"./plugins/{plugin} holds plugin.json below its root")
+                shutil.rmtree(self.root / "plugins" / plugin / "tests/fixtures/fake")
+
+    def test_local_plugin_source_must_exist(self):
+        shutil.rmtree(self.root / "plugins/code-improver")
+        self.check_result(1, "code-improver: local source ./plugins/code-improver is not a folder")
+
     def test_bundled_plugin_must_be_listed(self):
         self.add_to_both_catalogs(git_subdir(), git_subdir(), declare=False)
         self.check_result(1, "example-plugin: a bundled plugin in the catalog must be listed in validate.py")

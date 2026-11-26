@@ -89,7 +89,7 @@ The `company` marketplace also lists three plugins from [Trail of Bits' skills r
 
 `skill-improver` reviews with the `plugin-dev:skill-reviewer` agent, so the Claude catalog also lists Anthropic's `plugin-dev` plugin from [claude-plugins-official](https://github.com/anthropics/claude-plugins-official), pinned to one full upstream commit SHA and published under the Apache 2.0 licence.
 
-The Trail of Bits entries are `git-subdir` sources pinned to one full upstream commit SHA. No upstream files are copied into this repository. They are published by Trail of Bits under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/), not this repository's MIT licence.
+`differential-review` and `insecure-defaults` are `git-subdir` sources pinned to one full upstream commit SHA. `code-improver` is a copy of the upstream plugin at the same commit, in [`plugins/code-improver`](plugins/code-improver/UPSTREAM.md), without its `tests/` and `evals/` folders: the upstream `tests/fixtures/` holds nested `.claude-plugin/plugin.json` files, and Claude Code refuses to install or update a plugin with those. All three are published by Trail of Bits under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/), not this repository's MIT licence.
 
 - **Claude Code:** install `differential-review` and `insecure-defaults` by name, as shown under [Claude Code](#claude-code). They are not company-skills dependencies (see there for why).
 - **Claude Code, `skill-improver`:** `code-improver` and `plugin-dev` are not in the install list above, because `plugin-dev` adds a whole plugin-development toolkit to every session. Install them by name when you want `skill-improver`, and skip `plugin-dev@company` if you already have `plugin-dev` from `claude-plugins-official`. Checked with Claude Code 2.1.330.
@@ -105,8 +105,10 @@ The Trail of Bits entries are `git-subdir` sources pinned to one full upstream c
 Nothing auto-updates them: a plugin with a pinned `sha` stays on that commit through marketplace refreshes and plugin updates. To move the Trail of Bits pin, open a pull request that:
 
 1. Reviews the upstream changes to `plugins/differential-review`, `plugins/insecure-defaults`, and `plugins/code-improver` since the current SHA, and checks that `skill-improver` still names the `plugin-dev:skill-reviewer` agent.
-2. Changes `sha` to the same new full 40-character commit SHA for all three Trail of Bits entries in `.claude-plugin/marketplace.json`, and for the two in `.agents/plugins/marketplace.json`. The validator fails when a pin differs between the two catalogs or a SHA is not a full commit. It does not check `code-improver`, which only the Claude catalog lists, so move that one by hand.
-3. Bumps the plugin version in all three manifests, as described in [Releases](CONTRIBUTING.md#releases).
+2. Changes `sha` to the same new full 40-character commit SHA for both Trail of Bits entries in `.claude-plugin/marketplace.json` and `.agents/plugins/marketplace.json`. The validator fails when a pin differs between the two catalogs or a SHA is not a full commit.
+3. Moves the `code-improver` copy to the same commit, as its [UPSTREAM.md](plugins/code-improver/UPSTREAM.md) describes. If upstream has moved its test fixtures out of the plugin folder, replace the copy with a `git-subdir` entry instead.
+4. Runs `python3 scripts/check_pinned_sources.py`, which CI also runs. It fetches each pinned source and fails when one holds a `plugin.json` below its root, or when the `code-improver` copy differs from upstream.
+5. Bumps the plugin version in all three manifests, as described in [Releases](CONTRIBUTING.md#releases).
 
 To move the `plugin-dev` pin, review the upstream changes to `plugins/plugin-dev` in `anthropics/claude-plugins-official` since its SHA, confirm the `skill-reviewer` agent is still there, change its `sha` in `.claude-plugin/marketplace.json`, and bump the version as above.
 
@@ -249,5 +251,7 @@ See the official [Codex skills documentation](https://developers.openai.com/code
 ## License
 
 The repository is licensed under the MIT License; see [LICENSE](LICENSE).
+
+`plugins/code-improver` is a copy of Trail of Bits' `code-improver` plugin, licensed under CC BY-SA 4.0; see its [LICENSE](plugins/code-improver/LICENSE) and [UPSTREAM.md](plugins/code-improver/UPSTREAM.md).
 
 `plugins/company-skills/skills/plain-language` is licensed under the Apache License 2.0, and some of its content is public sector information under the Open Government Licence v3.0. See its [LICENSE](plugins/company-skills/skills/plain-language/LICENSE) and [NOTICE](plugins/company-skills/skills/plain-language/NOTICE). `plugins/company-skills/skills/golang-practices` adapts MIT-licensed material from [Jeffallan/claude-skills](https://github.com/Jeffallan/claude-skills); see its [LICENSE](plugins/company-skills/skills/golang-practices/LICENSE) and [NOTICE](plugins/company-skills/skills/golang-practices/NOTICE). The plugin manifests declare the combined SPDX expression `MIT AND Apache-2.0 AND OGL-UK-3.0`.

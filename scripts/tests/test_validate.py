@@ -166,13 +166,18 @@ class PackagingTests(unittest.TestCase):
                 )
                 self.check_result(1, diagnostic)
 
-    def test_claude_manifest_declares_no_dependencies(self):
-        manifest = "plugins/company-skills/.claude-plugin/plugin.json"
-        self.assertNotIn("dependencies", json.loads((REPO / manifest).read_text()))
-        for dependencies in (["differential-review"], [], "differential-review"):
-            with self.subTest(dependencies=dependencies):
-                self.change_json(manifest, lambda data: data.update(dependencies=dependencies))
-                self.check_result(1, "must not declare dependencies")
+    def test_manifests_declare_no_dependencies(self):
+        for manifest in (
+            "plugins/company-skills/plugin.json",
+            "plugins/company-skills/.codex-plugin/plugin.json",
+            "plugins/company-skills/.claude-plugin/plugin.json",
+        ):
+            self.assertNotIn("dependencies", json.loads((REPO / manifest).read_text()))
+            for dependencies in (["differential-review"], [], "differential-review"):
+                with self.subTest(manifest=manifest, dependencies=dependencies):
+                    self.change_json(manifest, lambda data: data.update(dependencies=dependencies))
+                    self.check_result(1, f"{manifest}: must not declare dependencies")
+            shutil.copy(REPO / manifest, self.root / manifest)
 
     def test_bundled_plugin_must_be_listed(self):
         self.add_to_both_catalogs(git_subdir(), git_subdir(), declare=False)
@@ -244,6 +249,42 @@ class PackagingTests(unittest.TestCase):
                     self.change_json(relative, drop_entry)
                 with patch.multiple(validate, **unlisted) if drop_from_list else contextlib.nullcontext():
                     self.check_result(0 if diagnostic == "Validation passed" else 1, diagnostic)
+
+    def add_reference(self, text, relative="references/extra.md"):
+        path = self.root / "plugins/company-skills/skills/plain-language" / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+        return path
+
+    def test_reference_to_a_shipped_skill_passes(self):
+        self.add_reference("Follow the `rust-security` skill, or `company-skills:golang-practices`, or `company-skills:rust-*`.\n")
+        self.check_result(0, "Validation passed")
+
+    def test_reference_to_an_unshipped_company_skill_fails(self):
+        self.add_reference("Use `company-skills:review-code` if it is installed.\n")
+        self.check_result(1, "company-skills does not ship `review-code`")
+
+    def test_bare_reference_to_another_plugins_skill_fails(self):
+        self.add_reference("Invoke the `python-pro` skill.\n")
+        self.check_result(1, "`python-pro` is not a company-skills skill")
+
+    def test_other_plugins_skill_needs_a_fallback(self):
+        self.add_reference("Invoke `mattpocock-skills:tdd` and follow it.\n\n\n\n\nIt cannot be loaded? Too far away.\n")
+        self.check_result(1, "`mattpocock-skills:tdd` is another plugin's skill")
+        for text in (
+            "Invoke `mattpocock-skills:tdd`.\nIf it cannot be loaded, work red-green yourself.\n",
+            "Run `/differential-review:diff-review` if it is available; otherwise review by hand.\n",
+            "Invoke \\`mattpocock-skills:tdd\\`. If the plugin is not installed, follow its steps.\n",
+        ):
+            with self.subTest(text=text):
+                self.add_reference(text)
+                self.check_result(0, "Validation passed")
+
+    def test_behaviour_cases_and_non_plugin_colons_are_ignored(self):
+        self.add_reference("Report `path:line` and `localhost:6060`.\n")
+        self.check_result(0, "Validation passed")
+        self.add_reference("Invoke `mattpocock-skills:tdd`.\n", relative="tests/extra.md")
+        self.check_result(0, "Validation passed")
 
     def test_publisher_required(self):
         for author in (None, {}, {"name": None}, {"name": ""}):

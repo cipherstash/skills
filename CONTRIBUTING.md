@@ -87,7 +87,8 @@ A language pair often starts from an upstream skill. Take its material in like t
 - Fix every defect the audit found before the copy merges, each with the smallest change that fixes it. Keep upstream material that has no defect as it is. Rewrite or drop confused or dated rules.
 - Drop the upstream frontmatter metadata, persona line, and links to skills that do not exist here.
 - If the `company` marketplace bundles the upstream skill as its own plugin, the new `<lang>-practices` replaces it. The README lists these under **Bundled language practice skills**. The release ticket PR is the last of the stacked PRs that build the pair. It drops the upstream plugin from every catalog that lists it and from `CLAUDE_BUNDLED_PLUGINS` (and `CODEX_BUNDLED_PLUGINS`, if listed there) in `scripts/validate.py`. That PR also tells users how to uninstall the old plugin. The validator rejects a catalog entry, other than company-skills, that those lists do not name, and a listed plugin that a catalog is missing.
-- company-skills must not declare `dependencies` in `.claude-plugin/plugin.json`. Claude Code disables a plugin while any dependency is missing, and the claude.ai organisation sync delivers company-skills without its sibling plugins. The validator rejects the field.
+- company-skills must not declare `dependencies` in any of its three manifests. Claude Code disables a plugin while any dependency is missing, and the claude.ai organisation sync delivers company-skills without its sibling plugins. The validator rejects the field.
+- A skill may use another plugin's skill only as an option. Name it as `<plugin>:<skill>` and, within three lines, say what to do when it cannot be loaded, as `implement-tickets` does for `mattpocock-skills:tdd`. A reference to a company-skills skill, bare ("the `rust-security` skill") or as `company-skills:<name>`, must name one the plugin ships. The validator checks both in every skill file outside `tests/`.
 
 ## Behavior cases
 

@@ -469,7 +469,7 @@ spec. If \`mattpocock-skills:code-review\` cannot be loaded (the mattpocock-skil
 review the diff against ticket #${t.number} yourself: does it meet each acceptance criterion, and does it
 follow the repository's documented rules. Then record a deviation.
 Also use the repository's language review skill for the languages the change touches, where one
-exists (for example \`company-skills:golang-review\` for Go; \`company-skills:review-code\` if it is installed).
+exists (for example \`company-skills:golang-review\` for Go).
 Run each review skill in your own session; if a skill wants subagents and you cannot start them, follow its
 sequential route and record that as a deviation.
 Return every finding with a location at the head, the claim, its trigger, its evidence and a fix. A

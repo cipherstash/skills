@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import fnmatch
 import json
 import re
 import sys
@@ -30,6 +31,15 @@ CODEX_BUNDLED_PLUGINS = frozenset({"differential-review", "insecure-defaults"})
 CLAUDE_BUNDLED_PLUGINS = CODEX_BUNDLED_PLUGINS | frozenset(
     {"code-improver", "plugin-dev", "python-pro", "rust-engineer", "typescript-pro"}
 )
+
+# A skill can use another plugin's skill only as an option: within a few lines
+# of the reference it must say what to do when that skill is missing, because
+# company-skills cannot make Claude Code or Codex install it.
+NAMESPACED_SKILL_RE = re.compile(r"`/?([a-z0-9]+(?:-[a-z0-9]+)*):([a-z0-9]+(?:-[a-z0-9]+)*(?:-\*)?)")
+BARE_SKILL_RE = re.compile(r"(?:\b[Tt]he|\b[Aa]n?) `([a-z0-9]+(?:-[a-z0-9]+)*)` skill\b")
+FALLBACK_RE = re.compile(r"cannot be loaded|is not installed|is not available|if (?:it is |it's )?available")
+FALLBACK_LINES = 3
+REFERENCE_SUFFIXES = (".md", ".js", ".yaml")
 
 
 def fail(path: Path, message: str) -> None:
@@ -201,12 +211,12 @@ def validate_manifests() -> None:
     ):
         fail(claude_market_path, "must publish ./plugins/company-skills")
 
-    claude_manifest_path = PLUGIN / ".claude-plugin" / "plugin.json"
-    if "dependencies" in load_json(claude_manifest_path):
-        fail(
-            claude_manifest_path,
-            "must not declare dependencies: Claude Code disables company-skills when a synced copy lacks them",
-        )
+    for manifest_path in (PLUGIN / "plugin.json", PLUGIN / ".codex-plugin" / "plugin.json", PLUGIN / ".claude-plugin" / "plugin.json"):
+        if "dependencies" in load_json(manifest_path):
+            fail(
+                manifest_path,
+                "must not declare dependencies: Claude Code disables company-skills when a synced copy lacks them",
+            )
     # Any catalog entry not in its bundled list is a half-finished addition or
     # removal: update the list and every catalog together.
     for path, entries, bundled in (
@@ -289,6 +299,45 @@ def validate_skill(skill: Path) -> None:
     validate_cases(skill)
 
 
+def is_plugin_namespace(name: str) -> bool:
+    return name == "company-skills" or name in CLAUDE_BUNDLED_PLUGINS or name.endswith("-skills")
+
+
+def validate_skill_references(skills: list[Path]) -> None:
+    """Fail on a reference to a skill company-skills does not ship, unless it is
+    a namespaced reference to another plugin's skill with a fallback beside it."""
+    shipped = {skill.name for skill in skills}
+    for skill in skills:
+        for path in sorted(skill.rglob("*")):
+            if not path.is_file() or path.suffix not in REFERENCE_SUFFIXES:
+                continue
+            if "tests" in path.relative_to(skill).parts:
+                continue  # behaviour cases describe hosts and prompts, not instructions
+            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+            for number, line in enumerate(lines):
+                for plugin, name in NAMESPACED_SKILL_RE.findall(line):
+                    if not is_plugin_namespace(plugin):
+                        continue
+                    if plugin == "company-skills":
+                        if not fnmatch.filter(shipped, name):
+                            fail(path, f"line {number + 1}: company-skills does not ship `{name}`")
+                        continue
+                    window = " ".join(lines[number : number + 1 + FALLBACK_LINES]).lower()
+                    if not FALLBACK_RE.search(window):
+                        fail(
+                            path,
+                            f"line {number + 1}: `{plugin}:{name}` is another plugin's skill; say within "
+                            f"{FALLBACK_LINES} lines what to do when it cannot be loaded",
+                        )
+                for name in BARE_SKILL_RE.findall(line):
+                    if name not in shipped:
+                        fail(
+                            path,
+                            f"line {number + 1}: `{name}` is not a company-skills skill; name it as "
+                            "`<plugin>:<skill>` with a fallback",
+                        )
+
+
 def main() -> int:
     errors.clear()
     validate_manifests()
@@ -300,6 +349,7 @@ def main() -> int:
         fail(SKILLS, "must contain at least one skill")
     for skill in skills:
         validate_skill(skill)
+    validate_skill_references(skills)
     if errors:
         print("Validation failed:", file=sys.stderr)
         for error in errors:

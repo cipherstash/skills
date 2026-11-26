@@ -115,3 +115,19 @@ _Avoid_: Enabled, configured, present
 **Execution surface**:
 The files and flags through which a change runs its own code when a tool builds, lints, or tests it, such as Python's `conftest.py`, Rust's `build.rs`, or Go's `-toolexec`. Each language's skills list theirs. When a change touches its execution surface, an agent runs no tool that would run the change's code until the user says yes.
 _Avoid_: Attack surface, hooks
+
+**Grill**:
+An interview that takes open decisions to the person, one question at a time, each with a recommended answer. It asks nothing that CONTRIBUTING.md or an ADR already settles. It drafts only GLOSSARY entries and ADRs, writes no code, and ends when the person confirms shared understanding. A "yes" in a grill is not a go-ahead to build: building waits for tickets labelled `ready-for-agent`.
+_Avoid_: Interview, design review
+
+**Shared decision**:
+An open decision that every language must answer, such as how a check suite pins versions. It is settled once, in its own ticket or in one grill for every language, before any language's grill starts. A language's grill never decides it again.
+_Avoid_: Common decision, cross-language decision
+
+**Language-only decision**:
+An open decision that only one language must answer, such as which tools its check suite uses. That language's grill settles it.
+_Avoid_: Local decision, language decision
+
+**Shared-text ticket**:
+The ticket for a language's changes to shared text: CONTRIBUTING.md, GLOSSARY.md, the ADRs, and the process skill. The language's grill writes each GLOSSARY and ADR draft in this ticket's body, and the files change when the ticket is built. The shared-text ticket blocks the first ticket of the language's layout, so the language's own PRs never touch shared text.
+_Avoid_: Shared ticket (a ticket for one shared decision)

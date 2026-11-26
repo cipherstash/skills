@@ -1,6 +1,6 @@
 ---
 name: implement-tickets
-description: Runs the implement-tickets workflow, which builds a spec's ready-for-agent tickets into stacked draft PRs, reviews and fixes them, and writes a run report. Claude Code only. Started by the person, never by the model.
+description: Runs the implement-tickets workflow, which builds a spec's ready-for-agent tickets into a chain of draft PRs, reviews and fixes them, and writes a run report. Claude Code only. Started by the person, never by the model.
 argument-hint: "<spec issue number> [plan] [tickets 12,13] [base <branch>] [rounds <n>] [routine on|off]"
 disable-model-invocation: true
 ---
@@ -22,6 +22,6 @@ This runs in Claude Code only. Codex cannot run workflows. In Codex, say that an
 
    With no spec and no tickets, ask for the spec issue number. Pass `args` as a JSON object, not a string.
 3. Call the Workflow tool with `scriptPath` set to the script's absolute path and `args`. Say in one line that it has started, and what it will build.
-4. When it finishes, give the person its run report. List each PR it opened or updated, with its place in the stack, CI state, and open findings.
+4. When it finishes, give the person its run report. List each PR it opened or updated, with its place in the chain, CI state, and open findings.
 
 Never merge a PR, mark one ready, or change its tickets while the run is going. The workflow's own rules apply to every agent it starts.

@@ -26,6 +26,16 @@ _Avoid_: Feature flag, allow list
 The part of a CipherStash service's API that creates, reads, updates, or deletes the service's resources, such as workspaces or keysets. Each service has its own. If the control plane is ever split from the rest of the API, the split stays inside that service.
 _Avoid_: Control plane service (no separate service exists or is planned)
 
+## Pull requests
+
+**Stack**:
+Two or more pull requests that GitHub links as one stack, created with GitHub's gh-stack extension. GitHub shows a stack map on each one, merges a pull request together with every one below it, and rebases the rest after a merge. The stacking-pull-requests skill builds stacks.
+_Avoid_: Chain (for a stack)
+
+**Chain**:
+Two or more pull requests where each one's base branch is the branch of the one below, without a GitHub stack. GitHub treats each pull request in a chain on its own. The implement-tickets workflow builds chains.
+_Avoid_: Stack, stacked PRs (for a chain)
+
 ## Vanta tracking issues
 
 **Tracking issue**:

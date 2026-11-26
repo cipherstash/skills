@@ -21,7 +21,7 @@
 - In a session whose working directory is any repository, not only this one, the command resolves the script from the installed skill's directory and calls the Workflow tool with that absolute `scriptPath` and `args` as a JSON object.
 - If the script is missing from the skill's directory, the skill stops and names the path it checked. It never searches the working directory for a copy.
 - In Codex, the skill says that workflows need Claude Code and stops.
-- When the run ends, the reply gives the run report and lists each PR with its place in the stack, CI state, and open findings.
+- When the run ends, the reply gives the run report and lists each PR with its place in the chain, CI state, and open findings.
 - In a repository without `.github/workflows/claude-review.yml`, the run requests no review from `cipherstash-agent` and does not wait for one. A haiku step waits for CI only, and each fix round audits the independent review, the PR's threads and CI.
 - Without the `mattpocock-skills` plugin, the build and review agents follow its `tdd` and `code-review` steps themselves and record a deviation.
 - The session never merges a PR, marks one ready, or changes its tickets while the run is going.

@@ -96,10 +96,22 @@ The calendar date a run started, in the timezone its prompt names, or labelled a
 
 ## Language skills
 
+**Language skills**:
+The set CipherStash ships for one programming language: a `<lang>-practices` skill, a `<lang>-review` skill, and the language's check suite. Say "the Python skills" or "the TypeScript skills".
+_Avoid_: Pair, language pair, skill pair
+
 **Check suite**:
-The canonical set of checks that gate every pull request, run in CI, in every repository in one programming language. Each language has its own, such as the Go check suite. Every language skill pair defines one.
+The canonical set of checks that CI runs as a hard gate on every pull request, in every repository in one programming language. Each language has its own, such as the Go check suite. Every language's skills define one.
 _Avoid_: Toolchain, the language's checks
 
 **Untrusted input**:
-Bytes that come from outside the process, such as a request body, a file, or a message. A function that parses or decodes untrusted input must have a Fuzz target.
+Bytes that come from outside the process, such as a request body, a file, or a message. A function that parses or decodes untrusted input must have a fuzz target or a property test, whichever the language's check suite names, unless that suite says why neither fits. Go's is a Fuzz target.
 _Avoid_: User input, external data
+
+**In place**:
+A check is in place when it is a GitHub Actions step that runs on `pull_request`, blocks when it fails, covers every module except fixtures with planted defects, and pins its version. Nothing may ignore its exit status: no `continue-on-error`, even when a later step enforces its result; no `|| true`; and no other way, such as a shell without `-e` or a pipe without `pipefail`. A path-filtered trigger counts only alongside a changes job that fails closed. A version is pinned when it is exact, or fixed by a committed lockfile that CI installs frozen or locked. The language runtime floats.
+_Avoid_: Enabled, configured, present
+
+**Execution surface**:
+The files and flags through which a change runs its own code when a tool builds, lints, or tests it, such as Python's `conftest.py`, Rust's `build.rs`, or Go's `-toolexec`. Each language's skills list theirs. When a change touches its execution surface, an agent runs no tool that would run the change's code until the user says yes.
+_Avoid_: Attack surface, hooks

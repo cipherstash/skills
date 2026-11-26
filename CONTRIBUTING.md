@@ -74,7 +74,6 @@ Any other language that already has convention skills needs a decision like this
 - The examples-list and reference-length rules start with the next pair. Go's references and spec #56 predate them, so do not copy Go's sizes.
 - Run the language's check suite over the examples in CI, in the validate workflow. Add a workflow test under `scripts/tests/` that checks each suite check is in place there and that its pinned version matches the reference.
 - Add a script test to the practices skill that checks every quoted block matches its source. It runs none of the suite's checks. golang-practices' test also runs each benchmark once, because benchmarks are not a suite check. CI runs it with the other skill script tests.
-- State in each reference the language version its examples target.
 - Include a seeded-defect fixture in the review skill, under `tests/fixtures/`. The fixture is a small change, as `base/` and `head/` trees, with at least one planted defect for each area the skill covers. The fixture's `expected-findings.md` lists the findings a correct review must report.
 - Add a script test to the review skill that checks the fixture. The test checks that the base is clean, that each defect comes from the change, and that the tools catch what they should. Where no tool shows a defect, add a probe test to a temporary copy of the module. The fixture stays unchanged. The test also checks that each expected location quotes its line. Run the review against the fixture by hand, as [Behavior cases](#behavior-cases) says.
 - Report each finding with a severity of `critical`, `major`, or `minor`. Those are the values `review-cross-check`, `review-post`, and `review-fix` take unchanged. Copy their meanings from the [Finding contract](plugins/company-skills/skills/golang-review/SKILL.md#finding-contract) in `golang-review`. Change only the Go-specific examples. Do not paraphrase them.
@@ -82,6 +81,45 @@ Any other language that already has convention skills needs a decision like this
 - Keep the review skill read-only. `review-fix` fixes findings and `review-post` posts them, so the review skill does neither. Write the review steps to run in sequence, so the skill works on hosts without subagents.
 - Run the checks in a temporary worktree. The checkout must run none of the change. The review must remove the worktree on every exit. The review must never remove the records of the user's other worktrees. Copy the steps from `golang-review`'s [target.md](plugins/company-skills/skills/golang-review/references/target.md#the-temporary-worktree).
 - Read all the changed code the tests will run before you run them. If that code does more than the change needs, record the tests as not run and say why. Copy the steps from `golang-review`'s [checks.md](plugins/company-skills/skills/golang-review/references/checks.md#before-running-tests).
+
+### Shared rules for every language
+
+These rules were settled once for every language, in [ADR 0001](docs/adr/0001-one-check-suite-policy-for-every-language.md), [ADR 0002](docs/adr/0002-reviews-run-no-code-from-the-change-without-a-yes.md), and [ADR 0003](docs/adr/0003-settle-shared-language-decisions-once.md). The terms are defined under [Language skills](GLOSSARY.md#language-skills) in GLOSSARY.md. Apply them to each language's skills. Do not decide them again in a language's grill or spec. Go's [checks.md](plugins/company-skills/skills/golang-practices/references/checks.md) predates them and does not yet state every case, such as path-filtered triggers. Where it is silent, these rules hold.
+
+The check suite:
+
+- A function that parses or decodes untrusted input needs a fuzz target or a property test. The language's `checks.md` names which one, or says why neither fits.
+- In pull request CI, fuzz and property tests use fixed inputs. They replay the seed corpus, or run a derandomized profile with a bounded number of examples, as Go's CI runs only its `f.Add` seeds. Random and long runs go on a schedule, never in pull request CI.
+- A version is pinned when it is exact, or when a committed lockfile fixes it and CI installs that lockfile frozen or locked. A version range with no frozen install is not pinned. The language runtime floats.
+- Coverage is reported, with no threshold. A coverage gate, such as a CRAP score, stays in the repository that wants it.
+- semgrep has one pin, shared by every language. Move it for every language in one PR. The ruleset floats. Before you pin semgrep for a new language, check that its `p/<lang>` ruleset exists.
+- Each reference states the minimum language version it targets. CI floats the latest stable or LTS release.
+- A language's review skill may add review areas beyond Go's ten when a suite tool gives evidence for the area and the review fixture can plant a defect in it. The spec records why.
+- Every language's drift test reads the pinned-versions table with one shared parser in `scripts/tests/`. Do not write a parser of your own. #129 adds the parser and moves Go's drift test onto it.
+
+When a check is in place:
+
+- A check is in place when it meets the **In place** entry in [GLOSSARY.md](GLOSSARY.md#language-skills): a GitHub Actions step that runs on `pull_request`, blocks when it fails, covers every module except fixtures with planted defects, and pins its version. This one definition holds for every language.
+- A path-filtered trigger counts only alongside a changes job that fails closed.
+- A `continue-on-error` step does not count, even when a later step enforces its result.
+
+Reviews:
+
+- CI runs the check suite. CI is the hard gate on every pull request. An agent is never responsible for running checks.
+- A review confirms that each check is in place and quotes CI's results for the commit it reviews.
+- An agent may run a tool when the tool gives useful insight or analysis. It fetches only its check suite's own tools, at the versions the practices skill pins, into `.<lang>-review-tools/`, with install scripts turned off. It never installs the change's dependencies. What it cannot see without them is a limit of the review.
+- Each language's skills list their execution surface (see [GLOSSARY.md](GLOSSARY.md#language-skills)). The agent reads tool configuration from the base commit. The change may touch the execution surface. Then the agent runs no tool that would run the change's code, such as its tests or build scripts, until the user says yes. A tool that only reads the code may still run.
+
+Scope:
+
+- A language's skills do not roll their check suite out to other repositories. A review's "missing check" lines are each repository's own backlog.
+- A language's skills cover that language's files wherever they are, such as JavaScript in a TypeScript repository or Python scripts in a Rust repository.
+- SHA-pinned actions and zizmor are not part of any language's suite. One ticket covers them for every language.
+
+Pull requests:
+
+- A language's PRs change only its own skill directories, its own CI job, and its own drift test, so several languages can build at once. The drift test may use the shared parser; it does not change it. Two exceptions: the main PR bumps the version, as [Releases](#releases) says, after merging `main`; and the release ticket PR updates the catalogs, the company-skills dependencies, and the README, as [Taking in upstream material](#taking-in-upstream-material) says.
+- Shared text, such as this file, GLOSSARY.md, and the process skill, changes only through its own ticket. A language that finds a gap in shared text files a ticket for it.
 
 ### Taking in upstream material
 

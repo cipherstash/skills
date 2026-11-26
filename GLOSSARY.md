@@ -67,7 +67,7 @@ The set CipherStash ships for one programming language: a `<lang>-practices` ski
 _Avoid_: Pair, language pair, skill pair
 
 **Check suite**:
-The canonical set of checks that gate every pull request, run in CI, in every repository in one programming language. Each language has its own, such as the Go check suite. Every language's skills define one.
+The canonical set of checks that CI runs as a hard gate on every pull request, in every repository in one programming language. Each language has its own, such as the Go check suite. Every language's skills define one.
 _Avoid_: Toolchain, the language's checks
 
 **Untrusted input**:
@@ -79,5 +79,5 @@ A check is in place when it is a GitHub Actions step that runs on `pull_request`
 _Avoid_: Enabled, configured, present
 
 **Execution surface**:
-The files and flags through which a change runs its own code when a tool builds, lints, or tests it, such as Python's `conftest.py`, Rust's `build.rs`, or Go's `-toolexec`. Each language's skills list theirs. A review runs nothing when the change touches its execution surface, unless the user says yes.
+The files and flags through which a change runs its own code when a tool builds, lints, or tests it, such as Python's `conftest.py`, Rust's `build.rs`, or Go's `-toolexec`. Each language's skills list theirs. When a change touches its execution surface, an agent runs no tool that would run the change's code until the user says yes.
 _Avoid_: Attack surface, hooks

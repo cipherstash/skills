@@ -100,8 +100,10 @@ When a check is in place:
 
 Reviews:
 
-- A review may fetch only its check suite's own tools, at the versions the practices skill pins, into `.<lang>-review-tools/`, with install scripts turned off. It never installs the change's dependencies. It reports a check that needs them as a limit of the review.
-- Each language's skills list their execution surface (see [GLOSSARY.md](GLOSSARY.md#language-skills)). The review reads tool configuration from the base commit. When the change touches the execution surface, the review runs nothing until the user says yes.
+- CI runs the check suite. CI is the hard gate on every pull request. An agent is never responsible for running checks.
+- A review confirms that each check is in place and quotes CI's results for the commit it reviews.
+- An agent may run a tool when the tool gives useful insight or analysis. It fetches only its check suite's own tools, at the versions the practices skill pins, into `.<lang>-review-tools/`, with install scripts turned off. It never installs the change's dependencies. What it cannot see without them is a limit of the review.
+- Each language's skills list their execution surface (see [GLOSSARY.md](GLOSSARY.md#language-skills)). The agent reads tool configuration from the base commit. The change may touch the execution surface. Then the agent runs no tool that would run the change's code, such as its tests or build scripts, until the user says yes. A tool that only reads the code may still run.
 
 Scope:
 

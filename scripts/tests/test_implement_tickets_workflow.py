@@ -58,7 +58,7 @@ function canned(label, prompt) {
     return { headSha: 'b' + n, unresolved: [], needsDecision: [], ci: 'passed',
              counts: { total: 0, unresolved: 0, addressed: 0, refuted: 0, needsDecision: 0 }, deviations: [] };
   }
-  if (label === 'sync stack') return { merges: [], decisions: [], deviations: [] };
+  if (label === 'sync chain') return { merges: [], decisions: [], deviations: [] };
   if (label === 'run report') return { status: 'ok', report: 'report' };
   throw new Error('no canned result for ' + label);
 }
@@ -137,7 +137,7 @@ class ImplementTicketsWorkflowTest(unittest.TestCase):
         if not NODE:
             self.fail("node is required in CI to test the implement-tickets workflow")
 
-    def test_stacks_each_ticket_on_its_blocker(self):
+    def test_bases_each_ticket_on_its_blocker(self):
         r = run([ticket(2), ticket(3, [2]), ticket(4, [3])])
         self.assertIsNone(r["error"])
         bases = {n: t["base"] for n, t in by_ticket(r).items()}
@@ -147,7 +147,7 @@ class ImplementTicketsWorkflowTest(unittest.TestCase):
         # A blocked ticket starts once its blocker's PR is open, not after its review.
         self.assertLess(r["calls"].index(next(c for c in r["calls"] if c["label"] == "pr #2")),
                         r["calls"].index(next(c for c in r["calls"] if c["label"] == "build #3")))
-        self.assertIn("sync stack", labels(r, "sync"))
+        self.assertIn("sync chain", labels(r, "sync"))
 
     def test_runs_at_most_four_agents_at_once(self):
         r = run([ticket(n) for n in range(2, 12)])
@@ -188,7 +188,7 @@ class ImplementTicketsWorkflowTest(unittest.TestCase):
         self.assertIn("merge `origin/feat/3`", p)
         self.assertEqual(by_ticket(r)[4]["base"], "feat/2")
 
-    def test_stacks_on_an_open_blocker_outside_the_run(self):
+    def test_bases_on_an_open_blocker_outside_the_run(self):
         r = run([ticket(2, [9])], [{"number": 9, "state": "open", "openPrBranch": "feat/9"}])
         self.assertEqual(by_ticket(r)[2]["base"], "feat/9")
 

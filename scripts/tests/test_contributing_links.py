@@ -6,6 +6,7 @@ Language skills section states them and links their source, so an author reads t
 
 from pathlib import Path
 import re
+import tempfile
 import unittest
 
 
@@ -20,8 +21,13 @@ def section(text, heading):
 
 
 def anchors(path):
-    """Return the GitHub anchors of the Markdown headings in a file."""
+    """Return the GitHub anchors of the Markdown headings in a file.
+
+    As GitHub does, keep letters, digits, underscores, hyphens and spaces, turn spaces into hyphens, and give the
+    second and later headings with the same anchor a -1, -2, ... suffix.
+    """
     found = set()
+    seen = {}
     in_fence = False
     for line in path.read_text(encoding="utf-8").splitlines():
         if line.startswith("```"):
@@ -29,8 +35,10 @@ def anchors(path):
             continue
         match = None if in_fence else re.match(r"#{1,6} +(.*?) *#*$", line)
         if match:
-            title = re.sub(r"[`*_]", "", match.group(1)).lower()
-            found.add(re.sub(r"[^\w\- ]", "", title).replace(" ", "-"))
+            slug = re.sub(r"[^\w\- ]", "", match.group(1).lower()).replace(" ", "-")
+            count = seen.get(slug, 0)
+            seen[slug] = count + 1
+            found.add(f"{slug}-{count}" if count else slug)
     return found
 
 
@@ -39,6 +47,26 @@ def relative_links(text):
     for target in LINK.findall(text):
         if not re.match(r"[a-z]+:", target):
             yield target
+
+
+class AnchorsTest(unittest.TestCase):
+    def anchors_of(self, markdown):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "doc.md"
+            path.write_text(markdown, encoding="utf-8")
+            return anchors(path)
+
+    def test_keeps_underscores_as_github_does(self):
+        self.assertIn(
+            "the-allow_implicit_invocation-policy",
+            self.anchors_of("## The `allow_implicit_invocation` policy\n"),
+        )
+
+    def test_numbers_repeated_headings_as_github_does(self):
+        self.assertEqual(
+            {"setup", "setup-1", "setup-2"},
+            self.anchors_of("## Setup\n\n### Setup\n\n## Setup\n"),
+        )
 
 
 class ContributingLinksTest(unittest.TestCase):

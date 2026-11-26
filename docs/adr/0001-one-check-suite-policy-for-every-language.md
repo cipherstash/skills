@@ -4,7 +4,7 @@ Status: accepted, 2026-11-26
 
 The TypeScript, Python and Rust research reports each proposed rules for their check suites, and two of them disagreed. We settled the rules that apply to every language once, so each language's grill only picks its tools and versions:
 
-- A parser of untrusted input needs a fuzz target or a property test. The language's `checks.md` names which, or says why none fits.
+- A parser of untrusted input needs a fuzz target or a property test. The language's `checks.md` names which, or says why neither fits.
 - In pull request CI, fuzz and property tests use fixed inputs: they replay the seed corpus, or run a derandomized profile with a bounded number of examples, as Go's CI replays only its `f.Add` seeds. Random and long runs go on a schedule.
 - A version is pinned when it is exact, or fixed by a committed lockfile that CI installs frozen or locked. A range with no frozen install does not count.
 - Coverage is reported with no threshold. Coverage gates such as CRAP stay in the repository that wants them, so #69 is work for the Rust repositories.

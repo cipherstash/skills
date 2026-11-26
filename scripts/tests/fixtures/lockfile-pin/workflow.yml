@@ -1,0 +1,17 @@
+# A fixture for test_language_drift.py: a suite whose one tool, fixlint, is pinned by tools/tools.lock and installed
+# frozen. GitHub never runs it, because it is not under .github/workflows/.
+on:
+  pull_request:
+
+jobs:
+  suite:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tools
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the locked tools
+        run: pkg install --frozen
+      - name: fixlint
+        run: pkg exec fixlint ../src

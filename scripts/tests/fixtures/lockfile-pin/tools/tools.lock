@@ -1,0 +1,9 @@
+# A fixture lockfile for test_language_drift.py, in no real tool's format.
+
+[[package]]
+name = "fixlint-plugin"
+version = "9.9.9"
+
+[[package]]
+name = "fixlint"
+version = "2.4.1"

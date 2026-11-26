@@ -26,7 +26,9 @@ anchors, relative_links = _load_link_helpers()
 
 REPO = Path(__file__).resolve().parents[2]
 # Found by prefix, so the tests survive the planned rename to building-language-skills.
-SKILL_DIR = next((REPO / ".claude/skills").glob("building-language-*"))
+_SKILL_DIRS = sorted((REPO / ".claude/skills").glob("building-language-*"))
+assert len(_SKILL_DIRS) == 1, f"expected one building-language-* skill, found {_SKILL_DIRS}"
+SKILL_DIR = _SKILL_DIRS[0]
 SKILL = (SKILL_DIR / "SKILL.md").read_text(encoding="utf-8")
 GOTCHAS = (SKILL_DIR / "references/gotchas.md").read_text(encoding="utf-8")
 TICKETS = (SKILL_DIR / "references/tickets.md").read_text(encoding="utf-8")
@@ -49,12 +51,13 @@ class ReviewToolsGotchaTest(unittest.TestCase):
         for phrase in (
             "docs/adr/0002-reviews-run-no-code-from-the-change-without-a-yes.md",
             "`.<lang>-review-tools/`",
-            "pins",
-            "install scripts",
+            "at the versions the practices skill pins",
+            "never a version from the change",
+            "install scripts turned off",
             "never installs the change's dependencies",
-            "limit",
+            "is reported as a limit of the review",
             "execution surface",
-            "yes",
+            "runs nothing until the user says yes",
         ):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, text)
@@ -82,6 +85,12 @@ class TicketOneTest(unittest.TestCase):
         for phrase in ("`references/checks.md`", "CI job", "over the examples", "drift test"):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, text)
+
+    def test_the_drift_test_uses_the_shared_parser(self):
+        # ADR 0001: every language's drift test reads the pinned-versions table with one shared parser.
+        text = proves(1)
+        self.assertIn("shared parser", text)
+        self.assertIn("does not write a parser of its own", text)
 
 
 class ReviewTicketsTest(unittest.TestCase):
@@ -148,6 +157,22 @@ class ChecklistStepTest(unittest.TestCase):
     def test_its_done_condition_covers_fixed_fuzz_inputs(self):
         done = self.step.split("Done when", 1)[1]
         self.assertIn("how pull request CI keeps its inputs fixed", done)
+
+    def test_its_done_condition_says_why_neither_fits(self):
+        done = self.step.split("Done when", 1)[1]
+        self.assertNotIn("why none fits", done)
+        self.assertIn("why neither fits", done)
+
+    def test_it_names_the_ci_toolchain_under_both_options(self):
+        # Under option two the suite draft is skipped, but ticket 3 still installs the CI toolchain,
+        # so the toolchain sentence must sit outside the suite draft and in the done condition.
+        draft = self.step.split("The draft names:", 1)[1].split("\n\n", 1)[0]
+        self.assertNotIn("toolchain", draft)
+        outside = self.step.replace(draft, "")
+        self.assertIn("toolchain CI must install", outside)
+        self.assertIn("either option", outside)
+        done = self.step.split("Done when", 1)[1]
+        self.assertIn("CI toolchain", done)
 
     def test_it_skips_the_suite_draft_under_option_two(self):
         self.assertIn("option two", self.step)

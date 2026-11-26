@@ -54,8 +54,10 @@ Every design step posts its result as a comment on the parent ticket, and this r
 
 2. **Write the checklist and draft the check suite.** Draft the review skill's areas table, modelled on the ten areas in `golang-review`'s SKILL.md. Give each area its priority and the tool that gives evidence for it. Go used `go vet`, `gofmt`, race-enabled tests with coverage, `govulncheck`, `go mod tidy -diff`, and an exported-API comparison. You may add a review area beyond Go's ten under the rule in CONTRIBUTING.md's [Shared rules for every language](../../../CONTRIBUTING.md#shared-rules-for-every-language): a suite tool gives evidence for the area, and the review fixture can plant a defect in it. For each one you add, the spec records why. List the examples each area's reference needs: one per rule that prose cannot state, marked as upstream as is, upstream with a fix, or new. Name the minimum language and runtime versions the references will target.
 
+   Name the toolchain CI must install for the language, under either option: ticket 1's CI job uses it, or ticket 3's fixture test under option two.
+
    Then draft the language's check suite, which ticket 1 builds. When the language already has convention skills, the grill in step 4 may pick option two. Then the spec skips the check suite draft, because the language has no check suite, as [references/tickets.md](references/tickets.md) says. Otherwise, follow the shared rules in that CONTRIBUTING.md section, and decide only what is the language's own. Go's draft is spec #87, and its result is `golang-practices`' `references/checks.md`. The draft names:
-   - **Tools**: each check the suite runs, the areas it gives evidence for, and the toolchain CI must install.
+   - **Tools**: each check the suite runs, and the areas it gives evidence for.
    - **Pinned versions**: an exact pinned version for each tool, or the committed lockfile that CI installs frozen or locked.
    - **What floats**: the language runtime, which CI takes at its latest stable or LTS release, and anything else that floats by choice, such as the semgrep ruleset.
    - **Untrusted input**: the tool that tests a function that parses or decodes untrusted input, a fuzz target or a property test, and how pull request CI keeps its inputs fixed. If neither fits the language, say why neither fits.
@@ -65,7 +67,8 @@ Every design step posts its result as a comment on the parent ticket, and this r
    The spec records the areas table, the check suite draft, and the execution surface, as #87 did for Go's check suite. Do not answer open questions yourself. Add each one this step raises to step 1's list, and sort it as step 1 says. Done when:
    - every area names its evidence, or says it has none;
    - every area lists its examples, or says it needs none;
-   - the check suite draft names each tool, its pinned version, what floats, and the untrusted-input test tool and how pull request CI keeps its inputs fixed, or why none fits;
+   - the check suite draft names each tool, its pinned version, what floats, and the untrusted-input test tool and how pull request CI keeps its inputs fixed, or why neither fits;
+   - the spec names the CI toolchain;
    - the execution surface is listed;
    - each shared question this step raised is settled or has its own ticket;
    - the checklist, the check suite draft, and the execution surface are posted as a comment on the parent ticket, with the shared tickets this step filed or linked.

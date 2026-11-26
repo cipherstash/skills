@@ -15,7 +15,7 @@ claude plugin marketplace add cipherstash/skills
 claude plugin install company-skills@company
 ```
 
-The `company` marketplace also lists five plugins that some company skills draw on. Install the ones you want by name:
+The `company` marketplace also lists five plugins you can install alongside company-skills. Install the ones you want by name (checked with Claude Code 2.1.332):
 
 ```sh
 claude plugin install differential-review@company
@@ -43,7 +43,7 @@ claude plugin update company-skills@company
 
 Updating from a release before 0.15.0 leaves the removed `golang-pro` plugin installed but failing to load. Uninstall it as described in [Bundled language practice skills](#bundled-language-practice-skills).
 
-Updating from 0.12.0 to 0.18.0 keeps the five plugins those releases installed as dependencies, but Claude Code now treats them as orphans, so `claude plugin prune` removes them. To keep one, run its `claude plugin install` line above, which marks it as installed by you. Checked with Claude Code 2.1.332 by updating 0.18.0 to this release.
+Updating from 0.12.0 to 0.18.0 keeps the five plugins those releases installed as dependencies, but Claude Code now treats them as orphans, so `claude plugin prune` removes them. To keep one, run its `claude plugin install` line above, which marks it as installed by you. Checked with Claude Code 2.1.332 by updating 0.18.0 to 0.18.1.
 
 Updating company-skills does not update the bundled plugins. When a release moves the pinned commit of a bundled plugin, update that plugin by name as well:
 
@@ -100,7 +100,7 @@ The Trail of Bits entries are `git-subdir` sources pinned to one full upstream c
   ```
 
   Then run `/code-improver:skill-improver <skill name or path>`.
-- **Codex:** the Codex catalog lists only `differential-review` and `insecure-defaults`. Both install from the same pinned entries, but install each with `codex plugin add` as shown under [Codex](#codex). `insecure-defaults` ships a Claude Code command and workflow and no `skills/` directory, so it may expose nothing in Codex. Checked with `codex-cli 0.169.0`. `code-improver` and `plugin-dev` are Claude-catalog-only and were not tested in Codex.
+- **Codex:** the Codex catalog lists only `differential-review` and `insecure-defaults`. Both install from the same pinned entries; install each with `codex plugin add` as shown under [Codex](#codex). `insecure-defaults` ships a Claude Code command and workflow and no `skills/` directory, so it may expose nothing in Codex. Checked with `codex-cli 0.169.0`. `code-improver` and `plugin-dev` are Claude-catalog-only and were not tested in Codex.
 
 Nothing auto-updates them: a plugin with a pinned `sha` stays on that commit through marketplace refreshes and plugin updates. To move the Trail of Bits pin, open a pull request that:
 
@@ -126,7 +126,7 @@ They are reference material on language practice. Upstream wrote them for writin
 
 Upstream publishes all 67 of its skills as one plugin. Each entry here installs one skill instead: a `git-subdir` source pointing at that skill's directory, `skills/<name>`, with `"strict": false` and `"skills": ["./"]` so the directory loads as a plugin holding a single skill. All three are pinned to the commit of the upstream v0.4.20 release. No upstream files are copied into this repository. They are published by Jeffallan under the MIT licence.
 
-- **Claude Code:** install each by name, as shown under [Claude Code](#claude-code). Invoke one by its namespaced name, for example `/python-pro:python-pro`. Checked with Claude Code 2.1.328.
+- **Claude Code:** install each by name, as shown under [Claude Code](#claude-code). Invoke one by its namespaced name, for example `/python-pro:python-pro`. Installing by name checked with Claude Code 2.1.332.
 - **Codex:** the Codex catalog does not list them, and they have not been tested there.
 
 Nothing auto-updates them. To move the pin, open a pull request that:

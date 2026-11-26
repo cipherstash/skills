@@ -257,34 +257,67 @@ class PackagingTests(unittest.TestCase):
         return path
 
     def test_reference_to_a_shipped_skill_passes(self):
-        self.add_reference("Follow the `rust-security` skill, or `company-skills:golang-practices`, or `company-skills:rust-*`.\n")
+        self.add_reference(
+            "Follow the `rust-security` skill, the `rust-*` skills, `company-skills:golang-practices`, "
+            "or `company-skills:rust-*`.\n"
+        )
         self.check_result(0, "Validation passed")
 
     def test_reference_to_an_unshipped_company_skill_fails(self):
-        self.add_reference("Use `company-skills:review-code` if it is installed.\n")
-        self.check_result(1, "company-skills does not ship `review-code`")
+        for text, relative in (
+            ("Use `company-skills:review-code` if it is installed.\n", "references/extra.md"),
+            ("Use company-skills:review-code here.\n", "references/extra.md"),
+            ("# see company-skills:review-code\n", "assets/extra.yml"),
+            ("# see company-skills:review-code\n", "scripts/extra.py"),
+        ):
+            with self.subTest(text=text, relative=relative):
+                path = self.add_reference(text, relative)
+                self.check_result(1, "company-skills does not ship `review-code`")
+                path.unlink()
 
     def test_bare_reference_to_another_plugins_skill_fails(self):
-        self.add_reference("Invoke the `python-pro` skill.\n")
-        self.check_result(1, "`python-pro` is not a company-skills skill")
+        for text in ("Invoke the `python-pro` skill.\n", "Load the `python-*` skills.\n"):
+            with self.subTest(text=text):
+                self.add_reference(text)
+                self.check_result(1, "is not a company-skills skill")
 
     def test_other_plugins_skill_needs_a_fallback(self):
-        self.add_reference("Invoke `mattpocock-skills:tdd` and follow it.\n\n\n\n\nIt cannot be loaded? Too far away.\n")
-        self.check_result(1, "`mattpocock-skills:tdd` is another plugin's skill")
         for text in (
+            "Invoke `mattpocock-skills:tdd` and follow it.\n\n\n\n\nIf mattpocock-skills cannot be loaded, too far.\n",
+            "Invoke `superpowers:brainstorming` and follow it.\n",
+            "Use `mattpocock-skills:tdd`. PGPORT is not available on Windows.\n",
             "Invoke `mattpocock-skills:tdd`.\nIf it cannot be loaded, work red-green yourself.\n",
+        ):
+            with self.subTest(text=text):
+                self.add_reference(text)
+                self.check_result(1, "is another plugin's skill")
+        for text in (
+            "Invoke `mattpocock-skills:tdd`.\nIf `mattpocock-skills:tdd` cannot be loaded, work red-green yourself.\n",
+            "If the superpowers plugin is not installed, skip this.\nInvoke `superpowers:brainstorming`.\n",
             "Run `/differential-review:diff-review` if it is available; otherwise review by hand.\n",
-            "Invoke \\`mattpocock-skills:tdd\\`. If the plugin is not installed, follow its steps.\n",
+            "Invoke \\`mattpocock-skills:tdd\\`. If the mattpocock-skills plugin is not installed, follow its steps.\n",
         ):
             with self.subTest(text=text):
                 self.add_reference(text)
                 self.check_result(0, "Validation passed")
 
-    def test_behaviour_cases_and_non_plugin_colons_are_ignored(self):
-        self.add_reference("Report `path:line` and `localhost:6060`.\n")
+    def test_behaviour_cases_and_non_skill_colons_are_ignored(self):
+        self.add_reference("Report `path:line`, `file:12` and `localhost:6060`; set key:value.\n")
         self.check_result(0, "Validation passed")
         self.add_reference("Invoke `mattpocock-skills:tdd`.\n", relative="tests/extra.md")
         self.check_result(0, "Validation passed")
+
+    def test_unparsed_catalog_reports_no_missing_bundled_plugins(self):
+        for relative in (".claude-plugin/marketplace.json", ".agents/plugins/marketplace.json"):
+            with self.subTest(catalog=relative):
+                self.change_json(relative, lambda data: data.update(plugins="not a list"))
+                output = io.StringIO()
+                with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
+                    result = validate.main()
+                self.assertEqual(result, 1, output.getvalue())
+                self.assertIn("plugins must be an array", output.getvalue())
+                self.assertNotIn("missing from the catalog", output.getvalue())
+                shutil.copy(REPO / relative, self.root / relative)
 
     def test_publisher_required(self):
         for author in (None, {}, {"name": None}, {"name": ""}):

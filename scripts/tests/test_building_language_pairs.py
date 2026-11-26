@@ -226,7 +226,7 @@ STEP_REFERENCES = {
         "goes back to step 1's list and is sorted as step 1 says": {1: "research"},
     },
     TICKETS: {
-        "The grill, design step 4": {4: "grill"},
+        "When the grill, design step 4": {4: "grill"},
         "shared-text ticket from design step 4": {4: "grill"},
         "checks in build step 8": {8: "build each ticket"},
     },

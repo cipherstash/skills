@@ -21,8 +21,8 @@ REPO = language_drift.REPO
 PRACTICES = REPO / "plugins/company-skills/skills/golang-practices"
 EXAMPLES = "plugins/company-skills/skills/golang-practices/examples"
 WORKFLOW = yaml.safe_load((REPO / ".github/workflows/validate.yml").read_text())
-JOB = "go-check-suite"
-SUITE = WORKFLOW["jobs"][JOB]
+SUITE_JOB = "go-check-suite"
+SUITE = WORKFLOW["jobs"][SUITE_JOB]
 STEPS = SUITE["steps"]
 PINS = {tool: pin.version for tool, pin in language_drift.read_pins(PRACTICES / "references/checks.md").items()}
 
@@ -58,12 +58,12 @@ def step_using(action):
 
 
 def commands_in(directory):
-    return [command for cwd, command in language_drift.run_lines(WORKFLOW, JOB) if cwd == directory]
+    return [command for cwd, command in language_drift.run_lines(WORKFLOW, SUITE_JOB) if cwd == directory]
 
 
 class CheckSuiteWorkflowTests(language_drift.DriftTests, unittest.TestCase):
     CHECKS = PRACTICES / "references/checks.md"
-    JOB = JOB
+    JOB = SUITE_JOB
 
     def assertRuns(self, pattern, directory=EXAMPLES):
         commands = commands_in(directory)

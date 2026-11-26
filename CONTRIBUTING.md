@@ -153,6 +153,6 @@ python3 scripts/validate.py
 python3 -m unittest discover -s scripts/tests
 ```
 
-With Claude Code installed, also run `claude plugin validate . --strict` and `claude plugin validate plugins/company-skills --strict`.
+With Claude Code installed, also run `claude plugin validate . --strict` and `claude plugin validate plugins/company-skills --strict`. Keep `--strict` in both commands. If a command prints prose instead of a validation report, treat it as a failure. Claude Code has sometimes read these commands as a prompt and started a session. That session printed its own answer, not the validator's report.
 
 The validator checks this repository's packaging contract, skill metadata, reference paths, size limits, and the behavior-case structure. Its regression tests cover broken packaging configurations. It is not a complete upstream JSON/YAML schema validator and does not validate every optional `agents/openai.yaml` field. Run each skill's script tests separately when changing those scripts. Exercise representative prompts in both Codex and Claude Code for changes that affect both hosts, and report any host you could not test.

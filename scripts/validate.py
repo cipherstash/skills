@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import fnmatch
 import json
 import re
 import sys
@@ -21,11 +22,32 @@ RESERVED_WORDS = ("anthropic", "claude")
 XML_TAG_RE = re.compile(r"<[^>]+>")
 errors: list[str] = []
 
-# Plugins the Claude catalog lists for users to install by name. They are not
-# company-skills dependencies, because installing them for everyone costs too
-# much (plugin-dev adds a whole toolkit to every session).
-CLAUDE_OPT_IN_PLUGINS = frozenset({"code-improver", "plugin-dev"})
+# Plugins each catalog lists beside company-skills, for users to install by
+# name. company-skills must not declare them as dependencies: Claude Code
+# disables a plugin while a dependency is missing, and the claude.ai
+# organisation sync delivers company-skills without its sibling plugins.
+# Removing a bundled plugin means removing it here and from every catalog.
+CODEX_BUNDLED_PLUGINS = frozenset({"differential-review", "insecure-defaults"})
+CLAUDE_BUNDLED_PLUGINS = CODEX_BUNDLED_PLUGINS | frozenset(
+    {"code-improver", "plugin-dev", "python-pro", "rust-engineer", "typescript-pro"}
+)
 
+# A skill can use another plugin's skill only as an option: within three lines
+# of the reference, before or after, a sentence that names the plugin or skill
+# must say what to do when it is missing, because company-skills cannot make
+# Claude Code or Codex install it.
+SKILL_NAME = r"[a-z0-9]+(?:-[a-z0-9]+)*"
+# Backticked `<plugin>:<skill>` (optionally a /command), for any plugin.
+BACKTICKED_SKILL_RE = re.compile(rf"`/?({SKILL_NAME}):({SKILL_NAME}(?:-\*)?)`")
+# Unbackticked <plugin>:<skill>, only for names that are clearly plugins.
+PLAIN_SKILL_RE = re.compile(rf"(?<![\w/.:-])({SKILL_NAME}):({SKILL_NAME}(?:-\*)?)(?![\w/:-])")
+# Backticked forms that look like <plugin>:<skill> but are not.
+NOT_SKILL_NAMESPACES = frozenset({"localhost", "http", "https", "file", "path", "npm", "pypi", "docker", "github"})
+NOT_SKILL_NAMES = frozenset({"line", "col", "column", "port"})
+BARE_SKILL_RE = re.compile(rf"\b(?:[Tt]he|[Aa]n?) `({SKILL_NAME}(?:-\*)?)` skills?\b")
+FALLBACK_RE = re.compile(r"cannot be loaded|is not installed|is not available|is unavailable|if (?:it is |it's )?available")
+FALLBACK_LINES = 3
+REFERENCE_SUFFIXES = (".md", ".js", ".yaml", ".yml", ".py", ".json", ".sh", ".toml")
 
 def fail(path: Path, message: str) -> None:
     errors.append(f"{path.relative_to(ROOT)}: {message}")
@@ -196,31 +218,27 @@ def validate_manifests() -> None:
     ):
         fail(claude_market_path, "must publish ./plugins/company-skills")
 
-    # Same-marketplace dependencies by bare name: the git-subdir SHA is the pin,
-    # so version ranges and cross-marketplace names are not used here.
-    claude_manifest_path = PLUGIN / ".claude-plugin" / "plugin.json"
-    dependencies = load_json(claude_manifest_path).get("dependencies", [])
-    listed = {entry.get("name") for entry in claude_entries if isinstance(entry, dict)}
-    if not isinstance(dependencies, list) or not all(
-        isinstance(name, str) and name in listed and name != portable.get("name") for name in dependencies
+    for manifest_path in (PLUGIN / "plugin.json", PLUGIN / ".codex-plugin" / "plugin.json", PLUGIN / ".claude-plugin" / "plugin.json"):
+        if "dependencies" in load_json(manifest_path):
+            fail(
+                manifest_path,
+                "must not declare dependencies: Claude Code disables company-skills when a synced copy lacks them",
+            )
+    # Any catalog entry not in its bundled list, or listed plugin missing from
+    # its catalog, is a half-finished addition or removal: update the list and
+    # every catalog together. A catalog that did not parse has already failed,
+    # so skip it rather than report every listed plugin as missing.
+    for path, market, entries, bundled in (
+        (claude_market_path, claude_market, claude_entries, CLAUDE_BUNDLED_PLUGINS),
+        (codex_market_path, codex_market, codex_entries, CODEX_BUNDLED_PLUGINS),
     ):
-        fail(claude_manifest_path, "dependencies must name plugins in the company marketplace")
-    # Each catalog bundles other plugins only so company-skills can install them
-    # (Codex users add them by hand, as Codex has no plugin dependencies). Any
-    # other entry that is not a dependency, whatever its source type, is a
-    # half-finished removal. A malformed list has already failed above, so skip
-    # the check rather than report every entry.
-    # The only exceptions are the Claude catalog's opt-in plugins, which users
-    # install by name (README, "Bundled Trail of Bits plugins and plugin-dev").
-    if isinstance(dependencies, list) and all(isinstance(name, str) for name in dependencies):
-        allowed = set(dependencies) | {portable.get("name")}
-        for path, entries, extra in (
-            (claude_market_path, claude_entries, CLAUDE_OPT_IN_PLUGINS),
-            (codex_market_path, codex_entries, frozenset()),
-        ):
-            for entry in entries:
-                if isinstance(entry, dict) and entry.get("name") not in allowed | extra:
-                    fail(path, f"{entry.get('name')}: a bundled plugin in the catalog must be a company-skills dependency")
+        if not isinstance(market.get("plugins"), list):
+            continue
+        listed = {entry.get("name") for entry in entries if isinstance(entry, dict)}
+        for name in sorted(listed - bundled - {portable.get("name")}, key=str):
+            fail(path, f"{name}: a bundled plugin in the catalog must be listed in validate.py")
+        for name in sorted(bundled - listed):
+            fail(path, f"{name}: listed in validate.py as bundled but missing from the catalog")
 
     claude_pins = git_subdir_pins(claude_entries)
     codex_pins = git_subdir_pins(codex_entries)
@@ -287,6 +305,62 @@ def validate_skill(skill: Path) -> None:
     validate_cases(skill)
 
 
+def is_plugin_namespace(name: str) -> bool:
+    return name == "company-skills" or name in CLAUDE_BUNDLED_PLUGINS or name.endswith("-skills")
+
+
+def skill_references(line: str) -> set[tuple[str, str]]:
+    found = {
+        (plugin, name)
+        for plugin, name in BACKTICKED_SKILL_RE.findall(line)
+        if plugin not in NOT_SKILL_NAMESPACES and name not in NOT_SKILL_NAMES and not name.isdigit()
+    }
+    found |= {(plugin, name) for plugin, name in PLAIN_SKILL_RE.findall(line) if is_plugin_namespace(plugin)}
+    return found
+
+
+def has_fallback(lines: list[str], number: int, plugin: str, name: str) -> bool:
+    window = lines[max(0, number - FALLBACK_LINES) : number + 1 + FALLBACK_LINES]
+    # The fallback and the plugin or skill name must share a sentence, so an
+    # unrelated "is not available" next to the reference does not count.
+    return any(
+        FALLBACK_RE.search(sentence.lower()) and (plugin in sentence or f":{name}" in sentence)
+        for line in window
+        for sentence in re.split(r"(?<=[.;])\s+", line)
+    )
+
+
+def validate_skill_references(skills: list[Path]) -> None:
+    """Fail on a reference to a skill company-skills does not ship, unless it is
+    a `<plugin>:<skill>` reference to another plugin's skill with a fallback."""
+    shipped = {skill.name for skill in skills}
+    for skill in skills:
+        for path in sorted(skill.rglob("*")):
+            if not path.is_file() or path.suffix not in REFERENCE_SUFFIXES:
+                continue
+            if "tests" in path.relative_to(skill).parts:
+                continue  # behaviour cases describe hosts and prompts, not instructions
+            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+            for number, line in enumerate(lines):
+                for plugin, name in sorted(skill_references(line)):
+                    if plugin == "company-skills":
+                        if not fnmatch.filter(shipped, name):
+                            fail(path, f"line {number + 1}: company-skills does not ship `{name}`")
+                    elif not has_fallback(lines, number, plugin, name):
+                        fail(
+                            path,
+                            f"line {number + 1}: `{plugin}:{name}` is another plugin's skill; within "
+                            f"{FALLBACK_LINES} lines, a sentence naming it must say what to do when it cannot be loaded",
+                        )
+                for name in BARE_SKILL_RE.findall(line):
+                    if not fnmatch.filter(shipped, name):
+                        fail(
+                            path,
+                            f"line {number + 1}: `{name}` is not a company-skills skill; name it as "
+                            "`<plugin>:<skill>` with a fallback",
+                        )
+
+
 def main() -> int:
     errors.clear()
     validate_manifests()
@@ -298,6 +372,7 @@ def main() -> int:
         fail(SKILLS, "must contain at least one skill")
     for skill in skills:
         validate_skill(skill)
+    validate_skill_references(skills)
     if errors:
         print("Validation failed:", file=sys.stderr)
         for error in errors:

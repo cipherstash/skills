@@ -101,13 +101,21 @@ class PackagingTests(unittest.TestCase):
         shutil.rmtree(validate.SKILLS)
         self.check_result(1, "shared skills directory is required")
 
+    def bundle(self, name, claude=True, codex=True):
+        """List a plugin as bundled in validate.py for the catalogs given."""
+        changes = {}
+        if claude:
+            changes["CLAUDE_BUNDLED_PLUGINS"] = validate.CLAUDE_BUNDLED_PLUGINS | {name}
+        if codex:
+            changes["CODEX_BUNDLED_PLUGINS"] = validate.CODEX_BUNDLED_PLUGINS | {name}
+        bundled = patch.multiple(validate, **changes)
+        bundled.start()
+        self.addCleanup(bundled.stop)
+
     def add_to_both_catalogs(self, claude_entry, codex_entry, declare=True):
         policy = {"policy": {"installation": "AVAILABLE", "authentication": "ON_INSTALL"}, "category": "Productivity"}
-        if claude_entry and declare:
-            self.change_json(
-                "plugins/company-skills/.claude-plugin/plugin.json",
-                lambda data: data["dependencies"].append(claude_entry["name"]),
-            )
+        if declare and (claude_entry or codex_entry):
+            self.bundle((claude_entry or codex_entry)["name"], claude=bool(claude_entry), codex=bool(codex_entry))
         self.change_json(".claude-plugin/marketplace.json", lambda data: data["plugins"].extend([claude_entry] if claude_entry else []))
         self.change_json(
             ".agents/plugins/marketplace.json",
@@ -158,25 +166,24 @@ class PackagingTests(unittest.TestCase):
                 )
                 self.check_result(1, diagnostic)
 
-    def test_dependencies_name_listed_plugins(self):
-        self.add_to_both_catalogs(git_subdir(), git_subdir())
-        manifest = "plugins/company-skills/.claude-plugin/plugin.json"
-        self.check_result(0, "Validation passed")
-        for dependencies in (
-            ["unlisted-plugin"],
-            ["example-plugin@other"],
-            [{"name": "example-plugin", "version": "^1.0.0"}],
-            "example-plugin",
+    def test_manifests_declare_no_dependencies(self):
+        for manifest in (
+            "plugins/company-skills/plugin.json",
+            "plugins/company-skills/.codex-plugin/plugin.json",
+            "plugins/company-skills/.claude-plugin/plugin.json",
         ):
-            with self.subTest(dependencies=dependencies):
-                self.change_json(manifest, lambda data: data.update(dependencies=dependencies))
-                self.check_result(1, "dependencies must name plugins in the company marketplace")
+            self.assertNotIn("dependencies", json.loads((REPO / manifest).read_text()))
+            for dependencies in (["differential-review"], [], "differential-review"):
+                with self.subTest(manifest=manifest, dependencies=dependencies):
+                    self.change_json(manifest, lambda data: data.update(dependencies=dependencies))
+                    self.check_result(1, f"{manifest}: must not declare dependencies")
+            shutil.copy(REPO / manifest, self.root / manifest)
 
-    def test_bundled_plugin_must_be_a_dependency(self):
+    def test_bundled_plugin_must_be_listed(self):
         self.add_to_both_catalogs(git_subdir(), git_subdir(), declare=False)
-        self.check_result(1, "example-plugin: a bundled plugin in the catalog must be a company-skills dependency")
+        self.check_result(1, "example-plugin: a bundled plugin in the catalog must be listed in validate.py")
 
-    def test_bundled_plugin_of_any_source_type_must_be_a_dependency(self):
+    def test_bundled_plugin_of_any_source_type_must_be_listed(self):
         for source in (
             {"source": "github", "repo": "example/skills"},
             {"source": "url", "url": "https://github.com/example/skills.git"},
@@ -188,9 +195,9 @@ class PackagingTests(unittest.TestCase):
                     ".claude-plugin/marketplace.json",
                     lambda data: data["plugins"].append({"name": "example-plugin", "source": source}),
                 )
-                self.check_result(1, "example-plugin: a bundled plugin in the catalog must be a company-skills dependency")
+                self.check_result(1, "example-plugin: a bundled plugin in the catalog must be listed in validate.py")
 
-    def test_claude_opt_in_plugins_need_not_be_dependencies(self):
+    def test_claude_only_plugins_are_not_bundled_for_codex(self):
         self.check_result(0, "Validation passed")
         codex_market = ".agents/plugins/marketplace.json"
         policy = {"policy": {"installation": "AVAILABLE", "authentication": "ON_INSTALL"}, "category": "Productivity"}
@@ -198,9 +205,9 @@ class PackagingTests(unittest.TestCase):
             codex_market,
             lambda data: data["plugins"].append({**git_subdir(name="plugin-dev"), **policy}),
         )
-        self.check_result(1, f"{codex_market}: plugin-dev: a bundled plugin in the catalog must be a company-skills dependency")
+        self.check_result(1, f"{codex_market}: plugin-dev: a bundled plugin in the catalog must be listed in validate.py")
 
-    def test_codex_bundled_plugin_must_be_a_dependency(self):
+    def test_codex_bundled_plugin_must_be_listed(self):
         codex_market = ".agents/plugins/marketplace.json"
         policy = {"policy": {"installation": "AVAILABLE", "authentication": "ON_INSTALL"}, "category": "Productivity"}
         for entry in (
@@ -211,49 +218,106 @@ class PackagingTests(unittest.TestCase):
                 shutil.copy(REPO / codex_market, self.root / codex_market)
                 self.change_json(codex_market, lambda data: data["plugins"].append({**entry, **policy}))
                 self.check_result(
-                    1, f"{codex_market}: example-plugin: a bundled plugin in the catalog must be a company-skills dependency"
+                    1, f"{codex_market}: example-plugin: a bundled plugin in the catalog must be listed in validate.py"
                 )
 
-    def test_malformed_dependencies_report_only_the_shape_error(self):
-        manifest = "plugins/company-skills/.claude-plugin/plugin.json"
-        for dependencies in ("differential-review", [{"name": "differential-review"}], None):
-            with self.subTest(dependencies=dependencies):
-                self.change_json(manifest, lambda data: data.update(dependencies=dependencies))
-                output = io.StringIO()
-                with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
-                    result = validate.main()
-                self.assertEqual(result, 1, output.getvalue())
-                self.assertIn("dependencies must name plugins in the company marketplace", output.getvalue())
-                self.assertNotIn("must be a company-skills dependency", output.getvalue())
-
-    def test_removing_a_bundled_plugin_needs_both_catalogs_and_dependencies(self):
-        manifest = "plugins/company-skills/.claude-plugin/plugin.json"
+    def test_removing_a_bundled_plugin_needs_both_catalogs_and_the_list(self):
         claude_market = ".claude-plugin/marketplace.json"
         codex_market = ".agents/plugins/marketplace.json"
         # A plugin both catalogs list, so every removal path is exercised.
         bundled = "differential-review"
         for relative in (claude_market, codex_market):
             self.assertIn(bundled, [entry["name"] for entry in json.loads((REPO / relative).read_text())["plugins"]])
-        self.assertIn(bundled, json.loads((REPO / manifest).read_text())["dependencies"])
-
-        def drop_dependency(data):
-            data["dependencies"].remove(bundled)
 
         def drop_entry(data):
             data["plugins"] = [entry for entry in data["plugins"] if entry["name"] != bundled]
 
-        for removed, diagnostic in (
-            ((claude_market, codex_market), "dependencies must name plugins in the company marketplace"),
-            ((manifest,), f"{bundled}: a bundled plugin in the catalog must be a company-skills dependency"),
-            ((manifest, claude_market), f"{bundled}: git-subdir pin must match in both marketplace catalogs"),
-            ((manifest, claude_market, codex_market), "Validation passed"),
+        unlisted = {
+            "CLAUDE_BUNDLED_PLUGINS": validate.CLAUDE_BUNDLED_PLUGINS - {bundled},
+            "CODEX_BUNDLED_PLUGINS": validate.CODEX_BUNDLED_PLUGINS - {bundled},
+        }
+        for removed, drop_from_list, diagnostic in (
+            ((), True, f"{bundled}: a bundled plugin in the catalog must be listed in validate.py"),
+            ((claude_market,), False, f"{bundled}: listed in validate.py as bundled but missing from the catalog"),
+            ((claude_market, codex_market), False, f"{bundled}: listed in validate.py as bundled but missing from the catalog"),
+            ((claude_market, codex_market), True, "Validation passed"),
         ):
-            with self.subTest(removed=removed):
-                for relative in (manifest, claude_market, codex_market):
+            with self.subTest(removed=removed, drop_from_list=drop_from_list):
+                for relative in (claude_market, codex_market):
                     shutil.copy(REPO / relative, self.root / relative)
                 for relative in removed:
-                    self.change_json(relative, drop_dependency if relative == manifest else drop_entry)
-                self.check_result(0 if diagnostic == "Validation passed" else 1, diagnostic)
+                    self.change_json(relative, drop_entry)
+                with patch.multiple(validate, **unlisted) if drop_from_list else contextlib.nullcontext():
+                    self.check_result(0 if diagnostic == "Validation passed" else 1, diagnostic)
+
+    def add_reference(self, text, relative="references/extra.md"):
+        path = self.root / "plugins/company-skills/skills/plain-language" / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+        return path
+
+    def test_reference_to_a_shipped_skill_passes(self):
+        self.add_reference(
+            "Follow the `rust-security` skill, the `rust-*` skills, `company-skills:golang-practices`, "
+            "or `company-skills:rust-*`.\n"
+        )
+        self.check_result(0, "Validation passed")
+
+    def test_reference_to_an_unshipped_company_skill_fails(self):
+        for text, relative in (
+            ("Use `company-skills:review-code` if it is installed.\n", "references/extra.md"),
+            ("Use company-skills:review-code here.\n", "references/extra.md"),
+            ("# see company-skills:review-code\n", "assets/extra.yml"),
+            ("# see company-skills:review-code\n", "scripts/extra.py"),
+        ):
+            with self.subTest(text=text, relative=relative):
+                path = self.add_reference(text, relative)
+                self.check_result(1, "company-skills does not ship `review-code`")
+                path.unlink()
+
+    def test_bare_reference_to_another_plugins_skill_fails(self):
+        for text in ("Invoke the `python-pro` skill.\n", "Load the `python-*` skills.\n"):
+            with self.subTest(text=text):
+                self.add_reference(text)
+                self.check_result(1, "is not a company-skills skill")
+
+    def test_other_plugins_skill_needs_a_fallback(self):
+        for text in (
+            "Invoke `mattpocock-skills:tdd` and follow it.\n\n\n\n\nIf mattpocock-skills cannot be loaded, too far.\n",
+            "Invoke `superpowers:brainstorming` and follow it.\n",
+            "Use `mattpocock-skills:tdd`. PGPORT is not available on Windows.\n",
+            "Invoke `mattpocock-skills:tdd`.\nIf it cannot be loaded, work red-green yourself.\n",
+        ):
+            with self.subTest(text=text):
+                self.add_reference(text)
+                self.check_result(1, "is another plugin's skill")
+        for text in (
+            "Invoke `mattpocock-skills:tdd`.\nIf `mattpocock-skills:tdd` cannot be loaded, work red-green yourself.\n",
+            "If the superpowers plugin is not installed, skip this.\nInvoke `superpowers:brainstorming`.\n",
+            "Run `/differential-review:diff-review` if it is available; otherwise review by hand.\n",
+            "Invoke \\`mattpocock-skills:tdd\\`. If the mattpocock-skills plugin is not installed, follow its steps.\n",
+        ):
+            with self.subTest(text=text):
+                self.add_reference(text)
+                self.check_result(0, "Validation passed")
+
+    def test_behaviour_cases_and_non_skill_colons_are_ignored(self):
+        self.add_reference("Report `path:line`, `file:12` and `localhost:6060`; set key:value.\n")
+        self.check_result(0, "Validation passed")
+        self.add_reference("Invoke `mattpocock-skills:tdd`.\n", relative="tests/extra.md")
+        self.check_result(0, "Validation passed")
+
+    def test_unparsed_catalog_reports_no_missing_bundled_plugins(self):
+        for relative in (".claude-plugin/marketplace.json", ".agents/plugins/marketplace.json"):
+            with self.subTest(catalog=relative):
+                self.change_json(relative, lambda data: data.update(plugins="not a list"))
+                output = io.StringIO()
+                with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
+                    result = validate.main()
+                self.assertEqual(result, 1, output.getvalue())
+                self.assertIn("plugins must be an array", output.getvalue())
+                self.assertNotIn("missing from the catalog", output.getvalue())
+                shutil.copy(REPO / relative, self.root / relative)
 
     def test_publisher_required(self):
         for author in (None, {}, {"name": None}, {"name": ""}):

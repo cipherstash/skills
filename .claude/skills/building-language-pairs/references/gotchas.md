@@ -35,10 +35,10 @@ Plan for these up front. Items marked **criterion** belong in the acceptance cri
 
 ## Packaging
 
-- **The validator checks both catalogs.** It rejects any entry in either catalog, other than company-skills, that is not a dependency. Remove the upstream plugin from every catalog that lists it, and from the dependencies, in the same commit. The Claude catalog's opt-in plugins, listed in `CLAUDE_OPT_IN_PLUGINS` in `scripts/validate.py`, are the only exception. **Criterion** for ticket 5.
+- **The validator checks both catalogs.** It rejects any entry in either catalog, other than company-skills, that `CLAUDE_BUNDLED_PLUGINS` or `CODEX_BUNDLED_PLUGINS` in `scripts/validate.py` does not name, and a named plugin a catalog is missing. Remove the upstream plugin from every catalog that lists it, and from those lists, in the same commit. company-skills declares no plugin dependencies, so there is nothing to drop there. **Criterion** for ticket 5.
 
 ## Host testing
 
 - **Run repository commands in the checkout.** In a project thread the shell starts in `/home/user`, not the repository, so the repository's slash commands fail there. Change into the checkout first.
-- **Dependency plugins block a local load.** `claude -p --plugin-dir plugins/company-skills` loads no skills unless every dependency plugin is installed. Test from a scratch copy of the plugin with `dependencies` removed from its manifest.
+- **Dependency plugins block a load.** Claude Code disables a plugin while any declared dependency is missing. Up to 0.18.0 that kept company-skills from loading with `--plugin-dir` and in cloud sessions, so 0.18.1 removed its `dependencies` and the validator now rejects the field.
 - **Codex may be missing.** Run the Codex cases yourself when the runner has a working Codex CLI. Cloud sessions usually have none. Then ask the person to run them, and record their results in the release ticket PR body. For Go, a maintainer ran only the `golang-review` cases, and the results went in #71's body by exception. Record new results for both skills in the release ticket PR body.

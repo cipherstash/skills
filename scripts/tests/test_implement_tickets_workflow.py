@@ -137,6 +137,24 @@ class ImplementTicketsWorkflowTest(unittest.TestCase):
         if not NODE:
             self.fail("node is required in CI to test the implement-tickets workflow")
 
+    def test_every_agent_reads_the_chain_rule(self):
+        r = run([ticket(2), ticket(3, [2])])
+        for c in r["calls"]:
+            self.assertIn("Never run `gh stack`", c["prompt"], c["label"])
+
+    def test_each_pr_gets_its_place_in_the_chain_from_the_bottom(self):
+        r = run([ticket(2), ticket(3, [2]), ticket(4, [3])])
+        for n, place in ((2, 1), (3, 2), (4, 3)):
+            text = " ".join(prompt(r, f"pr #{n}").split())
+            self.assertIn(f"PR {place} of the chain, counting from the bottom", text)
+        self.assertEqual({2: 1, 3: 2, 4: 3}, {n: t["position"] for n, t in by_ticket(r).items()})
+
+    def test_a_pr_above_a_blocker_outside_the_run_has_no_position(self):
+        r = run([ticket(5, [9])], blocker_states=[{"number": 9, "state": "open", "openPrBranch": "feat/9"}])
+        self.assertIn("directly above the PR for `feat/9`, which is outside this run",
+                      " ".join(prompt(r, "pr #5").split()))
+        self.assertIsNone(by_ticket(r)[5]["position"])
+
     def test_bases_each_ticket_on_its_blocker(self):
         r = run([ticket(2), ticket(3, [2]), ticket(4, [3])])
         self.assertIsNone(r["error"])

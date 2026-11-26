@@ -8,7 +8,7 @@ A multi-agent workflow script runs in Claude Code only, through the Workflow too
 
 A workflow skill is started by a person, because typing the command is their opt-in to a multi-agent run. Set `disable-model-invocation: true` in `SKILL.md` and `policy.allow_implicit_invocation: false` in `agents/openai.yaml`. In Codex, the skill says that workflows need Claude Code and stops. Test the script under `scripts/tests/` with a stub `agent()`. Its behavior cases list the commands a person types.
 
-`implement-tickets` is the worked example. It builds a spec's `ready-for-agent` tickets into stacked draft PRs, then reviews and fixes each PR and writes a run report. Start it with `/company-skills:implement-tickets <spec number>`, or add `plan` to see the plan first. The command runs the installed plugin's cached copy of the script, so test an edit with `claude --plugin-dir <clone>/plugins/company-skills` (see the README's [Develop locally](README.md#develop-locally)). The comment at the top of its script lists its other arguments.
+`implement-tickets` is the worked example. It builds a spec's `ready-for-agent` tickets into a chain of draft PRs, then reviews and fixes each PR and writes a run report. Start it with `/company-skills:implement-tickets <spec number>`, or add `plan` to see the plan first. The command runs the installed plugin's cached copy of the script, so test an edit with `claude --plugin-dir <clone>/plugins/company-skills` (see the README's [Develop locally](README.md#develop-locally)). The comment at the top of its script lists its other arguments.
 
 ## Skill skeleton
 

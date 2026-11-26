@@ -388,6 +388,10 @@ function openTicket(t) {
       blockerPrs[b] = r
     }
     const { base, mergeIn } = baseFor(t, blockerPrs)
+    // Place in the chain, counted from the bottom: 1 when the PR targets BASE, otherwise one more than
+    // the PR whose branch is its base. Null when that PR is outside this run.
+    const below = Object.values(blockerPrs).find(r => r.branch === base)
+    const position = base === BASE ? 1 : below && below.position ? below.position + 1 : null
     // A merged PR is history: a new PR continues the ticket.
     const openPr = t.openPr && !t.openPr.merged ? t.openPr : null
 
@@ -437,8 +441,9 @@ ${openPr ? `PR #${openPr.number} is already open for it: update that one.` : ''}
 Use the \`company-skills:authoring-pull-requests\` skill for the title and body, with two changes for a chain of pull requests:
 its <base> is \`${build.base}\` for both the signature range and the PR, and a branch in the chain is never
 re-signed by rebase (if a commit needs a new signature, record a deviation instead).
-The body links the ticket (Closes #${t.number}), says where the PR sits in the chain (counting from the bottom, where the PR on the
-base branch is first), and marks each
+The body links the ticket (Closes #${t.number}), says where the PR sits in the chain: ${position
+  ? `PR ${position} of the chain, counting from the bottom, where PR 1 is the one whose base is \`${BASE}\``
+  : `directly above the PR for \`${base}\`, which is outside this run`}. It marks each
 acceptance criterion met or open, from this build record:
 ${JSON.stringify({ criteria: build.criteria, checks: build.checks }, null, 2)}
 ${build.base === plan.defaultBranch ? '' : `The PR's base is \`${build.base}\`, not the default branch \`${plan.defaultBranch}\`, so \`Closes #${t.number}\` does not link it.
@@ -451,7 +456,7 @@ Record whether the request went through.` : 'This repository has no Claude revie
     note(t.number, 'pr', 'decision', pr.decisions)
     note(t.number, 'pr', 'deviation', pr.deviations)
     log(`#${t.number}: PR #${pr.number} on ${pr.base}`)
-    return { branch: build.branch, base: build.base, build, pr }
+    return { branch: build.branch, base: build.base, position, build, pr }
   })()
   return opened[t.number]
 }
@@ -532,6 +537,8 @@ ${JSON.stringify(pending, null, 2)}`, {
       let wait = null
       for (let w = 1; w <= WAIT_ROUNDS; w++) {
         const got = await run(USE_ROUTINE ? `Check pull request #${pr.number} of ${REPO} for the Claude review routine's review and CI.
+${RULES}
+
 Do not change anything except as step 1 says.
 1. If no review from \`cipherstash-agent\` is requested or submitted for head ${head}, and no comment whose
    first line starts "@cipherstash-agent review" was posted after that head was pushed, start the Claude
@@ -541,6 +548,8 @@ Do not change anything except as step 1 says.
    with Bash, \`sleep 120\` between checks. If waiting is blocked, check once and return.
 3. Return the current head, whether that review landed (and its URL), CI's state and the failing checks.`
           : `Check CI on pull request #${pr.number} of ${REPO}. Do not change anything, and do not request a review.
+${RULES}
+
 1. Wait up to 15 minutes for the check runs on the PR's current head to finish. Use the Monitor tool with an
    until-loop if you have one. Otherwise check with Bash, \`sleep 120\` between checks. If waiting is
    blocked, check once and return.
@@ -619,7 +628,7 @@ Report CI's state on the head as "ci".`, {
       ticket: t.number,
       status: pending.length ? 'open findings' : !audited ? 'not audited' : ciOk ? 'clean' : `ci ${ci}`,
       ci,
-      pr: pr.url, branch: o.branch, base: o.base, head,
+      pr: pr.url, branch: o.branch, base: o.base, position: o.position, head,
       criteriaOpen: build.criteria.filter(x => !x.met).map(x => x.criterion),
       openFindings: pending.map(f => ({ id: f.id, severity: f.severity, location: f.location, claim: f.claim })),
       rounds,
@@ -649,7 +658,7 @@ if (chained.length) {
     .map(n => results.find(r => r.ticket === n))
     .filter(r => r && r.branch)
     .map(r => ({ ticket: r.ticket, branch: r.branch, base: r.base }))
-  sync = await run(`Merge fixes up the PR chain of ${REPO}, in this order. Each entry's branch is based on its base branch.
+  sync = await run(`Merge fixes up the PR chain of ${REPO}, in this order. Each entry's \`base\` is the branch its PR targets: the branch of the ticket that blocks it.
 ${RULES}
 
 ${JSON.stringify(edges, null, 2)}
@@ -679,9 +688,13 @@ const summary = {
   chainSync: sync ? sync.merges : null,
 }
 const report = await run(`Write the run report for this implementation run with \`company-skills:run-report\`.
+${RULES}
+
 The run was unattended. Every entry below is a decision or a deviation from it; report each one with its
-analysis and impact. Then, for the person: each PR, its place in the chain, its CI state and open findings;
-the merge order for the chain; and what waits on them (decisions, reviews, merges).
+analysis and impact. Then, for the person: each PR, its place in the chain, its CI state and open findings.
+Give each PR's place from its \`position\` field: PR 1 is the one whose base is \`${BASE}\`. A null
+position means the PR below it is outside this run, so say that. Then give
+the merge order for the chain, and what waits on them (decisions, reviews, merges).
 Do not change any code, PR, or issue.
 
 Summary:

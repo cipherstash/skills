@@ -62,8 +62,12 @@ The calendar date a run started, in the timezone its prompt names, or labelled a
 
 ## Language skills
 
+**Language skills**:
+The set CipherStash ships for one programming language: a `<lang>-practices` skill, a `<lang>-review` skill, and the language's check suite. Say "the Python skills" or "the TypeScript skills".
+_Avoid_: Pair, language pair, skill pair
+
 **Check suite**:
-The canonical set of checks that gate every pull request, run in CI, in every repository in one programming language. Each language has its own, such as the Go check suite. Every language skill pair defines one.
+The canonical set of checks that gate every pull request, run in CI, in every repository in one programming language. Each language has its own, such as the Go check suite. Every language's skills define one.
 _Avoid_: Toolchain, the language's checks
 
 **Untrusted input**:

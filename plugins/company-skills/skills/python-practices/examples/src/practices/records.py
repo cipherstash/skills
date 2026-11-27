@@ -3,14 +3,12 @@
 from typing import NotRequired, TypedDict
 
 
-class User(TypedDict):
-    """A user record as the API sends it."""
-
+class UserDict(TypedDict):
     id: int
     name: str
-    email: NotRequired[str]
+    email: str
+    age: NotRequired[int]  # Optional field
 
 
-def contact(user: User) -> str:
-    """Return the user's email address, or their name when they have none."""
-    return user.get("email", user["name"])
+def create_user(data: UserDict) -> None:
+    print(data["name"])  # Type-safe access

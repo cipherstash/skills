@@ -88,7 +88,9 @@ async def heartbeat(beats: list[str], interval: float) -> None:
 The package's `__init__.py` adds the `NullHandler`. From [`__init__.py`](../examples/src/practices/__init__.py):
 
 ```python
+# Package-level configuration
 import logging
 
-logging.getLogger(__name__).addHandler(logging.NullHandler())
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 ```

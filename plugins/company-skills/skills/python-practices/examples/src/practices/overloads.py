@@ -4,9 +4,10 @@ from typing import overload
 
 
 @overload
-def double(value: int) -> int: ...
+def process(data: str) -> str: ...
 @overload
-def double(value: str) -> str: ...
-def double(value: int | str) -> int | str:
-    """Return the number times two, or the string twice."""
-    return value * 2
+def process(data: int) -> int: ...
+def process(data: str | int) -> str | int:
+    if isinstance(data, str):
+        return data.upper()
+    return data * 2

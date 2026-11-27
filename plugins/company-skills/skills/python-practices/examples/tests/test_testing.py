@@ -72,12 +72,29 @@ async def tasks() -> AsyncIterator[BackgroundTasks]:
     await background.shutdown()
 
 
+@pytest_asyncio.fixture
+async def job_stopped() -> AsyncIterator[asyncio.Event]:
+    # Requested before tasks, so pytest tears it down after tasks.
+    stopped = asyncio.Event()
+    yield stopped
+    assert stopped.is_set(), "the tasks fixture left the job running"
+
+
+async def run_until_cancelled(stopped: asyncio.Event) -> None:
+    try:
+        await asyncio.sleep(3600)
+    finally:
+        stopped.set()
+
+
 @pytest.mark.asyncio
 async def test_an_async_fixture_cleans_up_after_the_test(
+    job_stopped: asyncio.Event,
     tasks: BackgroundTasks,
 ) -> None:
-    # The fixture's teardown cancels the job, so no task outlives the test.
-    tasks.spawn(asyncio.sleep(3600))
+    tasks.spawn(run_until_cancelled(job_stopped))
+    await asyncio.sleep(0)
+    assert not job_stopped.is_set()
 
 
 @st.composite

@@ -113,7 +113,7 @@ A check is in place when it is a GitHub Actions step that runs on `pull_request`
 _Avoid_: Enabled, configured, present
 
 **Conditional check**:
-A check in a language's check suite that applies only to a module or crate with a named property, such as Rust's Miri for crates that contain `unsafe`. Where the property holds, the check must be in place like any other.
+A check in a language's check suite that applies only to a module or crate with a named property, such as Rust's Miri for crates that contain `unsafe`. Where the property holds, the check must be in place like any other, covering each module or crate that has the property.
 _Avoid_: Optional check, tier 2
 
 **Execution surface**:

@@ -77,7 +77,7 @@ class GlossaryTest(unittest.TestCase):
             "**Conditional check**:\n"
             "A check in a language's check suite that applies only to a module or crate with a named property, such as "
             "Rust's Miri for crates that contain `unsafe`. Where the property holds, the check must be in place like "
-            "any other.\n"
+            "any other, covering each module or crate that has the property.\n"
             "_Avoid_: Optional check, tier 2\n",
             body,
         )
@@ -95,7 +95,8 @@ class ContributingTest(unittest.TestCase):
 
     def test_names_rusts_decision_and_links_adr_0004(self):
         self.assertIn(
-            "A language that already has convention skills needs a decision like this before you build its skills. "
+            "A language that already has convention skills needs a grill decision on what happens to them before you "
+            "build its skills. "
             "Rust folded its three into `rust-practices` ([ADR 0004](" + ADR_0004 + ")).",
             self.language_skills,
         )
@@ -104,10 +105,15 @@ class ContributingTest(unittest.TestCase):
     def test_release_ticket_may_update_skills_that_name_replaced_ones(self):
         pull_requests = self.language_skills.split("\nPull requests:\n", 1)[1].split("\n### ", 1)[0]
         self.assertIn(
-            "- When a language's skills replace released convention skills, the release ticket PR may also update "
-            "other skills that name them, as Rust's does for `aws-service-architecture` and `review-post`.\n",
+            "Three exceptions: the main PR bumps the version, as [Releases](#releases) says, after merging `main`; the "
+            "release ticket PR updates the catalogs, the company-skills dependencies, and the README, as [Taking in "
+            "upstream material](#taking-in-upstream-material) says; and when a language's skills replace released "
+            "convention skills, the release ticket PR may also update other skills that name them, as Rust's does for "
+            "`aws-service-architecture` and `review-post`.\n",
             pull_requests,
         )
+        self.assertNotIn("Two exceptions", pull_requests)
+        self.assertNotIn("\n- When a language's skills replace released convention skills", pull_requests)
 
 
 class TicketsTest(unittest.TestCase):

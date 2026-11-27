@@ -27,7 +27,7 @@ Skills: `typescript-review`, `typescript-practices`
 | Check | Scope | Outcome |
 | --- | --- | --- |
 | `tsc --noEmit -p packages/billing/tsconfig.json --checkers 4` | `packages/billing` | not run: needs the change's dependencies, which the review does not install |
-| `biome lint --config-path=<worktree>` (2.6.9, fetched) | changed files | failed: `lint/suspicious/noExplicitAny` at `packages/billing/src/invoice.ts:18` |
+| `biome ci --config-path=<worktree>` (2.6.9, fetched) | changed files | failed: `lint/suspicious/noExplicitAny` at `packages/billing/src/invoice.ts:18` |
 | `oxlint -c .oxlintrc.json --disable-nested-config` (1.95.0, fetched) | changed files | passed; type-aware rules not run |
 | `oxlint --type-aware` | changed files | not run: needs the change's dependencies, which the review does not install |
 | `vitest run --coverage` | `packages/billing` | not run: needs the change's dependencies, which the review does not install. Command: `pnpm exec vitest run --coverage --coverage.provider=v8` in `packages/billing` |

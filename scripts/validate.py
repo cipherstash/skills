@@ -29,7 +29,7 @@ errors: list[str] = []
 # Removing a bundled plugin means removing it here and from every catalog.
 CODEX_BUNDLED_PLUGINS = frozenset({"differential-review", "insecure-defaults"})
 CLAUDE_BUNDLED_PLUGINS = CODEX_BUNDLED_PLUGINS | frozenset(
-    {"code-improver", "plugin-dev", "python-pro", "rust-engineer", "typescript-pro"}
+    {"code-improver", "plugin-dev", "rust-engineer", "typescript-pro"}
 )
 
 # A skill can use another plugin's skill only as an option: within three lines

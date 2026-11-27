@@ -347,5 +347,65 @@ class LicenseDeclarationTests(unittest.TestCase):
                 self.assertIn(name, section)
 
 
+def readme_section(heading):
+    readme = (REPO / "README.md").read_text()
+    return readme.split(f"\n## {heading}\n", 1)[1].split("\n## ", 1)[0]
+
+
+class ReadmeSkillListTests(unittest.TestCase):
+    # AGENTS.md: a published skill is done when the README is current for both hosts.
+    def test_readme_lists_every_published_skill(self):
+        section = readme_section("Available skills")
+        for skill in sorted(path.name for path in (REPO / "plugins/company-skills/skills").iterdir() if path.is_dir()):
+            with self.subTest(skill=skill):
+                self.assertIn(f"| `{skill}` |", section)
+
+
+class ReplacedUpstreamPluginTests(unittest.TestCase):
+    # Each bundled upstream plugin that company-skills' own language skills replaced.
+    REPLACED = {"golang-pro": ("golang-practices", "golang-review"), "python-pro": ("python-practices", "python-review")}
+
+    def test_replaced_plugin_is_in_no_catalog_or_bundled_list(self):
+        for relative in (".claude-plugin/marketplace.json", ".agents/plugins/marketplace.json"):
+            names = [entry["name"] for entry in json.loads((REPO / relative).read_text())["plugins"]]
+            for plugin in self.REPLACED:
+                with self.subTest(catalog=relative, plugin=plugin):
+                    self.assertNotIn(plugin, names)
+        for plugin in self.REPLACED:
+            with self.subTest(plugin=plugin):
+                self.assertNotIn(plugin, validate.CLAUDE_BUNDLED_PLUGINS | validate.CODEX_BUNDLED_PLUGINS)
+
+    def test_readme_tells_users_to_uninstall_a_replaced_plugin_and_never_to_install_it(self):
+        readme = (REPO / "README.md").read_text()
+        bundled = readme_section("Bundled language practice skills")
+        for plugin, replacements in self.REPLACED.items():
+            with self.subTest(plugin=plugin):
+                for verb in ("install", "update"):
+                    command = f"claude plugin {verb} {plugin}@company"
+                    self.assertFalse(command in readme, f"README still says {command!r}")
+                self.assertNotIn(f"| `{plugin}` |", bundled)
+                self.assertIn(f"claude plugin uninstall {plugin}@company", bundled)
+                for skill in replacements:
+                    self.assertIn(f"`{skill}`", bundled)
+
+    def test_replaced_plugin_note_says_prune_is_blocked_until_it_is_uninstalled(self):
+        # A replaced plugin left installed fails to load, and then `claude plugin prune` removes nothing.
+        bundled = readme_section("Bundled language practice skills")
+        for plugin in self.REPLACED:
+            with self.subTest(plugin=plugin):
+                notes = [p for p in bundled.split("\n\n") if f"Plugin {plugin} not found in marketplace company" in p]
+                self.assertEqual(len(notes), 1, f"no single uninstall note for {plugin}")
+                self.assertIn("cannot determine orphans", notes[0])
+
+    def test_python_pro_note_covers_installs_made_as_a_dependency(self):
+        # company-skills 0.12.0 to 0.18.0 installed python-pro as a dependency, so users who never chose it have it.
+        bundled = readme_section("Bundled language practice skills")
+        note = next(p for p in bundled.split("\n\n") if "Plugin python-pro not found in marketplace company" in p)
+        self.assertIn("0.12.0 to 0.18.0", note)
+        self.assertNotIn("because you installed it by name", note)
+        update = next(p for p in (REPO / "README.md").read_text().split("\n\n") if p.startswith("Updating from 0.12.0 to 0.18.0"))
+        self.assertIn("`python-pro`", update, "the prune paragraph must say python-pro cannot be kept")
+
+
 if __name__ == "__main__":
     unittest.main()

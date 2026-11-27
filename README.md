@@ -15,22 +15,21 @@ claude plugin marketplace add cipherstash/skills
 claude plugin install company-skills@company
 ```
 
-The `company` marketplace also lists five plugins you can install alongside company-skills. Install the ones you want by name (checked with Claude Code 2.1.332):
+The `company` marketplace also lists four plugins you can install alongside company-skills. Install the ones you want by name (checked with Claude Code 2.1.332):
 
 ```sh
 claude plugin install differential-review@company
 claude plugin install insecure-defaults@company
-claude plugin install python-pro@company
 claude plugin install rust-engineer@company
 claude plugin install typescript-pro@company
 ```
 
 - the Trail of Bits `differential-review` and `insecure-defaults` plugins (see [Bundled Trail of Bits plugins](#bundled-trail-of-bits-plugins-and-plugin-dev))
-- the `python-pro`, `rust-engineer`, and `typescript-pro` language skills (see [Bundled language practice skills](#bundled-language-practice-skills))
+- the `rust-engineer` and `typescript-pro` language skills (see [Bundled language practice skills](#bundled-language-practice-skills))
 
 company-skills does not declare them as plugin dependencies. Claude Code disables a plugin while any dependency is missing, and a copy of company-skills synced from a claude.ai organisation arrives without its sibling plugins, so 0.12.0 to 0.18.0 failed to load in cloud sessions with `Dependency "differential-review" is not installed`. 0.18.1 removes the dependencies.
 
-Go practice and review come from company-skills' own `golang-practices` and `golang-review` skills.
+Go practice and review come from company-skills' own `golang-practices` and `golang-review` skills, and Python practice and review from its `python-practices` and `python-review` skills.
 
 Inside a session, `/plugin marketplace add cipherstash/skills` and `/plugin install company-skills@company` do the same. Start a new session, then invoke a skill by its namespaced name, for example `/company-skills:review-fix`.
 
@@ -43,14 +42,15 @@ claude plugin update company-skills@company
 
 Updating from a release before 0.15.0 leaves the removed `golang-pro` plugin installed but failing to load. Uninstall it as described in [Bundled language practice skills](#bundled-language-practice-skills).
 
-Updating from 0.12.0 to 0.18.0 keeps the five plugins those releases installed as dependencies, but Claude Code now treats them as orphans, so `claude plugin prune` removes them. To keep one, run its `claude plugin install` line above, which marks it as installed by you. Checked with Claude Code 2.1.332 by updating 0.18.0 to 0.18.1.
+The release that adds `python-practices` and `python-review` removes the `python-pro` plugin from the marketplace. If `python-pro` is installed, whether you installed it by name or 0.12.0 to 0.18.0 installed it as a dependency, updating leaves it installed but failing to load, and `claude plugin prune` removes nothing until it is gone. Uninstall it as described in [Bundled language practice skills](#bundled-language-practice-skills).
+
+Updating from 0.12.0 to 0.18.0 keeps the five plugins those releases installed as dependencies, but Claude Code now treats them as orphans, so `claude plugin prune` removes them. One of the five, `python-pro`, cannot be kept: once you take the release that removes it, uninstall it first, or `claude plugin prune` removes nothing. To keep any of the other four, run its `claude plugin install` line above, which marks it as installed by you. Checked with Claude Code 2.1.332 by updating 0.18.0 to 0.18.1.
 
 Updating company-skills does not update the bundled plugins. When a release moves the pinned commit of a bundled plugin, update that plugin by name as well:
 
 ```sh
 claude plugin update differential-review@company
 claude plugin update insecure-defaults@company
-claude plugin update python-pro@company
 claude plugin update rust-engineer@company
 claude plugin update typescript-pro@company
 ```
@@ -114,28 +114,27 @@ Installed users get a moved pin only when they update that plugin by name, for e
 
 ## Bundled language practice skills
 
-The `company` marketplace also lists three language skills from [Jeffallan's claude-skills repository](https://github.com/Jeffallan/claude-skills), each as its own plugin:
+The `company` marketplace also lists two language skills from [Jeffallan's claude-skills repository](https://github.com/Jeffallan/claude-skills), each as its own plugin:
 
 | Plugin | Provides |
 | --- | --- |
-| `python-pro` | The `python-pro` skill, with references on async patterns, packaging, the standard library, testing, and the type system |
 | `rust-engineer` | The `rust-engineer` skill, with references on async, error handling, ownership, testing, and traits |
 | `typescript-pro` | The `typescript-pro` skill, with references on advanced types, configuration, patterns, type guards, and utility types |
 
-They are reference material on language practice. Upstream wrote them for writing code, not reviewing it, so their descriptions also match requests to write Python, Rust, or TypeScript.
+They are reference material on language practice. Upstream wrote them for writing code, not reviewing it, so their descriptions also match requests to write Rust or TypeScript.
 
-Upstream publishes all 67 of its skills as one plugin. Each entry here installs one skill instead: a `git-subdir` source pointing at that skill's directory, `skills/<name>`, with `"strict": false` and `"skills": ["./"]` so the directory loads as a plugin holding a single skill. All three are pinned to the commit of the upstream v0.4.20 release. No upstream files are copied into this repository. They are published by Jeffallan under the MIT licence.
+Upstream publishes all 67 of its skills as one plugin. Each entry here installs one skill instead: a `git-subdir` source pointing at that skill's directory, `skills/<name>`, with `"strict": false` and `"skills": ["./"]` so the directory loads as a plugin holding a single skill. Both are pinned to the commit of the upstream v0.4.20 release. No upstream files are copied into this repository. They are published by Jeffallan under the MIT licence.
 
-- **Claude Code:** install each by name, as shown under [Claude Code](#claude-code). Invoke one by its namespaced name, for example `/python-pro:python-pro`. Installing by name checked with Claude Code 2.1.332.
+- **Claude Code:** install each by name, as shown under [Claude Code](#claude-code). Invoke one by its namespaced name, for example `/rust-engineer:rust-engineer`. Installing by name checked with Claude Code 2.1.332.
 - **Codex:** the Codex catalog does not list them, and they have not been tested there.
 
 Nothing auto-updates them. To move the pin, open a pull request that:
 
-1. Reviews the upstream changes to the three skill directories since the current SHA.
-2. Changes `sha` for all three entries in `.claude-plugin/marketplace.json` to the same new full 40-character commit SHA.
+1. Reviews the upstream changes to the two skill directories since the current SHA.
+2. Changes `sha` for both entries in `.claude-plugin/marketplace.json` to the same new full 40-character commit SHA.
 3. Bumps the plugin version in all three manifests, as described in [Releases](CONTRIBUTING.md#releases).
 
-Installed users receive the new commit only when they update each of the three plugins by name, as shown under [Claude Code](#claude-code).
+Installed users receive the new commit only when they update each of the two plugins by name, as shown under [Claude Code](#claude-code).
 
 0.15.0 removes the bundled `golang-pro` plugin. company-skills' `golang-practices` and `golang-review` replace it. Updating an install from an earlier release leaves `golang-pro` installed. It no longer loads, because the marketplace no longer lists it: `claude plugin list` reports it as failed to load, with `Plugin golang-pro not found in marketplace company`. While it is installed, `claude plugin prune` removes nothing and reports `cannot determine orphans`. Uninstall it by name:
 
@@ -144,6 +143,14 @@ claude plugin uninstall golang-pro@company
 ```
 
 `claude plugin prune` works again once `golang-pro` is gone. It removes any other auto-installed dependency that nothing needs. Add `--dry-run` to list them first. Checked with Claude Code 2.1.329 by updating 0.13.0 to a pre-release build of this release, made before it was renumbered from 0.14.0 to 0.15.0.
+
+The release that adds `python-practices` and `python-review` removes the bundled `python-pro` plugin, which they replace. `python-pro` is installed if you installed it by name, or if company-skills 0.12.0 to 0.18.0 installed it as a dependency and you have not run `claude plugin prune` since. Either way, updating leaves it installed, but it no longer loads, because the marketplace no longer lists it: `claude plugin list` reports it as failed to load, with `Plugin python-pro not found in marketplace company`. While it is installed, `claude plugin prune` removes nothing and reports `cannot determine orphans`. Uninstall it by name:
+
+```sh
+claude plugin uninstall python-pro@company
+```
+
+`claude plugin prune` works again once `python-pro` is gone. Checked with Claude Code 2.1.332 by installing `python-pro` by name from a local copy of the marketplace, then removing it from the catalog and refreshing the marketplace. The prune block was checked with Claude Code 2.1.332 on a test marketplace, by installing a plugin that pulls in a dependency, then dropping the dependency from the plugin and from the catalog.
 
 ## Develop locally
 
@@ -193,6 +200,8 @@ Each skill is authored once under `plugins/company-skills/skills/`. The portable
 | `rust-testing` | Conventions for Rust tests: nextest, scenario modules, fake data, mocktail, paused time | Automatic while writing Rust tests |
 | `golang-practices` | Conventions for writing Go: errors, concurrency, naming, interfaces, generics, testing, project structure, security, performance, dependencies and embedding wazero, with examples that compile and pass the race detector | Automatic while writing Go |
 | `golang-review` | Review a Go change against a ten-area checklist, from error handling and concurrency to security, dependencies and breaking changes, with `go vet`, race-enabled tests with coverage, `gofmt`, `go mod tidy -diff` and an exported-API comparison as evidence, ending in a verdict | Explicit or automatic |
+| `python-practices` | Conventions for writing Python: typing, errors and logging, testing, async and threads, data modelling, security, dependencies with uv, project structure, performance and pyo3 or maturin extensions, with examples that pass the Python check suite | Automatic while writing Python |
+| `python-review` | Review a Python change against an eleven-area checklist, from error handling and typing to security, dependencies and breaking changes, with ruff, `mypy --strict`, pip-audit, `uv lock --check` and CI's suite and griffe results as evidence, ending in a verdict | Explicit or automatic |
 | `aws-service-architecture` | Conventions for AWS services: ECS or Lambda, public by default, permission-based feature access, idempotent provisioning | Automatic while designing, building, or reviewing services |
 | `filing-github-issues` | Draft and file well-structured GitHub issues on CipherStash repos | Explicit or automatic |
 | `authoring-pull-requests` | Branch, commit, and open draft pull requests with a consistent structure | Explicit or automatic |
@@ -201,11 +210,11 @@ Each skill is authored once under `plugins/company-skills/skills/`. The portable
 | `plain-language` | Write, rewrite, and review prose in plain language (ISO 24495 and GOV.UK), with a bundled checker | Explicit or automatic |
 | `implement-tickets` | Build a spec's `ready-for-agent` tickets into a chain of draft PRs, review and fix each one, and write a run report | Claude Code only: a person types `/company-skills:implement-tickets <spec number>` |
 
-Code review skills (`review-*`) work with the findings of a code review: auditing a PR's existing feedback, cross-checking new findings against it, posting them, and fixing them. None of them performs the review itself. `golang-review` performs one for a Go change and reports findings in the severities they take.
+Code review skills (`review-*`) work with the findings of a code review: auditing a PR's existing feedback, cross-checking new findings against it, posting them, and fixing them. None of them performs the review itself. `golang-review` performs one for a Go change, and `python-review` for a Python change, and each reports findings in the severities they take.
 
-Convention skills, such as the Rust skills (`rust-*`), `golang-practices`, and `aws-service-architecture`, carry rules rather than a workflow. Claude Code applies them automatically and hides them from the `/` menu. Codex selects them implicitly.
+Convention skills, such as the Rust skills (`rust-*`), `golang-practices`, `python-practices`, and `aws-service-architecture`, carry rules rather than a workflow. Claude Code applies them automatically and hides them from the `/` menu. Codex selects them implicitly.
 
-`review-audit` and `review-cross-check` require Python 3, Git, and `gh` authenticated for the target repository; `review-post` requires `gh` and `python3` or `jq`. `golang-review` requires Git and the Go toolchain to run its checks, and the GitHub MCP server or `gh` to review a pull request; without them it reviews by reading and reports the checks it could not run. When `golangci-lint` or `govulncheck` is not installed, it fetches it from the Go module proxy at the version `golang-practices` pins. These are local CLI dependencies; the plugin does not bundle an MCP server.
+`review-audit` and `review-cross-check` require Python 3, Git, and `gh` authenticated for the target repository; `review-post` requires `gh` and `python3` or `jq`. `golang-review` requires Git and the Go toolchain to run its checks, and the GitHub MCP server or `gh` to review a pull request; without them it reviews by reading and reports the checks it could not run. When `golangci-lint` or `govulncheck` is not installed, it fetches it from the Go module proxy at the version `golang-practices` pins. `python-review` requires Git to run its checks, and the GitHub MCP server or `gh` to review a pull request. It runs `ruff`, `mypy` and `uv` where they are installed, and fetches a missing check suite tool at the version `python-practices` pins, with install scripts off. It never installs the change's dependencies, and runs the change's tests only when you say yes. These are local CLI dependencies; the plugin does not bundle an MCP server.
 
 `stacking-pull-requests` requires Git, `gh` authenticated for the target repository, and GitHub's gh-stack extension. Its `SKILL.md` names the gh-stack version it was checked with. It installs the extension with `gh extension install github/gh-stack`. It asks first, unless you already asked for a stack.
 
@@ -251,10 +260,14 @@ The `golang-practices` script tests check that every Go block in the skill's ref
 
 The `golang-review` script tests check the skill's seeded-defect fixture, a sample change with at least one planted defect in each of the ten checklist areas. They check that every expected finding quotes the line it names, and that the base vets and passes with the race detector. They also reproduce each planted defect that a tool or a short probe can show, such as the race and a panic on empty input. Without Go, the Go checks in both skills' script tests are skipped locally with a message, and they fail in CI.
 
+The `python-practices` script tests check that every Python and TOML block in the skill's references is quoted from a file in its examples project. A separate job runs the Python check suite, listed in [`references/checks.md`](plugins/company-skills/skills/python-practices/references/checks.md), over that project, and a drift test checks that the job matches the suite's pinned versions.
+
+The `python-review` script tests check the skill's seeded-defect fixture, a sample change with one planted defect in each of the eleven checklist areas. They check that every expected finding quotes the line it names, that the base is clean, and that each planted defect comes from the change. Where `ruff`, `mypy` or `uv` is installed, they also check that the tool reports its defects at the head and nothing at the base; without them, those checks are skipped locally with a message.
+
 See the official [Codex skills documentation](https://developers.openai.com/codex/skills/) and [Claude Code plugin marketplace documentation](https://code.claude.com/docs/en/plugin-marketplaces) for current publishing and installation options.
 
 ## License
 
 The repository is licensed under the MIT License; see [LICENSE](LICENSE).
 
-`plugins/company-skills/skills/plain-language` is licensed under the Apache License 2.0, and some of its content is public sector information under the Open Government Licence v3.0. See its [LICENSE](plugins/company-skills/skills/plain-language/LICENSE) and [NOTICE](plugins/company-skills/skills/plain-language/NOTICE). `plugins/company-skills/skills/golang-practices` adapts MIT-licensed material from [Jeffallan/claude-skills](https://github.com/Jeffallan/claude-skills); see its [LICENSE](plugins/company-skills/skills/golang-practices/LICENSE) and [NOTICE](plugins/company-skills/skills/golang-practices/NOTICE). The plugin manifests declare the combined SPDX expression `MIT AND Apache-2.0 AND OGL-UK-3.0`.
+`plugins/company-skills/skills/plain-language` is licensed under the Apache License 2.0, and some of its content is public sector information under the Open Government Licence v3.0. See its [LICENSE](plugins/company-skills/skills/plain-language/LICENSE) and [NOTICE](plugins/company-skills/skills/plain-language/NOTICE). `plugins/company-skills/skills/golang-practices` adapts MIT-licensed material from [Jeffallan/claude-skills](https://github.com/Jeffallan/claude-skills); see its [LICENSE](plugins/company-skills/skills/golang-practices/LICENSE) and [NOTICE](plugins/company-skills/skills/golang-practices/NOTICE). `plugins/company-skills/skills/python-practices` adapts MIT-licensed material from the same repository; see its [LICENSE](plugins/company-skills/skills/python-practices/LICENSE) and [NOTICE](plugins/company-skills/skills/python-practices/NOTICE). The plugin manifests declare the combined SPDX expression `MIT AND Apache-2.0 AND OGL-UK-3.0`.

@@ -1,6 +1,6 @@
 # Step: error handling
 
-Area 1, high priority. Read this, and python-practices' `references/errors.md`, before reviewing the change's error handling. The practices reference holds the rules and working examples. This file says what to look for in a change, what evidence shows it, and what is not a finding.
+Area 1, high priority. Read this, and python-practices' `references/errors.md`, before reviewing the change's error handling. When the change is in a pyo3 or maturin package, also read `references/native-extensions.md`: a Rust panic or error reaches Python as an exception. The practices reference holds the rules and working examples. This file says what to look for in a change, what evidence shows it, and what is not a finding.
 
 ## Contents
 

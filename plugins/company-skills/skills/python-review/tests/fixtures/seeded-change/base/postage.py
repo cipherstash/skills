@@ -6,6 +6,8 @@
 
 import sys
 
+__all__ = ["RATES", "PostageError", "parse_grams", "postage_cents"]
+
 RATES = {"local": 45, "national": 80, "international": 210}
 
 

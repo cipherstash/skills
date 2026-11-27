@@ -1,6 +1,6 @@
 # Step: typing
 
-Area 4, high priority. Read this, and python-practices' `references/typing.md`, before reviewing the change's types. The practices reference holds the rules and working examples. This file says what to look for in a change, what evidence shows it, and what is not a finding.
+Area 4, medium priority. Read this, and python-practices' `references/typing.md`, before reviewing the change's types. When the change is in a pyo3 or maturin package, also read `references/native-extensions.md`: its `.pyi` stubs are the types callers see. The practices reference holds the rules and working examples. This file says what to look for in a change, what evidence shows it, and what is not a finding.
 
 ## Contents
 

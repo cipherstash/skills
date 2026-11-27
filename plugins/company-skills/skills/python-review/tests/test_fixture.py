@@ -2,15 +2,16 @@
 # rules its text must keep.
 # Run: python3 -m unittest discover -s tests (from the skill directory).
 #
-# The fixture is a PEP 723 script before (base/) and after (head/) a sample
-# change with one planted defect in each area this skill reviews.
+# The fixture is a few scripts before (base/) and after (head/) a sample change
+# with one planted defect in each of the eleven areas this skill reviews.
 # expected-findings.md lists what a correct review must report. These tests keep
 # the fixture honest: every location in expected-findings.md is exactly the line
 # it quotes, the base is clean, and each planted defect comes from the change.
-# A probe with the standard library's ast module shows each defect, so the tests
-# need no suite tool. Where ruff or mypy is installed, they also show that the
-# tool reports the defect at the head and nothing at the base; without them,
-# those tests are skipped with a message.
+# A probe with the standard library's ast or tokenize module, or a run of the
+# scripts, shows each defect, so the tests need no suite tool. Where ruff, mypy,
+# or uv is installed, they also show that the tool reports its defects at the
+# head and nothing at the base; without them, those tests are skipped with a
+# message.
 import ast
 import filecmp
 import os
@@ -19,6 +20,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import tokenize
 import tomllib
 import unittest
 from pathlib import Path
@@ -32,9 +34,23 @@ BASE = FIXTURE / "base"
 HEAD = FIXTURE / "head"
 EXPECTED = FIXTURE / "expected-findings.md"
 
-# The areas this skill reviews, in priority order, as SKILL.md's areas table
-# names them, with their place in spec #154's eleven-area checklist.
-AREAS = [("1", "Error handling"), ("4", "Typing")]
+# The eleven areas of spec #154's checklist, in its order, as SKILL.md's areas
+# table names them, with the priority and the python-practices references the
+# design step 2 comment on #64 gives each. Typing is Medium, as grill Q9 says.
+SPEC_AREAS = [
+    ("1", "Error handling", "High", ["references/errors.md"]),
+    ("2", "Correctness and edge cases", "High", ["references/data-modelling.md", "references/errors.md"]),
+    ("3", "Testing and coverage", "High", ["references/testing.md"]),
+    ("4", "Typing", "Medium", ["references/typing.md"]),
+    ("5", "Concurrency and async", "Medium", ["references/async.md"]),
+    ("6", "Naming and style", "Medium", ["references/project-structure.md"]),
+    ("7", "Security", "Medium", ["references/security.md"]),
+    ("8", "Performance", "Medium", ["references/performance.md"]),
+    ("9", "Dependency management", "Medium", ["references/dependencies.md"]),
+    ("10", "Documentation", "Low", ["references/project-structure.md"]),
+    ("11", "Breaking changes", "Low", ["references/project-structure.md", "references/dependencies.md"]),
+]
+AREAS = [(order, area) for order, area, _, _ in SPEC_AREAS]
 
 
 def read(path):
@@ -105,6 +121,41 @@ class AreasTableTest(unittest.TestCase):
         on_disk = {f"references/{p.name}" for p in (SKILL / "references").glob("step-*.md")}
         self.assertEqual(on_disk, named)
 
+    def test_each_area_has_the_specs_priority_and_practices_references(self):
+        for (order, area, priority, practices), row in zip(SPEC_AREAS, areas_table(), strict=True):
+            with self.subTest(area=area):
+                self.assertEqual(row[2], priority)
+                self.assertEqual(re.findall(r"`(references/[a-z-]+\.md)`", row[4]), practices)
+                self.assertIn(
+                    f"Area {order}, {priority.lower()} priority.",
+                    read(SKILL / re.search(r"\((references/step-[a-z-]+\.md)\)", row[3]).group(1)),
+                )
+
+    def test_records_why_typing_is_an_area(self):
+        # Spec #154 (grill Q9): Typing is the area beyond Go's ten, because a
+        # suite tool gives evidence for it and the fixture can plant a defect in it.
+        areas = section("SKILL.md", "Areas")
+        self.assertIn("Typing is the area beyond golang-review's ten", areas)
+        self.assertIn("`mypy --strict` gives evidence for it", areas)
+        self.assertIn("a function that returns `Any`", areas)
+
+    def test_the_skill_names_no_area_as_missing_its_step_reference(self):
+        for page in ("SKILL.md", "references/output.md", "tests/prompts.md"):
+            with self.subTest(page=page):
+                self.assertNotIn("no step reference", read(SKILL / page))
+
+    def test_native_extensions_is_read_for_a_pyo3_change(self):
+        # The design step 2 comment: these four areas read native-extensions.md
+        # when the change is in a native extension.
+        paragraph = next(p for p in section("SKILL.md", "Areas").split("\n\n") if "native-extensions.md" in p)
+        self.assertIn("python-practices' `references/native-extensions.md`", paragraph)
+        for area in ("Error handling", "Typing", "Concurrency and async", "Dependency management"):
+            with self.subTest(area=area):
+                self.assertIn(area, paragraph)
+        for page in ("step-error-handling.md", "step-typing.md", "step-concurrency.md", "step-dependencies.md"):
+            with self.subTest(page=page):
+                self.assertIn("`references/native-extensions.md`", read(SKILL / "references" / page))
+
 
 def section(page, heading, level="##"):
     """Return the text under `<level> heading` in page, up to the next heading of that level or higher."""
@@ -151,7 +202,7 @@ class FindingContractTest(unittest.TestCase):
 
 class ReadingTest(unittest.TestCase):
     def test_review_step_makes_reading_the_references_mandatory_every_time(self):
-        body = step(6)
+        body = step(7)
         self.assertIn("Read its step reference now", body)
         self.assertIn("then each practices reference the table names for it", body)
         self.assertIn("every time", body)
@@ -220,7 +271,7 @@ class ReadOnlyTest(unittest.TestCase):
         self.assertIn("Do not run `git worktree prune`", worktree)
         self.assertIn("python-review-<short head SHA>", worktree)
         self.assertIn("removed on every exit, including a stop", section("SKILL.md", "Read-only"))
-        self.assertIn("Remove the worktree.", step(8))
+        self.assertIn("Remove the worktree.", step(9))
 
     def test_the_branch_base_is_the_remote_tracking_ref(self):
         self.assertIn(
@@ -290,6 +341,131 @@ class ToolsTest(unittest.TestCase):
         self.assertIn(
             "quote CI's result for each check of the Python check suite that CI ran on the reviewed head commit",
             step(5),
+        )
+
+
+def practices_weakening_cases():
+    """Return the backticked spans of python-practices' list of Python changes that weaken a check (grill Q11)."""
+    text = read(PRACTICES / "references" / "checks.md")
+    cases = text.split("These Python changes also weaken a check, and do not count:\n", 1)[1].split("\n## ", 1)[0]
+    return re.findall(r"`([^`]+)`", cases)
+
+
+class DependencyEvidenceTest(unittest.TestCase):
+    """Ticket #159: pip-audit and `uv lock --check --offline` are the evidence, held back on the execution surface."""
+
+    def setUp(self):
+        self.step = read(SKILL / "references" / "step-dependencies.md")
+
+    def test_uses_pip_audit_and_uv_lock_check_offline(self):
+        self.assertIn("pip-audit", self.step)
+        self.assertIn("`uv lock --check --offline`", self.step)
+        row = next(
+            line for line in section("references/checks.md", "The checks").splitlines() if "uv lock --check" in line
+        )
+        self.assertIn("--offline", row)
+        self.assertIn("Dependency management", row)
+
+    def test_waits_for_a_yes_on_the_build_backend_or_dynamic_metadata(self):
+        self.assertRegex(
+            self.step,
+            r"`uv lock --check[^`]*` waits for the user's yes when the change touches the build backend or dynamic metadata",
+        )
+        self.assertIn("Otherwise the review reads the `uv.lock` diff", self.step)
+
+    def test_a_script_without_its_lockfile_is_checked_by_its_own_command(self):
+        self.assertIn("`uv lock --check --offline --script <file>`", read(SKILL / "references" / "checks.md"))
+
+
+class BreakingChangesEvidenceTest(unittest.TestCase):
+    def setUp(self):
+        self.step = read(SKILL / "references" / "step-breaking-changes.md")
+
+    def test_quotes_the_griffe_advisory_check_where_ci_runs_it(self):
+        self.assertIn("quote the griffe advisory check's result on the reviewed head commit", self.step)
+        self.assertIn("where CI runs it", self.step)
+
+    def test_otherwise_compares_public_names_and_all_at_base_and_head(self):
+        self.assertIn("Otherwise, compare the public names and `__all__` at the base and the head", self.step)
+
+    def test_names_the_griffe_command_python_practices_pins(self):
+        advisory = read(PRACTICES / "references" / "checks.md").split("\n## Advisory checks\n", 1)[1]
+        self.assertIn("griffe check", advisory)
+        self.assertIn("python-practices' `references/checks.md`", self.step)
+
+
+class RepositoryStandardsTest(unittest.TestCase):
+    """Ticket #159: compare CI with the check suite, as golang-review's **The check suite in CI** does."""
+
+    def setUp(self):
+        self.standards = section("references/checks.md", "Repository standards")
+
+    def test_skill_md_has_a_repository_standards_step(self):
+        body = step(6)
+        self.assertIn("**Check the repository standards.**", body)
+        self.assertIn("[references/checks.md](references/checks.md#repository-standards)", body)
+
+    def test_a_missing_check_is_a_line_not_a_finding(self):
+        self.assertIn("A missing check is not a finding", self.standards)
+        self.assertIn("one line in the report's check suite section", self.standards)
+
+    def test_a_script_with_no_module_is_a_missing_check(self):
+        self.assertIn("a Python script with neither a `pyproject.toml` nor a PEP 723 header", self.standards)
+
+    def test_a_removed_or_weakened_check_is_a_major_finding(self):
+        self.assertIn("removes or weakens", self.standards)
+        self.assertIn("`major` finding under testing and coverage", self.standards)
+        self.assertIn("`major`", read(SKILL / "references" / "step-testing.md").split("removes or weakens", 1)[1][:300])
+
+    def test_names_each_python_weakening_case(self):
+        cases = practices_weakening_cases()
+        self.assertGreaterEqual(len(cases), 15)
+        for case in cases:
+            with self.subTest(case=case):
+                self.assertIn(f"`{case}`", self.standards)
+
+    def test_names_go_s_weakening_cases_too(self):
+        for case in ("`continue-on-error`", "`|| true`", "`pipefail`", "`pull_request`"):
+            with self.subTest(case=case):
+                self.assertIn(case, self.standards)
+
+    def test_reads_ci_files_as_untrusted_data_at_base_and_head(self):
+        self.assertIn("at the base and at the head with `git show`", self.standards)
+        self.assertIn("untrusted data", self.standards)
+
+    def test_an_exemption_adr_the_change_adds_does_not_count(self):
+        self.assertIn("An ADR that the change adds does not leave a check out", self.standards)
+
+    def test_a_change_to_ci_files_alone_is_still_reviewed(self):
+        self.assertIn("`.github/workflows/`", step(1))
+        self.assertIn("compare CI with the Python check suite", step(1))
+
+
+class AdvisoryChecksReportTest(unittest.TestCase):
+    """#152 and ADR 0006: a missing advisory check is one line in its own part of the report, never a finding."""
+
+    def test_the_report_has_its_own_advisory_checks_section(self):
+        shape = re.search(r"(?s)\n````markdown\n(.*?)\n````\n", read(SKILL / "references" / "output.md")).group(1)
+        self.assertIn("\n## Check suite in CI\n", shape)
+        self.assertIn("\n## Advisory checks\n", shape)
+        self.assertLess(shape.index("## Check suite in CI"), shape.index("## Advisory checks"))
+
+    def test_a_missing_advisory_check_is_one_line_never_a_finding(self):
+        fields = section("references/output.md", "Fields")
+        self.assertIn("**Advisory checks**: one line for each advisory check", fields)
+        self.assertIn("never a finding", fields)
+        self.assertIn(
+            "A missing advisory check is one line in the report's advisory checks section, never a finding",
+            read(SKILL / "references" / "checks.md"),
+        )
+
+
+class HypothesisRuleTest(unittest.TestCase):
+    def test_a_new_parser_without_a_given_test_is_minor(self):
+        testing = read(SKILL / "references" / "step-testing.md")
+        self.assertIn(
+            "A function the change adds that parses or decodes untrusted input, with no Hypothesis `@given` test, is a `minor` finding",
+            testing,
         )
 
 
@@ -518,13 +694,24 @@ class SnapshotCopyTest(unittest.TestCase):
 
 # One expected finding: "## P1 · major · typing" and, below it,
 # "- Location: `head/<path>:<line>`" and "- Line: `<text quoted from that line>`".
+# A finding on a line the change deletes is located at the base, as
+# "- Location: `base/<path>:<line>` (deleted)".
 FINDING_RE = re.compile(r"(?m)^## (P\d+) · (critical|major|minor) · (.+)$")
-LOCATION_RE = re.compile(r"(?m)^- Location: `(head|base)/([^`:]+):(\d+)`")
+LOCATION_RE = re.compile(r"(?m)^- Location: `(head|base)/([^`:]+):(\d+)`( \(deleted\))?$")
 LINE_RE = re.compile(r"(?m)^- Line: `(.+)`$")
+
+# The ruff rule each planted defect shows as, by area, when ruff runs as the
+# review runs it on a module with no config. The other areas have none.
+RUFF_CODES = {
+    "error handling": "B904",
+    "concurrency and async": "RUF006",
+    "security": "S501",
+    "performance": "PERF401",
+}
 
 
 def expected_findings():
-    """Return {id: dict(area, severity, side, path, line, quoted)} from expected-findings.md."""
+    """Return {id: dict(area, severity, side, path, line, deleted, quoted)} from expected-findings.md."""
     text = read(EXPECTED)
     headings = list(FINDING_RE.finditer(text))
     findings = {}
@@ -540,6 +727,7 @@ def expected_findings():
             "side": location.group(1) if location else None,
             "path": location.group(2) if location else None,
             "line": int(location.group(3)) if location else None,
+            "deleted": bool(location and location.group(4)),
             "quoted": quoted.group(1) if quoted else None,
         }
     return findings
@@ -573,10 +761,14 @@ def script_metadata(path):
     return tomllib.loads(toml)
 
 
+def tree(path):
+    return ast.parse(read(path))
+
+
 def raises_without_from_in_except(path):
     """Return the line numbers of each `raise X(...)` with no `from` inside an `except` block."""
     lines = []
-    for node in ast.walk(ast.parse(read(path))):
+    for node in ast.walk(tree(path)):
         if isinstance(node, ast.ExceptHandler):
             for inner in ast.walk(node):
                 if isinstance(inner, ast.Raise) and inner.exc is not None and inner.cause is None:
@@ -587,7 +779,7 @@ def raises_without_from_in_except(path):
 def returns_of_json_loads(path):
     """Return {function name: annotation} for each function that returns json.loads(...) directly."""
     found = {}
-    for node in ast.walk(ast.parse(read(path))):
+    for node in ast.walk(tree(path)):
         if isinstance(node, ast.FunctionDef):
             for inner in ast.walk(node):
                 if (
@@ -599,43 +791,162 @@ def returns_of_json_loads(path):
     return found
 
 
+def python_files(root):
+    return sorted(root.rglob("*.py"))
+
+
+def discarded_create_tasks(path):
+    """Return the line of each `asyncio.create_task(...)` whose result nothing keeps."""
+    return [
+        node.lineno
+        for node in ast.walk(tree(path))
+        if isinstance(node, ast.Expr)
+        and isinstance(node.value, ast.Call)
+        and ast.unparse(node.value.func) == "asyncio.create_task"
+    ]
+
+
+def verify_false(path):
+    """Return the line of each call that passes `verify=False`."""
+    return [
+        node.lineno
+        for node in ast.walk(tree(path))
+        if isinstance(node, ast.Call)
+        and any(
+            k.arg == "verify" and isinstance(k.value, ast.Constant) and k.value.value is False for k in node.keywords
+        )
+    ]
+
+
+def append_loops(path):
+    """Return the line of each `append` call that is the whole body of a `for` loop."""
+    return [
+        node.body[0].lineno
+        for node in ast.walk(tree(path))
+        if isinstance(node, ast.For)
+        and len(node.body) == 1
+        and isinstance(node.body[0], ast.Expr)
+        and isinstance(node.body[0].value, ast.Call)
+        and isinstance(node.body[0].value.func, ast.Attribute)
+        and node.body[0].value.func.attr == "append"
+    ]
+
+
+def single_quoted_strings(path):
+    """Return the line of each string literal written with single quotes, which ruff format rewrites."""
+    with path.open(encoding="utf-8") as source:
+        return [
+            token.start[0]
+            for token in tokenize.generate_tokens(source.readline)
+            if token.type == tokenize.STRING and token.string.lstrip("rbuRBUfF").startswith("'")
+        ]
+
+
+def function(path, name):
+    return next(n for n in ast.walk(tree(path)) if isinstance(n, ast.FunctionDef) and n.name == name)
+
+
+def module_all(path):
+    """Return the names in a module's `__all__`, or None."""
+    for node in tree(path).body:
+        if isinstance(node, ast.Assign) and [ast.unparse(t) for t in node.targets] == ["__all__"]:
+            return ast.literal_eval(node.value)
+    return None
+
+
+def run_script(path, *args, cwd, isolated=True):
+    """Run a fixture script with no bytecode written, and return (exit status, stdout, stderr)."""
+    # -I leaves the script's directory off sys.path. A script that imports its
+    # neighbour, as an importer of a public name does, needs it, so it runs
+    # with -E -s instead.
+    flags = ["-I"] if isolated else ["-E", "-s"]
+    result = subprocess.run(
+        [sys.executable, "-B", *flags, str(path), *args], capture_output=True, text=True, cwd=cwd, check=False
+    )
+    return result.returncode, result.stdout, result.stderr
+
+
 class ExpectedFindingsTest(unittest.TestCase):
     def test_lists_one_finding_for_each_area(self):
         self.assertEqual(sorted(f["area"] for f in expected_findings().values()), sorted(a.lower() for _, a in AREAS))
 
+    def test_findings_are_numbered_most_severe_first(self):
+        order = {"critical": 0, "major": 1, "minor": 2}
+        findings = expected_findings()
+        self.assertEqual(list(findings), [f"P{n}" for n in range(1, len(findings) + 1)])
+        severities = [order[f["severity"]] for f in findings.values()]
+        self.assertEqual(severities, sorted(severities))
+
     def test_each_finding_quotes_the_line_it_names(self):
         for key, f in expected_findings().items():
             with self.subTest(id=key):
-                self.assertEqual(f["side"], "head", f"{key}: no '- Location: `head/<path>:<line>`'")
+                self.assertIsNotNone(f["side"], f"{key}: no '- Location: `head/<path>:<line>`'")
                 self.assertIsNotNone(f["quoted"], f"{key}: no '- Line: `<text>`'")
-                lines = read(HEAD / f["path"]).splitlines()
+                # A base location is for a deleted line only, and says so.
+                self.assertEqual(f["side"] == "base", f["deleted"], f"{key}: a base location must say (deleted)")
+                lines = read(FIXTURE / f["side"] / f["path"]).splitlines()
                 self.assertLessEqual(f["line"], len(lines))
                 # The whole line, not a substring, so a fix on the same line fails here.
                 self.assertEqual(lines[f["line"] - 1].strip(), f["quoted"])
+                if f["deleted"]:
+                    head = [line.strip() for line in read(HEAD / f["path"]).splitlines()]
+                    self.assertNotIn(f["quoted"], head, f"{key}: the deleted line is still at the head")
 
     def test_findings_point_at_changed_files(self):
         for key, f in expected_findings().items():
             with self.subTest(id=key):
                 self.assertIn(f["path"], changed_files())
 
-    def test_the_change_touches_only_the_planted_file(self):
-        self.assertEqual(changed_files(), ["postage.py"])
+    def test_the_change_touches_only_the_planted_files(self):
+        # price_list.py is unchanged: it is the importer the breaking change breaks.
+        self.assertEqual(changed_files(), ["get_rates.py", "postage.py"])
+        self.assertTrue((BASE / "price_list.py").is_file())
 
-    def test_the_script_declares_its_floor_and_no_dependencies(self):
+    def test_each_script_declares_its_floor(self):
         # The review reads requires-python from the PEP 723 header before any
-        # version-sensitive rule. The script has no dependencies, so mypy sees
-        # every type and nothing needs installing.
+        # version-sensitive rule. postage.py has no dependencies, so mypy sees
+        # every type in it; get_rates.py needs httpx, which the review never installs.
+        expected = {
+            BASE / "postage.py": [],
+            HEAD / "postage.py": [],
+            HEAD / "get_rates.py": ["httpx"],
+        }
+        for path, dependencies in expected.items():
+            with self.subTest(path=path.relative_to(FIXTURE).as_posix()):
+                metadata = script_metadata(path)
+                self.assertEqual(metadata, {"requires-python": ">=3.12", "dependencies": dependencies})
+
+    def test_one_script_has_no_module(self):
+        # A script with neither a pyproject.toml nor a PEP 723 header is a
+        # missing check in the report, never a finding.
         for root in (BASE, HEAD):
             with self.subTest(tree=root.name):
-                metadata = script_metadata(root / "postage.py")
-                self.assertEqual(metadata, {"requires-python": ">=3.12", "dependencies": []})
+                self.assertIsNone(script_metadata(root / "price_list.py"))
+        self.assertRegex(read(EXPECTED), r"(?m)^- .*`price_list\.py`.*neither a `pyproject\.toml` nor a PEP 723 header")
 
-    def test_the_fixture_is_a_script_not_a_project(self):
+    def test_the_fixture_is_scripts_not_a_project(self):
         # Every pyproject.toml project gets the full suite, and the suite's drift
         # test checks that the examples project is the only one.
-        for name in ("pyproject.toml", "setup.py", "setup.cfg", "ruff.toml", ".ruff.toml", "mypy.ini"):
+        for name in ("pyproject.toml", "setup.py", "setup.cfg", "ruff.toml", ".ruff.toml", "mypy.ini", "uv.lock"):
             with self.subTest(name=name):
                 self.assertEqual(list(FIXTURE.rglob(name)), [])
+
+    def test_the_fixture_has_no_ci(self):
+        # So every suite check and the advisory check are missing: lines in the
+        # report, not findings.
+        self.assertEqual(list(FIXTURE.rglob(".github")), [])
+        missing = read(EXPECTED).split("\n## Check suite in CI\n", 1)[1].split("\n## ", 1)[0]
+        for check in (
+            "ruff format --check",
+            "ruff check",
+            "mypy --strict",
+            "pytest --cov --cov-branch",
+            "pip-audit",
+            "semgrep",
+        ):
+            with self.subTest(check=check):
+                self.assertIn(f"`{check}`", missing)
+        self.assertIn("`griffe check`", read(EXPECTED).split("\n## Advisory checks\n", 1)[1].split("\n## ", 1)[0])
 
     def test_the_version_case_needs_a_later_python_to_drop_its_quotes(self):
         # Must not report: the quoted annotation names an import under
@@ -650,17 +961,46 @@ class ExpectedFindingsTest(unittest.TestCase):
 
 
 class PlantedDefectTest(unittest.TestCase):
-    """The ast probes show each defect at the head and not at the base."""
+    """The probes show each defect at the head and not at the base, with no suite tool."""
 
     def test_the_lost_cause_comes_from_the_change(self):
         f = finding("error handling")
         self.assertEqual(raises_without_from_in_except(BASE / "postage.py"), [])
-        self.assertEqual(raises_without_from_in_except(HEAD / "postage.py"), [f["line"]])
+        self.assertEqual(raises_without_from_in_except(HEAD / f["path"]), [f["line"]])
+
+    def test_the_off_by_one_charge_comes_from_the_change(self):
+        # Correctness: a parcel of exactly 200 g is two started 100 g, as the
+        # docstring says, and the base charges two. The head charges three.
+        f = finding("correctness and edge cases")
+        self.assertEqual(f["path"], "postage.py")
+        self.assertIn("grams // 100 + 1", f["quoted"])
+        with tempfile.TemporaryDirectory() as tmp:
+            rates = Path(tmp) / "r.json"
+            rates.write_text('{"local": 45}', encoding="utf-8")
+            self.assertEqual(run_script(BASE / "postage.py", "local", "200", cwd=tmp)[:2], (0, "90\n"))
+            self.assertEqual(run_script(HEAD / "postage.py", str(rates), "local", "200", cwd=tmp)[:2], (0, "135\n"))
+            # Between the multiples of 100 g the two agree.
+            self.assertEqual(run_script(BASE / "postage.py", "local", "250", cwd=tmp)[:2], (0, "135\n"))
+            self.assertEqual(run_script(HEAD / "postage.py", str(rates), "local", "250", cwd=tmp)[:2], (0, "135\n"))
+
+    def test_the_untested_decoder_comes_from_the_change(self):
+        # Testing: the change adds a function that decodes a file, which is
+        # untrusted input, and no Hypothesis @given test for it.
+        f = finding("testing and coverage")
+        self.assertEqual(
+            f["quoted"],
+            read(HEAD / f["path"]).splitlines()[function(HEAD / f["path"], "load_rates").lineno - 1].strip(),
+        )
+        self.assertEqual(returns_of_json_loads(BASE / "postage.py"), {})
+        for path in python_files(HEAD):
+            with self.subTest(path=path.name):
+                self.assertNotIn("hypothesis", read(path))
+                self.assertNotIn("@given", read(path))
 
     def test_the_any_return_comes_from_the_change(self):
         f = finding("typing")
         self.assertEqual(returns_of_json_loads(BASE / "postage.py"), {})
-        found = returns_of_json_loads(HEAD / "postage.py")
+        found = returns_of_json_loads(HEAD / f["path"])
         self.assertEqual(list(found.values()), ["dict[str, int]"])
         self.assertIn("json.loads(", f["quoted"])
 
@@ -671,23 +1011,81 @@ class PlantedDefectTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             rates = Path(tmp) / "rates.json"
             rates.write_text('{"local": "45"}', encoding="utf-8")
-            result = subprocess.run(
-                [sys.executable, "-I", str(HEAD / "postage.py"), str(rates), "local", "250"],
-                capture_output=True,
-                text=True,
-                cwd=tmp,
-                check=False,
-            )
-        self.assertEqual((result.returncode, result.stdout), (0, "454545\n"), result.stderr)
+            status, out, err = run_script(HEAD / "postage.py", str(rates), "local", "250", cwd=tmp)
+        self.assertEqual((status, out), (0, "454545\n"), err)
 
     def test_the_base_still_prices_a_parcel(self):
-        result = subprocess.run(
-            [sys.executable, "-I", str(BASE / "postage.py"), "local", "250"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        self.assertEqual((result.returncode, result.stdout), (0, "135\n"), result.stderr)
+        with tempfile.TemporaryDirectory() as tmp:
+            status, out, err = run_script(BASE / "postage.py", "local", "250", cwd=tmp)
+        self.assertEqual((status, out), (0, "135\n"), err)
+
+    def test_the_dropped_task_comes_from_the_change(self):
+        f = finding("concurrency and async")
+        self.assertEqual(f["path"], "get_rates.py")
+        for path in python_files(BASE):
+            self.assertEqual(discarded_create_tasks(path), [])
+        self.assertEqual(discarded_create_tasks(HEAD / f["path"]), [f["line"]])
+        # Nothing awaits the task before the client closes and the function returns.
+        body = ast.unparse(function_async(HEAD / f["path"], "get_all"))
+        self.assertNotIn("TaskGroup", body)
+        self.assertNotIn("gather", body)
+
+    def test_the_format_change_comes_from_the_change(self):
+        f = finding("naming and style")
+        for path in python_files(BASE):
+            self.assertEqual(single_quoted_strings(path), [])
+        self.assertEqual(single_quoted_strings(HEAD / f["path"]), [f["line"]])
+
+    def test_the_skipped_tls_check_comes_from_the_change(self):
+        f = finding("security")
+        for path in python_files(BASE):
+            self.assertEqual(verify_false(path), [])
+        self.assertEqual(verify_false(HEAD / f["path"]), [f["line"]])
+
+    def test_the_append_loop_comes_from_the_change(self):
+        f = finding("performance")
+        for path in python_files(BASE):
+            self.assertEqual(append_loops(path), [])
+        self.assertEqual(append_loops(HEAD / f["path"]), [f["line"]])
+
+    def test_the_unlocked_dependency_comes_from_the_change(self):
+        # The new script declares a dependency with no version and commits no
+        # <file>.lock, which uv lock --script would write beside it.
+        f = finding("dependency management")
+        self.assertEqual(f["quoted"], '# dependencies = ["httpx"]')
+        self.assertFalse((HEAD / f"{f['path']}.lock").exists())
+        self.assertEqual([p.name for p in FIXTURE.rglob("*.lock")], [])
+        self.assertFalse((BASE / f["path"]).exists())
+
+    def test_the_stale_docstring_comes_from_the_change(self):
+        # Documentation: the change makes main read a rate file and several
+        # weights, and leaves its docstring as it was.
+        f = finding("documentation")
+        base_main, head_main = function(BASE / "postage.py", "main"), function(HEAD / f["path"], "main")
+        self.assertEqual(ast.get_docstring(base_main), ast.get_docstring(head_main))
+        self.assertEqual(head_main.body[0].lineno, f["line"])
+        self.assertNotEqual(ast.unparse(base_main.body[1]), ast.unparse(head_main.body[1]))
+        self.assertIn("rates_file", ast.unparse(head_main.body[1]))
+
+    def test_the_removed_public_name_comes_from_the_change(self):
+        # Breaking changes: the base exports RATES, the head deletes it, and the
+        # unchanged price_list.py still imports it.
+        f = finding("breaking changes")
+        self.assertEqual((f["side"], f["deleted"]), ("base", True))
+        self.assertIn("RATES", module_all(BASE / "postage.py"))
+        self.assertNotIn("RATES", module_all(HEAD / "postage.py"))
+        self.assertTrue(f["quoted"].startswith("RATES = "))
+        with tempfile.TemporaryDirectory() as tmp:
+            base = run_script(BASE / "price_list.py", cwd=tmp, isolated=False)
+            head = run_script(HEAD / "price_list.py", cwd=tmp, isolated=False)
+        self.assertEqual(base[0], 0, base[2])
+        self.assertIn("local: 45", base[1])
+        self.assertNotEqual(head[0], 0)
+        self.assertIn("ImportError: cannot import name 'RATES'", head[2])
+
+
+def function_async(path, name):
+    return next(n for n in ast.walk(tree(path)) if isinstance(n, ast.AsyncFunctionDef) and n.name == name)
 
 
 def suite_families():
@@ -699,10 +1097,10 @@ def suite_families():
 
 
 class ToolProbeTest(unittest.TestCase):
-    """ruff and mypy, run as the review runs them on a module with no config, report each defect at the head only.
+    """ruff, mypy, and uv, run as the review runs them on a module with no config, report each defect at the head only.
 
     They are not part of the validate job, so these tests skip when the tool is
-    not on PATH. The ast probes above always run.
+    not on PATH. The probes above always run.
     """
 
     def tool(self, name):
@@ -711,60 +1109,93 @@ class ToolProbeTest(unittest.TestCase):
             self.skipTest(f"{name} is not on PATH")
         return path
 
-    def ruff(self, root):
+    def ruff(self, *args):
         ruff = self.tool("ruff")
         return subprocess.run(
-            [
-                ruff,
-                "check",
-                "--isolated",
-                "--no-cache",
-                "--no-fix",
-                "--output-format=concise",
-                "--target-version",
-                "py312",
-                "--select",
-                ",".join(suite_families()),
-                str(root / "postage.py"),
-            ],
+            [ruff, *args, "--isolated", "--no-cache", "--target-version", "py312"],
             capture_output=True,
             text=True,
             check=False,
         )
 
-    def mypy(self, root):
+    def ruff_check(self, root):
+        return self.ruff(
+            "check",
+            "--no-fix",
+            "--output-format=concise",
+            "--select",
+            ",".join(suite_families()),
+            *map(str, python_files(root)),
+        )
+
+    def mypy(self, path):
         mypy = self.tool("mypy")
         with tempfile.TemporaryDirectory() as cache:
             return subprocess.run(
-                [
-                    mypy,
-                    "--config-file=",
-                    "--strict",
-                    "--python-version",
-                    "3.12",
-                    f"--cache-dir={cache}",
-                    str(root / "postage.py"),
-                ],
+                [mypy, "--config-file=", "--strict", "--python-version", "3.12", f"--cache-dir={cache}", str(path)],
                 capture_output=True,
                 text=True,
                 check=False,
             )
 
-    def test_ruff_reports_only_the_lost_cause(self):
-        self.assertEqual(self.ruff(BASE).returncode, 0, self.ruff(BASE).stdout)
-        head = self.ruff(HEAD)
-        line = finding("error handling")["line"]
-        self.assertRegex(head.stdout, rf"(?m)^.*postage\.py:{line}:\d+: B904 ")
-        reported = re.findall(r"(?m)^.*postage\.py:\d+:\d+: ([A-Z]+\d+) ", head.stdout)
-        self.assertEqual(reported, ["B904"], head.stdout)
+    def test_ruff_reports_each_planted_rule_and_nothing_else(self):
+        base = self.ruff_check(BASE)
+        self.assertEqual(base.returncode, 0, base.stdout)
+        head = self.ruff_check(HEAD)
+        reported = sorted(re.findall(r"(?m)^.*/([a-z_]+\.py):(\d+):\d+: ([A-Z]+\d+) ", head.stdout))
+        expected = sorted(
+            (finding(area)["path"], str(finding(area)["line"]), code) for area, code in RUFF_CODES.items()
+        )
+        self.assertEqual(reported, expected, head.stdout)
+
+    def test_ruff_format_changes_only_the_planted_line(self):
+        base = self.ruff("format", "--check", *map(str, python_files(BASE)))
+        self.assertEqual(base.returncode, 0, base.stdout)
+        f = finding("naming and style")
+        for path in python_files(HEAD):
+            with self.subTest(path=path.name):
+                result = self.ruff("format", "--check", "--diff", str(path))
+                if path.name != f["path"]:
+                    self.assertEqual(result.returncode, 0, result.stdout)
+                    continue
+                self.assertNotEqual(result.returncode, 0)
+                removed = re.findall(r"(?m)^-(?!--)(.*)$", result.stdout)
+                self.assertEqual([line.strip() for line in removed], [f["quoted"]], result.stdout)
 
     def test_mypy_reports_only_the_any_return(self):
-        base = self.mypy(BASE)
+        base = self.mypy(BASE / "postage.py")
         self.assertEqual(base.returncode, 0, base.stdout)
-        head = self.mypy(HEAD)
+        head = self.mypy(HEAD / "postage.py")
         line = finding("typing")["line"]
         errors = re.findall(r"(?m)^.*postage\.py:(\d+): error: .*\[([a-z-]+)\]$", head.stdout)
         self.assertEqual(errors, [(str(line), "no-any-return")], head.stdout)
+
+    def test_mypy_on_the_new_script_reports_at_most_its_missing_dependency(self):
+        # Without httpx installed, mypy's import-not-found is a limit of the
+        # review, not a finding. With it, mypy passes.
+        result = self.mypy(HEAD / "get_rates.py")
+        errors = re.findall(r"(?m)^.*get_rates\.py:\d+: error: (.*)$", result.stdout)
+        for error in errors:
+            with self.subTest(error=error):
+                self.assertRegex(error, r'module named "httpx"\s+\[import-not-found\]$')
+
+    def test_uv_lock_check_finds_no_lockfile_for_the_new_script(self):
+        uv = self.tool("uv")
+        with tempfile.TemporaryDirectory() as tmp:
+            script = Path(tmp) / "get_rates.py"
+            shutil.copy(HEAD / "get_rates.py", script)
+            env = dict(os.environ, UV_NO_CONFIG="1", UV_OFFLINE="1", UV_PYTHON_DOWNLOADS="never")
+            result = subprocess.run(
+                [uv, "lock", "--check", "--offline", "--script", str(script)],
+                capture_output=True,
+                text=True,
+                cwd=tmp,
+                env=env,
+                check=False,
+            )
+            self.assertEqual(sorted(p.name for p in Path(tmp).iterdir()), ["get_rates.py"])
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Unable to find lockfile", result.stderr)
 
 
 class FixtureExclusionTest(unittest.TestCase):
@@ -794,11 +1225,11 @@ class FixtureExclusionTest(unittest.TestCase):
 
 # Words the fixture declares that are also ordinary English or Python words, so
 # they may appear in the skill text for their own sake.
-COMMON_WORDS = {"__init__", "main"}
+COMMON_WORDS = {"__init__", "__all__", "main"}
 
 # Values from the fixture's code and expected results that are not declared
 # names but would still give its answers away.
-FIXTURE_LITERALS = ["454545", "1.5kg", "rates.json", "per started 100 g"]
+FIXTURE_LITERALS = ["454545", "1.5kg", "rates.json", "rates-<n>.json", "per started 100 g"]
 
 
 def fixture_terms():
@@ -825,7 +1256,15 @@ class AnswerKeyTest(unittest.TestCase):
 
     def test_derives_the_fixture_terms(self):
         terms = fixture_terms()
-        for term in ("postage.py", "parse_grams", "load_rates", "PostageError"):
+        for term in (
+            "postage.py",
+            "get_rates.py",
+            "price_list.py",
+            "parse_grams",
+            "load_rates",
+            "get_all",
+            "PostageError",
+        ):
             self.assertIn(term, terms)
 
     def test_skill_text_does_not_name_the_fixture(self):
@@ -861,6 +1300,15 @@ class BehaviourCasesTest(unittest.TestCase):
         indirect = next(case for case in activate if case.startswith("Indirect:"))
         self.assertNotIn("review", indirect.split('"')[1].lower())
         self.assertNotIn("python", indirect.split('"')[1].lower())
+
+    def test_fixture_locations_in_the_cases_are_expected_findings(self):
+        # A case that names a fixture line must name one expected-findings.md lists.
+        locations = {f"{f['path']}:{f['line']}" for f in expected_findings().values()}
+        named = re.findall(r"`((?:postage|get_rates|price_list)\.py:\d+)`", read(SKILL / "tests" / "prompts.md"))
+        self.assertTrue(named)
+        for location in named:
+            with self.subTest(location=location):
+                self.assertIn(location, locations)
 
     def test_should_not_activate_has_a_request_to_write_python(self):
         self.assertTrue(any(case.startswith("Writing Python:") for case in cases("Should not activate")))

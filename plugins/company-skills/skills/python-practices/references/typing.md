@@ -23,34 +23,37 @@ This reference targets Python 3.12 and mypy 2.4.1. Read the project's `requires-
 
 ## Structural types
 
-Use a `Protocol` when callers only need a few methods. A class satisfies it by having them, without naming it, so `render(Circle(2.0))` type-checks for `def render(shape: Drawable)`. Add `@runtime_checkable` only when code must test it with `isinstance`. That test checks that the methods exist, not their signatures. From [`protocols.py`](../examples/src/practices/protocols.py):
+Use a `Protocol` when callers only need a few methods. A class satisfies it by having them, without naming it, so `render(Circle(2.0, "red"))` type-checks for `def render(shape: Drawable)`. Add `@runtime_checkable` only when code must test it with `isinstance`. That test checks that the methods exist, not their signatures. From [`protocols.py`](../examples/src/practices/protocols.py):
 
 ```python
 class Drawable(Protocol):
-    """Anything with a draw method."""
-
     def draw(self) -> str: ...
+
+    @property
+    def color(self) -> str: ...
 
 
 class Circle:
-    """A circle. It never names Drawable, and is one all the same."""
-
-    def __init__(self, radius: float) -> None:
+    def __init__(self, radius: float, color: str) -> None:
         self.radius = radius
+        self._color = color
 
     def draw(self) -> str:
-        return f"circle of radius {self.radius}"
+        return f"Drawing {self._color} circle"
+
+    @property
+    def color(self) -> str:
+        return self._color
 ```
 
 Type a dict that comes from outside, such as decoded JSON, with a `TypedDict`. Mark a key that may be missing with `NotRequired`, and read it with `.get`. For data your own code creates, use a dataclass instead. From [`records.py`](../examples/src/practices/records.py):
 
 ```python
-class User(TypedDict):
-    """A user record as the API sends it."""
-
+class UserDict(TypedDict):
     id: int
     name: str
-    email: NotRequired[str]
+    email: str
+    age: NotRequired[int]  # Optional field
 ```
 
 ## Signatures
@@ -58,14 +61,16 @@ class User(TypedDict):
 Annotate a method that returns its own instance with `Self`, so a subclass keeps its type through a chain of calls. From [`builder.py`](../examples/src/practices/builder.py):
 
 ```python
-class Request:
-    """An HTTP request, built one header at a time."""
-
+class Builder:
     def __init__(self) -> None:
-        self.headers: dict[str, str] = {}
+        self._value = 0
 
-    def with_header(self, name: str, value: str) -> Self:
-        self.headers[name] = value
+    def add(self, n: int) -> Self:
+        self._value += n
+        return self
+
+    def multiply(self, n: int) -> Self:
+        self._value *= n
         return self
 ```
 
@@ -73,12 +78,13 @@ Use `@overload` when the return type depends on the argument types. The undecora
 
 ```python
 @overload
-def double(value: int) -> int: ...
+def process(data: str) -> str: ...
 @overload
-def double(value: str) -> str: ...
-def double(value: int | str) -> int | str:
-    """Return the number times two, or the string twice."""
-    return value * 2
+def process(data: int) -> int: ...
+def process(data: str | int) -> str | int:
+    if isinstance(data, str):
+        return data.upper()
+    return data * 2
 ```
 
 ## Generics
@@ -86,12 +92,10 @@ def double(value: int | str) -> int | str:
 A decorator takes the wrapped function's parameters as a `ParamSpec`, `**P`, so callers keep its signature. Use `functools.wraps` to keep its name and docstring. From [`decorators.py`](../examples/src/practices/decorators.py):
 
 ```python
-def logged[**P, R](func: Callable[P, R]) -> Callable[P, R]:
-    """Log each call to func at debug level."""
-
+def logging_decorator[**P, R](func: Callable[P, R]) -> Callable[P, R]:
     @functools.wraps(func)
     def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
-        logger.debug("calling %s", func.__name__)
+        print(f"Calling {func.__name__}")
         return func(*args, **kwargs)
 
     return wrapper
@@ -101,42 +105,38 @@ A generic class lists its type parameters after its name. From [`cache.py`](../e
 
 ```python
 class Cache[K, V]:
-    """Values of type V, stored by keys of type K."""
-
     def __init__(self) -> None:
-        self._items: dict[K, V] = {}
+        self._data: dict[K, V] = {}
 
     def get(self, key: K) -> V | None:
-        return self._items.get(key)
+        return self._data.get(key)
 
     def set(self, key: K, value: V) -> None:
-        self._items[key] = value
+        self._data[key] = value
 ```
 
 ## Narrowing
 
-A function that checks a type returns `TypeIs[T]`, not `bool`. A `bool` narrows nothing. `TypeIs` narrows to `T` when it returns true, and away from `T` when it returns false. Prefer it to `TypeGuard`. `TypeGuard` narrows only the true branch.
+A function that checks a type returns `TypeIs[T]`, not `bool`. A `bool` narrows nothing. `TypeIs` narrows to `T` when it returns true, and away from `T` when it returns false, so it must return true only when the value really is a `T`. `TypeIs` is in `typing` from 3.13. Below that, import it from `typing_extensions`.
 
-`TypeIs` is in `typing` from 3.13. Below that, import it from `typing_extensions`. From [`guards.py`](../examples/src/practices/guards.py):
+A check of a list's items cannot prove its type when the item type is already known: an empty `list[int]` passes, and mypy then treats the true branch as unreachable and checks nothing in it. So call this guard only on a `list[Any]`, such as decoded JSON. To narrow a list whose item type is known, use `TypeGuard`, which narrows only the true branch. From [`guards.py`](../examples/src/practices/guards.py):
 
 ```python
-def is_str_list(value: object) -> TypeIs[list[str]]:
-    """Report whether value is a list whose items are all strings."""
-    return isinstance(value, list) and all(isinstance(item, str) for item in value)
+def is_string_list(val: list[Any]) -> TypeIs[list[str]]:
+    """Runtime check for list of strings."""
+    return all(isinstance(x, str) for x in val)
 ```
 
-End a `match` over an `Enum`, a `Literal`, or a union with `assert_never`. mypy then fails when a new member has no case. From [`exhaustive.py`](../examples/src/practices/exhaustive.py):
+End an `if` chain or a `match` over an `Enum`, a `Literal`, or a union with `assert_never`. mypy then fails when a new value has no branch. From [`exhaustive.py`](../examples/src/practices/exhaustive.py):
 
 ```python
-def label(status: Status) -> str:
-    """Return the label shown for a status."""
-    match status:
-        case Status.ACTIVE:
-            return "active"
-        case Status.SUSPENDED:
-            return "suspended"
-        case _:
-            assert_never(status)
+def handle_mode(mode: Literal["read", "write"]) -> str:
+    if mode == "read":
+        return "Reading"
+    if mode == "write":
+        return "Writing"
+    # Mypy will error if mode can be anything else
+    assert_never(mode)
 ```
 
 ## mypy configuration

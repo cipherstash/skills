@@ -17,26 +17,37 @@ Modifications in this copy
 CipherStash made these changes:
 
 - references/typing.md takes these examples from
-  skills/python-pro/references/type-system.md:
-  These five follow upstream's examples, which the audit found no defect in.
-  Their names and docstrings are this project's own:
-  - a Protocol with a class that satisfies it by its shape
-    (examples/src/practices/protocols.py);
-  - a TypedDict with a NotRequired key (examples/src/practices/records.py);
-  - a builder whose methods return Self (examples/src/practices/builder.py);
-  - an @overload whose return type follows its argument type
-    (examples/src/practices/overloads.py);
-  - assert_never for an exhaustive match
-    (examples/src/practices/exhaustive.py).
-  These four are fixed:
-  - the ParamSpec decorator (examples/src/practices/decorators.py), fixed
-    for D9: it is written in PEP 695 syntax, def logged[**P, R], with no
-    TypeVar or ParamSpec declaration, which ruff's UP047 rejects at 3.12;
+  skills/python-pro/references/type-system.md. Each one is now a file of its
+  own, with a module docstring. The comment that labelled each example in
+  upstream's combined code block is dropped, because the reference's text
+  introduces it. Code that the audit found no defect in is otherwise as
+  upstream wrote it, except where ruff or mypy --strict require a change:
+  - the Drawable Protocol and Circle, which satisfies it by its shape
+    (examples/src/practices/protocols.py): ruff format puts each "..." body
+    on its def line;
+  - the UserDict TypedDict with a NotRequired key, and create_user
+    (examples/src/practices/records.py): unchanged;
+  - the Builder whose methods return Self (examples/src/practices/builder.py):
+    unchanged;
+  - the process @overload (examples/src/practices/overloads.py): ruff format
+    removes the single blank line between the overloads and the
+    implementation;
+  - assert_never for an exhaustive handle_mode
+    (examples/src/practices/exhaustive.py): the elif and else after a return
+    become a plain if and a bare assert_never, as ruff's RET505 requires.
+  These four are fixed, each with the change below and no other, except
+  where stated:
+  - the ParamSpec logging_decorator (examples/src/practices/decorators.py),
+    fixed for D9: it is written in PEP 695 syntax, def
+    logging_decorator[**P, R], with no TypeVar or ParamSpec declaration,
+    which ruff's UP047 rejects at 3.12. It also gains @functools.wraps(func)
+    on the wrapper, which typing.md asks for, so the wrapped function keeps
+    its name and docstring;
   - the generic Cache[K, V] (examples/src/practices/cache.py), fixed for D9:
     it is written as class Cache[K, V] with no TypeVar or Generic base,
     which ruff's UP046 rejects at 3.12;
-  - the custom type guard (examples/src/practices/guards.py), fixed for D8:
-    it returned bool, which narrows nothing; it now returns
+  - the custom type guard is_string_list (examples/src/practices/guards.py),
+    fixed for D8: it returned bool, which narrows nothing; it now returns
     TypeIs[list[str]], from typing_extensions below Python 3.13;
   - the mypy configuration (the [tool.mypy] table in examples/pyproject.toml),
     fixed for D11: python_version is 3.12, not 3.11, and strict = true
@@ -46,9 +57,10 @@ CipherStash made these changes:
   Every TypeAlias and TypeVar generic upstream writes is replaced by the
   PEP 695 rule (D9).
 - references/errors.md is new, except the library logger that adds only a
-  NullHandler (examples/src/practices/__init__.py), which follows the
-  example in skills/python-pro/references/standard-library.md. The audit
-  found no defect in it.
+  NullHandler (examples/src/practices/__init__.py), taken from the package
+  __init__.py example in skills/python-pro/references/packaging.md. Only its
+  "# Package-level configuration" comment, the logging import and the two
+  logger lines are taken. The audit found no defect in it.
 - references/testing.md takes these examples from
   skills/python-pro/references/testing.md, in examples/tests/test_testing.py:
   These three follow upstream's examples, which the audit found no defect in:
@@ -109,8 +121,9 @@ CipherStash made these changes:
   - get_version, fixed for D27: package_version
     (examples/src/practices/about.py) reads importlib.metadata.version,
     since pyproject.toml is not in the wheel and tomli is not needed.
-  D1 (os.path called deprecated) and D3 (black) do not carry over. Nothing
-  else from packaging.md is taken, so D25, D26, D28, D29 and D30 leave
+  D1 (os.path called deprecated) and D3 (black) do not carry over. Apart
+  from these three examples and the NullHandler logger that errors.md uses,
+  nothing else from packaging.md is taken, so D25, D26, D28, D29 and D30 leave
   with it.
 - references/security.md, references/dependencies.md (with its PEP 723
   script, examples/src/practices/count_lines.py),

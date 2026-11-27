@@ -1,0 +1,35 @@
+{
+  "name": "@cipherstash/typescript-practices-examples",
+  "version": "0.0.0",
+  "description": "The examples that typescript-practices' references quote. CI runs the TypeScript check suite over this package. It is never published.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@12.23.0",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.9",
+    "@fast-check/vitest": "0.5.0",
+    "@types/node": "24.19.4",
+    "@vitest/coverage-v8": "5.1.1",
+    "fast-check": "4.11.0",
+    "oxlint": "1.95.0",
+    "oxlint-tsgolint": "7.0.2008",
+    "publint": "0.3.25",
+    "typescript": "7.0.2",
+    "vitest": "5.1.1"
+  }
+}

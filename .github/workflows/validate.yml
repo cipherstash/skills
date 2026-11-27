@@ -93,3 +93,59 @@ jobs:
           local_rules=()
           if [ -d .semgrep ]; then local_rules=(--config .semgrep); fi
           semgrep scan --config p/golang "${local_rules[@]}" --error --metrics=off plugins/company-skills/skills/golang-practices/examples
+
+  # The TypeScript check suite, listed with its pinned versions in
+  # typescript-practices' references/checks.md, over the typescript-practices
+  # examples package. scripts/tests/test_typescript_check_suite_workflow.py
+  # checks this job against that list.
+  typescript-check-suite:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: plugins/company-skills/skills/typescript-practices/examples
+    steps:
+      - uses: actions/checkout@v4
+      # Installs the pnpm version that the package's packageManager field pins.
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: plugins/company-skills/skills/typescript-practices/examples/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      - name: Install the pinned tools
+        run: pnpm install --frozen-lockfile
+      - name: Type check
+        run: |
+          pnpm exec tsc --noEmit -p tsconfig.json --checkers 4
+          pnpm exec tsc --noEmit -p tsconfig.build.json --checkers 4
+      - name: Format and general lint
+        run: pnpm exec biome ci --error-on-warnings --config-path=../assets/biome.json
+      - name: Type-aware lint
+        run: pnpm exec oxlint --type-aware --deny-warnings -c ../assets/oxlintrc.json
+      - name: Tests and coverage
+        run: pnpm exec vitest run --coverage --coverage.provider=v8
+      - name: Package shape
+        run: |
+          pnpm run build
+          pnpm exec publint --strict
+          pnpm dlx @arethetypeswrong/cli@0.18.5 --pack . --profile esm-only
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: false
+      - name: osv-scanner
+        run: go run github.com/google/osv-scanner/v2/cmd/osv-scanner@v2.7.1 scan source -r .
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install semgrep
+        working-directory: .
+        run: python3 -m pip install semgrep==1.186.0
+      # From the repository root, where the optional .semgrep/ rules live, and the
+      # .semgrepignore that keeps the test files in the scan.
+      - name: semgrep
+        working-directory: .
+        run: |
+          local_rules=()
+          if [ -d .semgrep ]; then local_rules=(--config .semgrep); fi
+          semgrep scan --config p/typescript --config p/javascript "${local_rules[@]}" --error --metrics=off plugins/company-skills/skills/typescript-practices/examples

@@ -1,0 +1,60 @@
+TypeScript practices skill for Claude Code and Codex
+
+This directory contains material adapted from the typescript-pro skill in
+Jeffallan/claude-skills (https://github.com/Jeffallan/claude-skills), path
+skills/typescript-pro, at commit 36f3fe8052da7c57083783268c6ea3265d075265.
+That material is distributed under the MIT License, copied in LICENSE.
+
+Modifications in this copy
+--------------------------
+
+CipherStash made these changes. The defect numbers are those of the audit
+posted on cipherstash/skills#65.
+
+- references/type-safety.md is adapted from skills/typescript-pro/
+  references/type-guards.md, skills/typescript-pro/references/
+  advanced-types.md, and the code examples and rules in
+  skills/typescript-pro/SKILL.md. Its examples now live as TypeScript source
+  in examples/src/type-safety/, with tests, and these changes are made:
+  - the branded type from SKILL.md is reformatted by Biome and exported,
+    and getOrder has an explicit return type and returns a lookup key
+    instead of an empty body, so that it compiles under isolatedDeclarations
+    and passes the lint suite;
+  - the exhaustive switch from SKILL.md is reformatted by Biome and
+    exported, its isSuccess guard is left out, and its error message passes
+    the never value through JSON.stringify, which oxlint's
+    restrict-template-expressions rule requires;
+  - assertIsUser asserted a full User after checking only its type field;
+    it checks every field (defect 15);
+  - the satisfies example is new;
+  - the rule to use an "Annotated pattern" with type predicates, a Python
+    concept, is dropped (defect 1);
+  - the variance examples marked "OK" were type errors, because string is
+    not assignable to object; the rule is stated in prose with types for
+    which it holds (defect 12);
+  - the higher-kinded type example, which used any and never used its type
+    parameter, is dropped (defect 13);
+  - the redeclared NonNullable, Partial, Required, and intrinsic string
+    types are dropped, and the reference says to use the standard library's
+    types and never redeclare them (defect 14);
+  - the rules say never to cast through any to satisfy a return type, as in
+    "return null as any" (defect 20), and to type a field of unknown shape
+    in a union as unknown, not any (defect 21);
+  - the other type-guard and advanced-type examples are replaced by prose
+    rules.
+- references/error-handling.md is new. Upstream has no error handling
+  reference.
+- references/checks.md, the templates in assets/, examples/, and tests/
+  are new.
+- SKILL.md is new: a rule list and an index of references. Its type safety
+  rules draw on the upstream SKILL.md constraints list. The upstream
+  frontmatter metadata, persona line, workflow, output template, and
+  related skills are not carried over. It targets TypeScript 7.0, not
+  TypeScript 5.0 (defect 4), and drops tRPC from the description and
+  triggers (defect 5).
+- skills/typescript-pro/references/patterns.md and
+  skills/typescript-pro/references/utility-types.md are not ported, so
+  defects 16 to 19 in patterns.md leave with them.
+- skills/typescript-pro/references/configuration.md is not ported here.
+  The tsconfig.json template in assets/ replaces its compiler settings and
+  the recommended tsconfig.json in the upstream SKILL.md.

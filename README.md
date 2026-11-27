@@ -209,7 +209,11 @@ Convention skills, such as the Rust skills (`rust-*`), `golang-practices`, and `
 
 `stacking-pull-requests` requires Git, `gh` authenticated for the target repository, and GitHub's gh-stack extension. Its `SKILL.md` names the gh-stack version it was checked with. It installs the extension with `gh extension install github/gh-stack`. It asks first, unless you already asked for a stack.
 
-`linking-github-issues` requires `gh` authenticated for the target repository. It makes each link with a GitHub GraphQL mutation, through `gh api graphql`.
+`linking-github-issues` requires `gh` authenticated for the target repository. It runs these `gh` commands:
+
+- `gh api graphql`, to look up node ids, to make each link and read it back, and to list GitHub's mutations;
+- `gh repo view` and `gh pr view`, to compare a pull request's base with the default branch;
+- `gh api repos/<owner>/<repo>/issues/<number>`, to read an issue's REST id, and `gh api repos/<owner>/<repo>/issues/<number>/sub_issues`, to add a sub-issue through REST.
 
 The Vanta skills also need the Linear connector, read-only Vanta API credentials (`vanta-api.all:read`) with network access to `api.vanta.com` for `vanta-triage`, either as an environment network secret of type OAuth 2.0 client credentials for `api.vanta.com` or as `VANTA_CLIENT_ID` and `VANTA_CLIENT_SECRET`, and each target ecosystem's toolchain (`cargo`, `pnpm`/`npm`/`yarn`/`bun`, `go`, `poetry`/`uv`) for `vanta-remediate`. `vanta-remediate` also needs the GitHub MCP server for pull requests and `git` push access to the target repos; it does not use the `gh` CLI. Both run unattended, so they suit Claude Code routines.
 

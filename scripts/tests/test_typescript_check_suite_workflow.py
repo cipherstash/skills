@@ -57,6 +57,8 @@ TYPE_AWARE_RULES = (
     "typescript/no-unsafe-call",
     "typescript/no-unsafe-member-access",
     "typescript/no-unsafe-return",
+    "typescript/only-throw-error",
+    "typescript/switch-exhaustiveness-check",
 )
 
 

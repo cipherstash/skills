@@ -1,0 +1,8 @@
+# Install no version published less than a day ago (in minutes). Setting it
+# makes the check strict: a newer version fails the install.
+minimumReleaseAge: 1440
+# Fail the install when a dependency has an install script that allowBuilds
+# does not approve.
+strictDepBuilds: true
+# Install no git or tarball URL dependency of a dependency.
+blockExoticSubdeps: true

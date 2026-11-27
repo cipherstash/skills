@@ -14,10 +14,16 @@ SKILL = Path(__file__).resolve().parents[1]
 EXAMPLES = SKILL / "examples"
 REFERENCES = SKILL / "references"
 
-# The references this slice builds (cipherstash/skills#147). The rest of the areas come in #148.
+# One reference for each area of the review checklist (spec cipherstash/skills#146).
 EXPECTED_REFERENCES = {
+    "async.md",
     "checks.md",
+    "dependencies.md",
     "error-handling.md",
+    "performance.md",
+    "project-structure.md",
+    "security.md",
+    "testing.md",
     "type-safety.md",
 }
 
@@ -191,7 +197,7 @@ class QuotedSnippetsTest(unittest.TestCase):
 
 
 class ReferenceIndexTest(unittest.TestCase):
-    def test_every_area_of_this_slice_has_a_reference(self):
+    def test_every_area_has_a_reference(self):
         self.assertEqual({path.name for path in references()}, EXPECTED_REFERENCES)
 
     def test_skill_md_links_every_reference(self):

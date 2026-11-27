@@ -15,11 +15,26 @@ EXAMPLES = SKILL / "examples"
 REFERENCES = SKILL / "references"
 TEMPLATE = SKILL / "assets" / "pyproject-checks.toml"
 
-# The references this slice builds (cipherstash/skills#156). The rest of the
-# areas in spec #154 arrive in later tickets, each adding its name here.
-EXPECTED_REFERENCES = {"checks.md", "errors.md", "typing.md"}
-# Each reference aims for under 100 lines. Spec #154 lets typing.md reach about 150.
-LINE_LIMITS = {"typing.md": 150}
+# Every reference spec #154 names: one for each area of the review checklist,
+# plus the check suite and native extensions.
+EXPECTED_REFERENCES = {
+    "checks.md",
+    "errors.md",
+    "typing.md",
+    "testing.md",
+    "async.md",
+    "data-modelling.md",
+    "security.md",
+    "dependencies.md",
+    "project-structure.md",
+    "performance.md",
+    "native-extensions.md",
+}
+# References that state their rules in prose and quote no code (spec #154).
+PROSE_ONLY = {"performance.md", "native-extensions.md"}
+# Each reference aims for under 100 lines. Spec #154 lets typing.md and
+# testing.md reach about 150.
+LINE_LIMITS = {"typing.md": 150, "testing.md": 150}
 DEFAULT_LINE_LIMIT = 100
 
 # Fenced code blocks follow CommonMark: an opener is up to three spaces of
@@ -174,6 +189,54 @@ class ReferenceIndexTest(unittest.TestCase):
         for name in sorted(EXPECTED_REFERENCES):
             with self.subTest(reference=name):
                 self.assertIn(f"](references/{name})", text)
+
+    def test_skill_md_table_says_when_to_read_each_reference(self):
+        text = (SKILL / "SKILL.md").read_text(encoding="utf-8")
+        rows = {}
+        for line in text.splitlines():
+            row = re.fullmatch(r"\| \[references/([\w.-]+)\]\(references/\1\) \| (.*) \|", line)
+            if row:
+                rows[row.group(1)] = row.group(2).strip()
+        self.assertEqual(set(rows), EXPECTED_REFERENCES)
+        for name, when in sorted(rows.items()):
+            with self.subTest(reference=name):
+                self.assertTrue(when, f"{name} has no 'when' text")
+
+    def test_prose_only_references_quote_no_code(self):
+        for name in sorted(PROSE_ONLY):
+            text = (REFERENCES / name).read_text(encoding="utf-8")
+            with self.subTest(reference=name):
+                self.assertIsNone(re.search(r"^ {0,3}(`{3,}|~{3,})", text, re.MULTILINE))
+
+    def test_native_extensions_names_its_labelled_example(self):
+        text = (REFERENCES / "native-extensions.md").read_text(encoding="utf-8")
+        self.assertIn("cipherstash/stack", text)
+
+
+class AuditDefectsTest(unittest.TestCase):
+    """Defects the audit on cipherstash/skills#64 found upstream stay out."""
+
+    def test_no_reference_sets_a_coverage_threshold(self):
+        # D2 and D24: ADR 0001 reports coverage with no threshold.
+        for path in sorted(REFERENCES.glob("*.md")):
+            text = path.read_text(encoding="utf-8")
+            with self.subTest(reference=path.name):
+                self.assertNotRegex(text, r"fail[-_]under")
+
+    def test_no_reference_calls_os_path_deprecated(self):
+        # D1: os.path is not deprecated.
+        for path in sorted(REFERENCES.glob("*.md")):
+            for line in path.read_text(encoding="utf-8").splitlines():
+                if "os.path" in line:
+                    with self.subTest(reference=path.name, line=line):
+                        self.assertNotIn("deprecated", line.lower())
+
+    def test_no_quoted_block_carries_poetry_or_setup_py(self):
+        # D25 to D30: uv replaces Poetry, setup.py and pip freeze.
+        for path in sorted(REFERENCES.glob("*.md")):
+            for line, _, code in quoted_blocks(path.read_text(encoding="utf-8")):
+                with self.subTest(block=f"{path.name}:{line}"):
+                    self.assertNotRegex(code, r"tool\.poetry|setuptools|setup\(|pip freeze")
 
 
 class ConfigTemplateTest(unittest.TestCase):

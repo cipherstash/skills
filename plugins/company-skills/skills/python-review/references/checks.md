@@ -35,7 +35,7 @@ Write every file a check produces, such as a cache or a coverage file, to a temp
 
 ## Configuration from the base commit
 
-The change must not choose how its own checks run. Read each tool's configuration at the base commit, with `git show <base>:<path>`: ruff's in `ruff.toml`, `.ruff.toml`, or `[tool.ruff]`; mypy's in `mypy.ini`, `.mypy.ini`, `[tool.mypy]`, or `setup.cfg`; pytest's in `pytest.ini`, `.pytest.ini`, `[tool.pytest]`, `[tool.pytest.ini_options]`, `tox.ini`, or `setup.cfg`; and coverage's in `.coveragerc` or `[tool.coverage]`. With no base commit, use none of them.
+The change must not choose how its own checks run. Read each tool's configuration at the base commit, with `git show <base>:<path>`: ruff's in `ruff.toml`, `.ruff.toml`, or `[tool.ruff]`; mypy's in `mypy.ini`, `.mypy.ini`, `[tool.mypy]`, or `setup.cfg`; pytest's in `pytest.ini`, `.pytest.ini`, `[tool.pytest]`, `[tool.pytest.ini_options]`, `tox.ini`, or `setup.cfg`; and coverage's in `.coveragerc`, `[tool.coverage]`, or the `[coverage:...]` sections of `setup.cfg` or `tox.ini`. With no base commit, use none of them.
 
 1. If the change adds, edits, renames, or deletes a tool's configuration anywhere in the repository, do not use it. Run ruff with `--isolated`, `--select` set to the rule families python-practices' `references/checks.md` lists, and `--target-version py<floor>`, such as `py312`, and mypy with `--config-file=` (an empty value reads no file), `--strict`, and `--python-version <floor>`. Say so in the report. A change to another table of `pyproject.toml`, such as `[project]`, leaves the tools' tables as they were, so compare the tables, not the file.
 2. With no configuration for the tool at the base, run it with the flags in point 1 too. Otherwise the worktree's configuration is the base commit's configuration. Pass its file by path, as `--config <worktree>/<path>` for ruff and `--config-file <worktree>/<path>` for mypy, so that no config from a subdirectory, a directory above the repository, or the user's home is loaded.
@@ -81,7 +81,12 @@ Otherwise, the tests run only when the user says yes. Before you ask:
 
 The review never installs the change's dependencies, so the tests can import only what is already installed where pytest runs. An `ImportError` or `ModuleNotFoundError` for a dependency is a limit, not a finding.
 
-From the base commit's pytest configuration, take only these options: `testpaths`, `pythonpath`, `markers`, `-m`, `-k`, `--strict-markers`, and `--strict-config`. Leave out every other option of `addopts`, such as `-p`, and name the ones left out in the report. Run pytest directly, never through `nox`, `tox`, `make`, or `uv run`.
+The worktree holds the head's configuration, and pytest and coverage read it unless told which file to read. So write their configuration from the base commit into new files in the temporary directory, outside the worktree:
+
+- `<tmp>/pytest.ini`: from the base commit's pytest configuration, take only these options: `testpaths`, `pythonpath`, `markers`, `-m`, `-k`, `--strict-markers`, and `--strict-config`. Leave out every other option of `addopts`, such as `-p`, and every other setting, and name the ones left out in the report. Write them under `[pytest]`: `pythonpath` as absolute paths under the module root, `markers` as they are, and `-m`, `-k`, `--strict-markers`, and `--strict-config` in `addopts`. Give `testpaths` on the command line as absolute paths. With no base configuration, or none of these options, write `[pytest]` alone.
+- `<tmp>/coveragerc`: from the base commit's coverage configuration, take only `source`, `source_pkgs`, `include`, and `omit` from `[run]`, and `include`, `omit`, `exclude_lines`, `exclude_also`, and `fail_under` from `[report]`. Write paths as absolute paths under the module root. Leave out every other setting, such as `plugins` and `data_file`, and name the ones left out in the report. A coverage plugin is code, and loading it runs it. With no base coverage configuration, write an empty file.
+
+Pass them as the checks table does. With `-c <tmp>/pytest.ini --rootdir <module root>`, pytest reads no `pytest.ini`, `pyproject.toml`, `tox.ini`, or `setup.cfg` from the worktree. With `--cov-config=<tmp>/coveragerc`, coverage reads none of its files there either. Run pytest directly, never through `nox`, `tox`, `make`, or `uv run`.
 
 ## The checks
 
@@ -90,7 +95,7 @@ From the base commit's pytest configuration, take only these options: `testpaths
 | Formatting | `ruff format --check --diff --no-cache --config <config> <changed files>` | All | Files `ruff format` would change, with the lines. Never without `--check` |
 | Lint | `ruff check --no-cache --no-fix --output-format=concise --config <config> <changed files>` | Error handling, typing | Rule violations at file and line, such as `B904`, `BLE001`, `E722`, and `PGH003` |
 | Type check | `mypy --strict --cache-dir=<tmp>/mypy --python-version <floor> --config-file <config> <scope>` | Typing, error handling | Type errors at file and line, such as `no-any-return` and `unused-ignore`. Errors that a missing dependency causes are a limit |
-| Tests with coverage | `COVERAGE_FILE=<tmp>/.coverage pytest -p no:cacheprovider --cov --cov-branch --cov-report=term-missing <testpaths>`, only as [Before running tests](#before-running-tests) allows | Error handling, typing | Failing tests, and coverage per file |
+| Tests with coverage | `COVERAGE_FILE=<tmp>/.coverage pytest -c <tmp>/pytest.ini --rootdir <module root> -p no:cacheprovider --cov --cov-branch --cov-report=term-missing --cov-config=<tmp>/coveragerc <testpaths>`, only as [Before running tests](#before-running-tests) allows | Error handling, typing | Failing tests, and coverage per file |
 
 mypy and ruff each take the config from [Configuration from the base commit](#configuration-from-the-base-commit), or its replacement flags. Pass `--python-version` only when that config sets no `python_version`.
 
@@ -143,6 +148,7 @@ The review never runs these:
 - `mypy --install-types`, which installs packages, or `mypy` with plugins, until the user says yes.
 - `ruff format` without `--check`, `ruff check --fix`, `--unsafe-fixes`, or `--add-noqa`.
 - `pytest` with an option that rewrites files, such as `--snapshot-update`, or with `-p` from the repository.
+- pytest without `-c <tmp>/pytest.ini` and `--cov-config=<tmp>/coveragerc`. Without them, pytest and coverage read the head's configuration.
 - `pip-audit --fix`, and `semgrep --autofix`.
 - `nox`, `tox`, `make`, `pre-commit`, `hatch run`, `poetry run`, `just`, or any repository script or task-runner target.
 - `python -m <tool>` or `python <file>` with the worktree as the working directory.

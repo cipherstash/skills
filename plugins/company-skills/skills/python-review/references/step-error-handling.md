@@ -28,7 +28,7 @@ Cite the practices rule: inside `except`, raise a new error with `raise NewError
 - `except asyncio.CancelledError:` or `except BaseException:` whose block ends without `raise`;
 - a bare `except:`, since it catches cancellation too;
 - a `return`, `break`, or `continue` in a `finally` block of a coroutine. It drops whatever was being raised, cancellation included;
-- `asyncio.shield`, `contextlib.suppress(asyncio.CancelledError)`, or a callback that discards a task's cancellation.
+- `contextlib.suppress(asyncio.CancelledError)`, or a callback that discards a task's cancellation.
 
 The trigger is a cancellation: a `TaskGroup` sibling failing, an `asyncio.timeout` running out, or a shutdown. The task keeps running after it was cancelled. A `TaskGroup` waits for it, `asyncio.timeout` never raises `TimeoutError`, and a shutdown hangs. This is `major`.
 
@@ -79,6 +79,7 @@ Read the module's floor from step 3 before you flag a rule or suggest a fix. `Ex
 - A broad `except` at a boundary that logs the traceback with `logger.exception` and goes on, such as a worker loop that outlives one bad job.
 - `raise ... from None` with a reason in a comment or the message.
 - A `CancelledError` caught to clean up and then re-raised with a bare `raise`.
+- `await asyncio.shield(...)`. The awaiting code still gets `CancelledError`; only the inner task keeps running.
 - Logging configured in a script, a test, or the application's entry point.
 - Error message wording or style. That belongs to the naming and style area, not this one.
 - Error handling in code the change neither adds nor makes reachable.

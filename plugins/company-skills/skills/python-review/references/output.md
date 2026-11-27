@@ -25,9 +25,9 @@ Skills: `python-review`, `python-practices`
 | Check | Scope | Outcome |
 | --- | --- | --- |
 | `ruff format --check --diff --no-cache --config pyproject.toml` | changed files | passed |
-| `ruff check --no-cache --no-fix --output-format=concise --config pyproject.toml` | changed files | failed: `mailer/send.py:41:13: B904 Within an except clause, raise exceptions with raise ... from err` |
-| `mypy --strict --cache-dir=<tmp>/mypy --config-file pyproject.toml` | `src tests` | failed: `mailer/templates.py:18: error: Returning Any from function declared to return "dict[str, str]"  [no-any-return]`; 2 `import-not-found` errors for `jinja2`, a limit |
-| `pytest --cov --cov-branch` | `tests` | not run: the change touches the execution surface (`tests/conftest.py`), and the user did not say yes. Command: `COVERAGE_FILE=<tmp>/.coverage pytest -p no:cacheprovider --cov --cov-branch --cov-report=term-missing tests` |
+| `ruff check --no-cache --no-fix --output-format=concise --config pyproject.toml` | changed files | failed: `mailer/templates.py:12:44: PGH003 Use specific rule codes when ignoring type issues` |
+| `mypy --strict --cache-dir=<tmp>/mypy --config-file pyproject.toml` | `src tests` | failed: 2 `import-not-found` errors for `jinja2` at `mailer/templates.py:3`, a limit |
+| `pytest --cov --cov-branch` | `tests` | not run: the change touches the execution surface (`tests/conftest.py`), and the user did not say yes. Command: `COVERAGE_FILE=<tmp>/.coverage pytest -c <tmp>/pytest.ini --rootdir <module root> -p no:cacheprovider --cov --cov-branch --cov-report=term-missing --cov-config=<tmp>/coveragerc <module root>/tests` |
 | `pip-audit` | `uv.lock` | not run: needs the vulnerability service over the network |
 | `semgrep` | changed files | not run: not installed |
 | `mypy --strict` in CI | `src tests` | failed: job `python-checks` on the head commit, `<run URL>` |
@@ -44,23 +44,23 @@ Skills: `python-review`, `python-practices`
 
 ## Findings
 
-### P1 · major · `mailer/templates.py:18` · decoded template map returned as `Any`
-
-- Area: typing
-- Cause: the change adds `load_templates`, annotated `-> dict[str, str]`, which returns `json.loads(path.read_text())` with no check of its shape.
-- Trigger and consequence: a templates file holding a JSON list, or a map whose values are objects, passes through as a `dict[str, str]`. `render` then calls `.format` on a `dict` and raises `AttributeError` while sending, after the message was taken off the queue.
-- Rule: python-practices typing, "Do not use `Any` where a type is known. Take `object` for a value of unknown type, and narrow it before use."
-- Evidence: mypy `no-any-return` at `mailer/templates.py:18` (observed); the path to `render` read at `mailer/send.py:30` (inferred from reading).
-- Fix: decode into `object`, check it is a `dict` whose keys and values are all `str`, and raise the module's `TemplateError` otherwise.
-- Source: python-review · <model ID>
-
-### P2 · minor · `mailer/send.py:41` · new error raised without its cause
+### P1 · major · `mailer/worker.py:52` · cancellation swallowed in the send loop
 
 - Area: error handling
-- Cause: the change wraps `smtplib.SMTPException` in `SendError` inside `except`, with no `from`.
-- Rule: python-practices errors, "Inside `except`, raise a new error with `raise NewError(...) from error`, so the cause stays in the traceback."
-- Evidence: ruff `B904` at `mailer/send.py:41` (observed). No code in the repository reads `__cause__`, so the severity is minor.
-- Fix: `except smtplib.SMTPException as error: raise SendError(message.id) from error`.
+- Cause: the change wraps the loop in `drain_queue` in `except asyncio.CancelledError:`, which logs "worker stopping" and returns with no `raise`.
+- Trigger and consequence: `mailer/main.py:30` runs `drain_queue` under `asyncio.timeout(30)`. When the time runs out, the coroutine returns normally, so no `TimeoutError` is raised. `main` then marks the batch as sent while its messages are still on the queue.
+- Rule: python-practices errors, "When you must catch `CancelledError`, clean up and re-raise it. Never swallow it."
+- Evidence: the handler read at `mailer/worker.py:50-54`, and the timeout at `mailer/main.py:30` (observed). No tool reports a `CancelledError` caught by name and swallowed; the consequence is inferred from how `asyncio.timeout` works.
+- Fix: log, then re-raise with a bare `raise`, or move the log line into a `finally` block.
+- Source: python-review · <model ID>
+
+### P2 · minor · `mailer/templates.py:12` · `# type: ignore` with no error code
+
+- Area: typing
+- Cause: the change adds a bare `# type: ignore`, with no comment, to the call `Template(source).render(**fields)`.
+- Rule: python-practices typing, "Every `# type: ignore` names its error code, as in `# type: ignore[arg-type]`, with a comment saying why."
+- Evidence: ruff `PGH003` at `mailer/templates.py:12` (observed). The review shows no defect that the ignore hides, so the severity is minor.
+- Fix: name the error code mypy reports on that line, with a comment saying why it is safe to ignore, or remove the ignore if it hides nothing.
 - Source: python-review · <model ID>
 
 Next: `review-cross-check`, `review-post`, `review-fix`, if you ask.

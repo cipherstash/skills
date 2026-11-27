@@ -843,6 +843,149 @@ class AnswerKeyTest(unittest.TestCase):
         self.assertEqual(found, [], "fixture terms in the skill text:\n" + "\n".join(found))
 
 
+def template_findings():
+    """Return the worked findings of output.md's report template: {id: body}."""
+    shape = re.search(r"(?s)\n````markdown\n(.*?)\n````\n", read(SKILL / "references" / "output.md")).group(1)
+    findings = shape.split("\n## Findings\n", 1)[1].split("\n## ", 1)[0]
+    headings = list(re.finditer(r"(?m)^### (P\d+) · ", findings))
+    return {
+        heading.group(1): findings[heading.start() : headings[i + 1].start() if i + 1 < len(headings) else None]
+        for i, heading in enumerate(headings)
+    }
+
+
+def expected_finding_bodies():
+    """Return the body of each finding in expected-findings.md: {id: body}."""
+    text = read(EXPECTED)
+    headings = list(FINDING_RE.finditer(text))
+    return {
+        heading.group(1): text[heading.end() : headings[i + 1].start() if i + 1 < len(headings) else len(text)]
+        for i, heading in enumerate(headings)
+    }
+
+
+class TemplateIsNotTheAnswerKeyTest(unittest.TestCase):
+    """The review reads output.md on every run, the fixture run included.
+
+    If its worked findings were the fixture's defects with the names changed, a
+    run could match the fixture by copying the template.
+    """
+
+    def evidence_codes(self, body):
+        evidence = re.search(r"(?m)^- Evidence: (.+)$", body)
+        self.assertIsNotNone(evidence, body)
+        return set(re.findall(r"`([A-Z]+\d+|[a-z]+(?:-[a-z]+)+)`", evidence.group(1)))
+
+    def test_has_worked_findings(self):
+        self.assertGreaterEqual(len(template_findings()), 2)
+
+    def test_worked_findings_use_none_of_the_fixtures_evidence(self):
+        fixture_codes = set().union(*(self.evidence_codes(b) for b in expected_finding_bodies().values()))
+        self.assertTrue(fixture_codes, "no evidence codes in expected-findings.md")
+        shape = re.search(r"(?s)\n````markdown\n(.*?)\n````\n", read(SKILL / "references" / "output.md")).group(1)
+        for code in sorted(fixture_codes):
+            with self.subTest(code=code):
+                self.assertNotIn(f"`{code}`", shape.split("\n## Findings\n", 1)[1])
+                self.assertNotIn(code, shape.split("\n## Checks\n", 1)[1].split("\n## ", 1)[0])
+
+    def test_worked_findings_cite_none_of_the_fixtures_rules(self):
+        def rules(body):
+            return set(re.findall(r'(?m)^- Rule: [^"\n]*"([^"\n]+)"', body))
+
+        fixture_rules = set().union(*(rules(b) for b in expected_finding_bodies().values()))
+        self.assertTrue(fixture_rules, "no rules quoted in expected-findings.md")
+        for number, body in template_findings().items():
+            with self.subTest(finding=number):
+                self.assertFalse(rules(body) & fixture_rules, body)
+
+
+class SwallowedCancellationTest(unittest.TestCase):
+    def test_does_not_list_shield(self):
+        # asyncio.shield keeps the inner task running, but the awaiting caller
+        # still gets CancelledError, so it swallows nothing.
+        listed = section("references/step-error-handling.md", "A swallowed cancellation")
+        self.assertNotIn("asyncio.shield", listed)
+
+
+class TestQuestionOrderTest(unittest.TestCase):
+    def test_asks_after_reading_the_code_the_tests_run(self):
+        # checks.md has the reviewer read the changed code before asking, and
+        # name what it found in the one question.
+        skill = section("SKILL.md", "Read-only")
+        self.assertNotIn("before step 5", skill)
+        self.assertIn("Ask once, in step 5, after reading the changed code", skill)
+        before = section("references/checks.md", "Before running tests")
+        self.assertLess(before.index("Read every changed Python file"), before.index("Ask the user once"))
+
+
+def tests_command():
+    """Return the command of checks.md's tests-with-coverage row."""
+    row = next(
+        line for line in section("references/checks.md", "The checks").splitlines() if line.startswith("| Tests ")
+    )
+    return re.search(r"`([^`]*pytest[^`]*)`", row).group(1)
+
+
+class TestConfigurationFromTheBaseTest(unittest.TestCase):
+    """pytest and coverage find the worktree's configuration, which is the head's, unless told which file to read."""
+
+    def test_the_command_names_the_files_written_from_the_base(self):
+        command = tests_command()
+        for option in ("-c <tmp>/pytest.ini", "--rootdir <module root>", "--cov-config=<tmp>/coveragerc"):
+            with self.subTest(option=option):
+                self.assertIn(option, command)
+                self.assertIn(option, read(SKILL / "references" / "output.md"))
+
+    def test_says_how_to_write_the_files(self):
+        before = section("references/checks.md", "Before running tests")
+        self.assertIn("`<tmp>/pytest.ini`", before)
+        self.assertIn("`<tmp>/coveragerc`", before)
+        self.assertIn("`plugins`", before)
+        self.assertIn(
+            "pytest without `-c <tmp>/pytest.ini`", section("references/checks.md", "Commands the review never runs")
+        )
+
+    def test_the_heads_addopts_and_coverage_settings_do_not_apply(self):
+        pytest = shutil.which("pytest")
+        if pytest is None:
+            self.skipTest("pytest is not on PATH")
+        with tempfile.TemporaryDirectory() as scratch:
+            scratch = Path(scratch)
+            # pytest-cov adds the --cov options; without it, run the rest.
+            usage = subprocess.run([pytest, "--help"], cwd=scratch, capture_output=True, text=True, check=False)
+            has_cov = "--cov-config" in usage.stdout
+            root, tmp = scratch / "module", scratch / "tmp"
+            (root / "tests").mkdir(parents=True)
+            tmp.mkdir()
+            marker = scratch / "plugin-ran"
+            # The head's configuration loads a plugin from the change and sets a
+            # coverage threshold that fails every run.
+            (root / "pyproject.toml").write_text(
+                '[tool.pytest.ini_options]\naddopts = "-p headplug"\npythonpath = ["."]\n'
+                "[tool.coverage.report]\nfail_under = 101\n",
+                encoding="utf-8",
+            )
+            (root / "headplug.py").write_text(f"open({str(marker)!r}, 'w').close()\n", encoding="utf-8")
+            (root / "tests" / "test_one.py").write_text("def test_one():\n    pass\n", encoding="utf-8")
+            # The files the review writes from the base, which has no configuration.
+            (tmp / "pytest.ini").write_text(f"[pytest]\npythonpath = {root}\n", encoding="utf-8")
+            (tmp / "coveragerc").write_text("", encoding="utf-8")
+            words = tests_command().replace("<tmp>", str(tmp)).replace("<module root>", str(root))
+            words = words.replace("<testpaths>", str(root / "tests")).split()
+            env = dict(os.environ, PYTHONSAFEPATH="1", PYTHONDONTWRITEBYTECODE="1")
+            while "=" in words[0]:
+                name, value = words.pop(0).split("=", 1)
+                env[name] = value
+            self.assertEqual(words[0], "pytest")
+            if not has_cov:
+                words = [w for w in words if not w.startswith("--cov")]
+            result = subprocess.run(
+                [pytest, *words[1:]], cwd=root, env=env, capture_output=True, text=True, check=False
+            )
+            self.assertFalse(marker.exists(), "the head's addopts loaded a plugin:\n" + result.stdout)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+
 def cases(heading):
     """Return the bullet text under a heading of tests/prompts.md."""
     text = read(SKILL / "tests" / "prompts.md")

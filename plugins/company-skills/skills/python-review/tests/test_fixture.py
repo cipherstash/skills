@@ -376,6 +376,24 @@ class DependencyEvidenceTest(unittest.TestCase):
     def test_a_script_without_its_lockfile_is_checked_by_its_own_command(self):
         self.assertIn("`uv lock --check --offline --script <file>`", read(SKILL / "references" / "checks.md"))
 
+    def test_the_lockfile_check_reads_the_projects_uv_settings(self):
+        # UV_NO_CONFIG drops [tool.uv], so a lock that depends on its resolver
+        # settings, such as exclude-newer, fails --check though CI accepts it.
+        settings = section("references/checks.md", "Settings for every command")
+        row = next(line for line in settings.splitlines() if line.startswith("| `UV_NO_CONFIG=1`"))
+        self.assertIn("except the lockfile check", row)
+        checks = section("references/checks.md", "The checks")
+        self.assertNotIn("so `UV_NO_CONFIG` and `UV_OFFLINE` hold", checks)
+        self.assertIn("The lockfile check runs without `UV_NO_CONFIG`", checks)
+        self.assertIn("`UV_OFFLINE=1` and `UV_PYTHON_DOWNLOADS=never` still hold", checks)
+        self.assertIn("without `UV_NO_CONFIG`", section("references/step-dependencies.md", "A lockfile out of step"))
+
+    def test_the_lockfile_check_waits_when_the_change_edits_uv_settings(self):
+        checks = section("references/checks.md", "The checks")
+        self.assertIn("When the change adds, edits, or deletes a `[tool.uv]` table or a `uv.toml`", checks)
+        self.assertIn("`not run: the change edits uv's settings`", checks)
+        self.assertIn("read the `uv.lock` diff", checks)
+
 
 class BreakingChangesEvidenceTest(unittest.TestCase):
     def setUp(self):
@@ -387,6 +405,26 @@ class BreakingChangesEvidenceTest(unittest.TestCase):
 
     def test_otherwise_compares_public_names_and_all_at_base_and_head(self):
         self.assertIn("Otherwise, compare the public names and `__all__` at the base and the head", self.step)
+
+    def test_what_breaks_callers_matches_python_practices(self):
+        # python-practices project-structure.md: "making an optional parameter
+        # required" and "dropping a dependency's old version" break users.
+        breaks = section("references/step-breaking-changes.md", "What breaks callers")
+        self.assertIn("including a new parameter with no default", breaks)
+        self.assertIn("a dependency's lower bound raised, which drops its old versions", breaks)
+
+    def test_the_report_example_quotes_a_rule_that_fits_its_finding(self):
+        example = read(SKILL / "references" / "output.md").split("\n### P1 ", 1)[1].split("\n### ", 1)[0]
+        rule = re.search(r'(?m)^- Rule: python-practices project structure, "(.+)"\.$', example)
+        self.assertIsNotNone(rule, "output.md's P1 has no project structure rule")
+        practices = " ".join(read(PRACTICES / "references" / "project-structure.md").split())
+        for part in rule.group(1).split(" ... "):
+            with self.subTest(part=part):
+                self.assertIn(part, practices)
+        # The rule quoted is "making an optional parameter required", so the
+        # example's cause must be an optional parameter made required.
+        self.assertIn("making an optional parameter required", rule.group(1))
+        self.assertIn("removes the default", example)
 
     def test_names_the_griffe_command_python_practices_pins(self):
         advisory = read(PRACTICES / "references" / "checks.md").split("\n## Advisory checks\n", 1)[1]
@@ -439,6 +477,16 @@ class RepositoryStandardsTest(unittest.TestCase):
     def test_a_change_to_ci_files_alone_is_still_reviewed(self):
         self.assertIn("`.github/workflows/`", step(1))
         self.assertIn("compare CI with the Python check suite", step(1))
+
+    def test_a_config_a_workflow_passes_by_path_is_a_ci_file(self):
+        # A custom-named config, such as one CI passes as `ruff check --config <path>`,
+        # has none of the standard names, so step 1 must name it on its own.
+        target = read(SKILL / "references" / "target.md")
+        for page, text in (("SKILL.md", step(1)), ("target.md", target)):
+            with self.subTest(page=page):
+                self.assertIn("any ruff, mypy, or pytest config file that a workflow passes by path", text)
+                for flag in ("`--config`", "`--config-file`", "`-c`"):
+                    self.assertIn(flag, text)
 
 
 class AdvisoryChecksReportTest(unittest.TestCase):
@@ -892,6 +940,15 @@ class ExpectedFindingsTest(unittest.TestCase):
                     head = [line.strip() for line in read(HEAD / f["path"]).splitlines()]
                     self.assertNotIn(f["quoted"], head, f"{key}: the deleted line is still at the head")
 
+    def test_the_tls_finding_judges_its_harm_with_the_dropped_task_fixed(self):
+        # At the head, the dropped tasks fail against the closed client, so no
+        # body is saved. The harm P1 names is reachable once P4 is fixed.
+        text = read(EXPECTED)
+        tls = text.split("\n## P1 · ", 1)[1].split("\n## P", 1)[0]
+        self.assertEqual(finding("security")["severity"], "critical")
+        self.assertIn("once p4 is fixed", tls.lower())
+        self.assertIn("A report that rates P1 major", tls)
+
     def test_findings_point_at_changed_files(self):
         for key, f in expected_findings().items():
             with self.subTest(id=key):
@@ -1184,18 +1241,52 @@ class ToolProbeTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             script = Path(tmp) / "get_rates.py"
             shutil.copy(HEAD / "get_rates.py", script)
-            env = dict(os.environ, UV_NO_CONFIG="1", UV_OFFLINE="1", UV_PYTHON_DOWNLOADS="never")
-            result = subprocess.run(
-                [uv, "lock", "--check", "--offline", "--script", str(script)],
-                capture_output=True,
-                text=True,
-                cwd=tmp,
-                env=env,
-                check=False,
-            )
+            result = self.uv_lock_check(uv, "--script", str(script), cwd=tmp)
             self.assertEqual(sorted(p.name for p in Path(tmp).iterdir()), ["get_rates.py"])
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Unable to find lockfile", result.stderr)
+
+    def uv_lock_check(self, uv, *args, cwd):
+        # The lockfile check's settings in checks.md: offline, with no Python
+        # download, and without UV_NO_CONFIG, so [tool.uv] is read as CI reads it.
+        env = {k: v for k, v in os.environ.items() if k != "UV_NO_CONFIG"}
+        env.update(UV_OFFLINE="1", UV_PYTHON_DOWNLOADS="never")
+        return subprocess.run(
+            [uv, "lock", "--check", "--offline", *args],
+            capture_output=True,
+            text=True,
+            cwd=cwd,
+            env=env,
+            check=False,
+        )
+
+    def test_uv_lock_check_accepts_a_current_lock_that_needs_tool_uv(self):
+        uv = self.tool("uv")
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, "pyproject.toml").write_text(
+                '[project]\nname = "demo"\nversion = "0.1.0"\nrequires-python = ">=3.10"\ndependencies = []\n\n'
+                '[tool.uv]\nexclude-newer = "2030-01-01T00:00:00Z"\nprerelease = "allow"\n',
+                encoding="utf-8",
+            )
+            env = {k: v for k, v in os.environ.items() if k != "UV_NO_CONFIG"}
+            env.update(UV_OFFLINE="1", UV_PYTHON_DOWNLOADS="never")
+            locked = subprocess.run(
+                [uv, "lock", "--offline"], capture_output=True, text=True, cwd=tmp, env=env, check=False
+            )
+            if locked.returncode != 0:
+                self.skipTest(f"uv could not lock offline: {locked.stderr.strip()}")
+            result = self.uv_lock_check(uv, cwd=tmp)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            # With UV_NO_CONFIG, the same current lock is reported as stale.
+            stale = subprocess.run(
+                [uv, "lock", "--check", "--offline"],
+                capture_output=True,
+                text=True,
+                cwd=tmp,
+                env=dict(env, UV_NO_CONFIG="1"),
+                check=False,
+            )
+            self.assertNotEqual(stale.returncode, 0, stale.stderr)
 
 
 class FixtureExclusionTest(unittest.TestCase):

@@ -91,10 +91,10 @@ CI runs no griffe advisory check, so the review compares the public names and `_
 - Location: `head/get_rates.py:24`
 - Line: `async with httpx.AsyncClient(verify=False) as client:`
 - Cause: the change adds `get_rates.py`, whose client turns off TLS certificate checks.
-- Trigger and consequence: anyone on the network path between the script and the rate server can answer in its place. The script saves their body as a rate file, and `postage.py` then charges the prices they chose.
+- Trigger and consequence: anyone on the network path between the script and the rate server can answer in its place. Once P4 is fixed, the script saves their body as a rate file, and `postage.py` then charges the prices they chose. At the head, P4 makes every download fail before a body is saved, so P4's correct fix is what opens this path.
 - Rule: python-practices security, "Verify TLS. Never pass `verify=False`."
 - Evidence: ruff `S501` at line 24 (observed); the saved file read by `postage.py` (inferred from reading).
-- Critical, not major: the client reads from the network, and what it saves is stored and used as prices.
+- Critical, not major: the client reads from the network, and what it saves is stored and used as prices. Judge it with P4 fixed, since a review must not rate one defect lower because another one hides it. A report that rates P1 major, and says that P4 blocks the path at the head, is also correct.
 - A correct fix drops `verify=False`.
 
 ## P2 · major · correctness and edge cases

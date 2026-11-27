@@ -159,6 +159,7 @@ This order keeps the titles and bodies that authoring-pull-requests asks for.
 1. Run the checks in step 2.
 2. Push every branch: `gh stack push --remote origin`.
 3. Open each pull request as a draft, from the bottom up, as authoring-pull-requests says, with two changes. Set each pull request's base to the branch below it, and the bottom one's base to `<base>`. In each body, give the pull request's position in the stack, and name the pull requests below and above it.
+   A `Closes #N` line links only the bottom pull request to its issue, because only its base is the default branch. Link each pull request above it to its issue with the linking-github-issues skill.
 4. Link them into a stack: `gh stack submit --auto --remote origin`. `submit` finds the open pull requests and creates the stack on GitHub. `submit` does not change their titles or bodies.
 5. Check that every pull request is in the stack:
 

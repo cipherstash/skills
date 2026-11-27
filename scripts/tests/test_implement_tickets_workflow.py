@@ -389,6 +389,22 @@ class ImplementTicketsWorkflowTest(unittest.TestCase):
         for text in (build, review):
             self.assertIn("record a deviation", text[text.index("cannot be loaded"):])
 
+    def test_links_a_pr_whose_base_is_not_the_default_branch(self):
+        r = run([ticket(2), ticket(3, [2])])
+        self.assertIsNone(r["error"])
+        bottom = " ".join(prompt(r, "pr #2").split())
+        self.assertNotIn("linking-github-issues", bottom)
+        upper = " ".join(prompt(r, "pr #3").split())
+        self.assertIn("company-skills:linking-github-issues", upper)
+        self.assertIn("`feat/2`, not the default branch `main`", upper)
+
+    def test_links_the_bottom_pr_when_the_run_base_is_not_the_default(self):
+        r = run([ticket(2)], base="next")
+        self.assertIsNone(r["error"])
+        bottom = " ".join(prompt(r, "pr #2").split())
+        self.assertIn("company-skills:linking-github-issues", bottom)
+        self.assertIn("`next`, not the default branch `main`", bottom)
+
     def test_run_report_gets_every_ledger_entry(self):
         r = run([ticket(2), ticket(3, labels=[])])
         self.assertIn("Skipped #3", prompt(r, "run report"))

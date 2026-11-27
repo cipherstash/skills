@@ -197,6 +197,7 @@ Each skill is authored once under `plugins/company-skills/skills/`. The portable
 | `filing-github-issues` | Draft and file well-structured GitHub issues on CipherStash repos | Explicit or automatic |
 | `authoring-pull-requests` | Branch, commit, and open draft pull requests with a consistent structure | Explicit or automatic |
 | `stacking-pull-requests` | Build, update, and merge a GitHub stack of pull requests that each need the one below, with GitHub's gh-stack extension | Explicit or automatic |
+| `linking-github-issues` | Make the links GitHub stores between issues, pull requests, and branches (relates to, blocked by, sub-issues, closing pull requests, duplicates, and linked branches), and read each one back | Explicit or automatic |
 | `plain-language` | Write, rewrite, and review prose in plain language (ISO 24495 and GOV.UK), with a bundled checker | Explicit or automatic |
 | `implement-tickets` | Build a spec's `ready-for-agent` tickets into a chain of draft PRs, review and fix each one, and write a run report | Claude Code only: a person types `/company-skills:implement-tickets <spec number>` |
 
@@ -207,6 +208,12 @@ Convention skills, such as the Rust skills (`rust-*`), `golang-practices`, and `
 `review-audit` and `review-cross-check` require Python 3, Git, and `gh` authenticated for the target repository; `review-post` requires `gh` and `python3` or `jq`. `golang-review` requires Git and the Go toolchain to run its checks, and the GitHub MCP server or `gh` to review a pull request; without them it reviews by reading and reports the checks it could not run. When `golangci-lint` or `govulncheck` is not installed, it fetches it from the Go module proxy at the version `golang-practices` pins. These are local CLI dependencies; the plugin does not bundle an MCP server.
 
 `stacking-pull-requests` requires Git, `gh` authenticated for the target repository, and GitHub's gh-stack extension. Its `SKILL.md` names the gh-stack version it was checked with. It installs the extension with `gh extension install github/gh-stack`. It asks first, unless you already asked for a stack.
+
+`linking-github-issues` requires `gh` authenticated for the target repository. It runs these `gh` commands:
+
+- `gh api graphql`, to look up node ids, to make each link and read it back, and to list GitHub's mutations;
+- `gh repo view` and `gh pr view`, to compare a pull request's base with the default branch;
+- `gh api repos/<owner>/<repo>/issues/<number>`, to read an issue's REST id, and `gh api repos/<owner>/<repo>/issues/<number>/sub_issues`, to add a sub-issue through REST.
 
 The Vanta skills also need the Linear connector, read-only Vanta API credentials (`vanta-api.all:read`) with network access to `api.vanta.com` for `vanta-triage`, either as an environment network secret of type OAuth 2.0 client credentials for `api.vanta.com` or as `VANTA_CLIENT_ID` and `VANTA_CLIENT_SECRET`, and each target ecosystem's toolchain (`cargo`, `pnpm`/`npm`/`yarn`/`bun`, `go`, `poetry`/`uv`) for `vanta-remediate`. `vanta-remediate` also needs the GitHub MCP server for pull requests and `git` push access to the target repos; it does not use the `gh` CLI. Both run unattended, so they suit Claude Code routines.
 

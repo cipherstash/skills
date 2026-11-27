@@ -27,3 +27,4 @@
 - A force-push that changes more than hashes on a branch with an open PR gets a PR comment via `add_issue_comment` explaining the change.
 - Without a GitHub MCP server, the `gh` CLI is used instead and the report says so.
 - The agent never merges, closes, or marks the PR ready for review unless asked.
+- For a pull request whose base is not the default branch, the agent does not rely on `Closes #N`. The agent links the pull request to its issue with linking-github-issues.

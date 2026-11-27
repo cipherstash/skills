@@ -347,5 +347,20 @@ class LicenseDeclarationTests(unittest.TestCase):
                 self.assertIn(name, section)
 
 
+class ReplacedUpstreamPluginTests(unittest.TestCase):
+    # Each bundled upstream plugin that company-skills' own language skills replaced.
+    REPLACED = {"golang-pro": ("golang-practices", "golang-review"), "python-pro": ("python-practices", "python-review")}
+
+    def test_replaced_plugin_is_in_no_catalog_or_bundled_list(self):
+        for relative in (".claude-plugin/marketplace.json", ".agents/plugins/marketplace.json"):
+            names = [entry["name"] for entry in json.loads((REPO / relative).read_text())["plugins"]]
+            for plugin in self.REPLACED:
+                with self.subTest(catalog=relative, plugin=plugin):
+                    self.assertNotIn(plugin, names)
+        for plugin in self.REPLACED:
+            with self.subTest(plugin=plugin):
+                self.assertNotIn(plugin, validate.CLAUDE_BUNDLED_PLUGINS | validate.CODEX_BUNDLED_PLUGINS)
+
+
 if __name__ == "__main__":
     unittest.main()

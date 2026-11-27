@@ -1,8 +1,8 @@
 """Tests that the Rust grill's decisions are recorded in the shared text, as ticket #153 drafted them.
 
-The Rust grill folded `rust-sdk-dx`, `rust-security` and `rust-testing` into `rust-practices` (ADR 0004), widened
-Rust's execution surface to any dependency change (ADR 0005), and gave Rust's check suite conditional checks
-(ADR 0006, GLOSSARY.md **Conditional check**). A Rust PR may not write shared text, so these land on their own.
+The Rust grill folded `rust-sdk-dx`, `rust-security` and `rust-testing` into `rust-practices` (ADR 0007), widened
+Rust's execution surface to any dependency change (ADR 0008), and gave Rust's check suite conditional checks
+(ADR 0009, GLOSSARY.md **Conditional check**). A Rust PR may not write shared text, so these land on their own.
 With `rust-practices` coming, CONTRIBUTING.md no longer exempts Rust from the practices-skill rules.
 """
 
@@ -18,9 +18,9 @@ CONTRIBUTING = REPO / "CONTRIBUTING.md"
 GLOSSARY = REPO / "GLOSSARY.md"
 TICKETS = REPO / ".claude/skills/building-language-skills/references/tickets.md"
 
-ADR_0004 = "docs/adr/0004-fold-the-rust-convention-skills-into-rust-practices.md"
-ADR_0005 = "docs/adr/0005-rust-reviews-ask-before-building-any-dependency-change.md"
-ADR_0006 = "docs/adr/0006-rust-check-suite-has-conditional-checks.md"
+ADR_0007 = "docs/adr/0007-fold-the-rust-convention-skills-into-rust-practices.md"
+ADR_0008 = "docs/adr/0008-rust-reviews-ask-before-building-any-dependency-change.md"
+ADR_0009 = "docs/adr/0009-rust-check-suite-has-conditional-checks.md"
 
 
 def read(path):
@@ -40,16 +40,16 @@ class AdrTest(unittest.TestCase):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, text)
 
-    def test_adr_0004_folds_the_three_skills_into_rust_practices(self):
-        self.assert_adr(ADR_0004, "Fold the Rust convention skills into rust-practices", (
+    def test_adr_0007_folds_the_three_skills_into_rust_practices(self):
+        self.assert_adr(ADR_0007, "Fold the Rust convention skills into rust-practices", (
             "We fold the three into `rust-practices` as references",
             "`rust-review` reads only `rust-practices`",
             "**Add `rust-practices` beside the three, linking to them by name.** Rejected",
             "deprecated aliases for one release, under **Renaming a skill**",
         ))
 
-    def test_adr_0005_puts_every_dependency_change_on_the_execution_surface(self):
-        self.assert_adr(ADR_0005, "Rust reviews ask before building any dependency change", (
+    def test_adr_0008_puts_every_dependency_change_on_the_execution_surface(self):
+        self.assert_adr(ADR_0008, "Rust reviews ask before building any dependency change", (
             "any added or changed dependency in `Cargo.toml` or `Cargo.lock`",
             "Compiles run offline.",
             "never with `cargo install`",
@@ -57,8 +57,8 @@ class AdrTest(unittest.TestCase):
             "Every Dependabot PR asks before clippy or tests run.",
         ))
 
-    def test_adr_0006_gives_rusts_suite_conditional_checks(self):
-        self.assert_adr(ADR_0006, "Rust's check suite has conditional checks", (
+    def test_adr_0009_gives_rusts_suite_conditional_checks(self):
+        self.assert_adr(ADR_0009, "Rust's check suite has conditional checks", (
             "Miri for `unsafe`, cargo-semver-checks and a publish dry run for published crates",
             "the review reports a missing-check line",
             "**Require them for every crate.** Rejected",
@@ -93,14 +93,14 @@ class ContributingTest(unittest.TestCase):
             with self.subTest(phrase=phrase):
                 self.assertNotIn(phrase, self.text)
 
-    def test_names_rusts_decision_and_links_adr_0004(self):
+    def test_names_rusts_decision_and_links_adr_0007(self):
         self.assertIn(
             "A language that already has convention skills needs a grill decision on what happens to them before you "
             "build its skills. "
-            "Rust folded its three into `rust-practices` ([ADR 0004](" + ADR_0004 + ")).",
+            "Rust folded its three into `rust-practices` ([ADR 0007](" + ADR_0007 + ")).",
             self.language_skills,
         )
-        self.assertIn(ADR_0004, set(relative_links(self.language_skills)))
+        self.assertIn(ADR_0007, set(relative_links(self.language_skills)))
 
     def test_release_ticket_may_update_skills_that_name_replaced_ones(self):
         pull_requests = self.language_skills.split("\nPull requests:\n", 1)[1].split("\n### ", 1)[0]

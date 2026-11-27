@@ -57,7 +57,7 @@ A programming language gets two skills with the language as the shared prefix: `
 
 To build a new language's skills, follow the [`building-language-skills`](.claude/skills/building-language-skills/SKILL.md) project skill. It takes a language ticket through research, an audit, a grill on the language's own decisions, and tickets to the main PR.
 
-A language that already has convention skills needs a grill decision on what happens to them before you build its skills. Rust folded its three into `rust-practices` ([ADR 0004](docs/adr/0004-fold-the-rust-convention-skills-into-rust-practices.md)).
+A language that already has convention skills needs a grill decision on what happens to them before you build its skills. Rust folded its three into `rust-practices` ([ADR 0007](docs/adr/0007-fold-the-rust-convention-skills-into-rust-practices.md)).
 
 - Name the review skill `<lang>-review`, not `review-<lang>`. This guide groups skills by what they are about. A language review is about the language. The `review-` prefix stays reserved for skills that work on a review's findings, such as `review-fix` and `review-post`.
 - Put all knowledge about the language in the practices skill. The practices skill is a convention skill, so the rules above apply to it.

@@ -3,7 +3,7 @@ import type { Result } from "../error-handling/result.js";
 
 export type KeyRequest = { keyId: string; context: string };
 
-const KeyRequest: z.ZodType<KeyRequest> = z.object({
+const keyRequestSchema: z.ZodType<KeyRequest> = z.object({
   keyId: z.string().min(1),
   context: z.string(),
 });
@@ -19,7 +19,7 @@ export function parseKeyRequest(
   } catch {
     json = undefined;
   }
-  const parsed = KeyRequest.safeParse(json);
+  const parsed = keyRequestSchema.safeParse(json);
   if (!parsed.success) {
     return {
       failure: { type: "InvalidRequest", message: "body is not a KeyRequest" },

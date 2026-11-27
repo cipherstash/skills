@@ -10,6 +10,8 @@ test("renders each state", () => {
 });
 
 test("throws on a state the union does not list", () => {
+  // On purpose: the test builds a value the union does not list, which no cast
+  // short of one through unknown allows, to reach the default branch.
   const stale = { status: "stale" } as unknown as RequestState;
   expect(() => renderState(stale)).toThrow(
     'Unhandled state: {"status":"stale"}',

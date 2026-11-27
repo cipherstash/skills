@@ -7,7 +7,7 @@ How to keep untrusted input, secrets, and key material safe: parse at the bounda
 Untrusted input is anything from outside the process: a request body, a file, an environment variable, a message, or a response from another service. Its static type is a guess until it is checked. Parse it with a schema where it enters, and pass on only the parsed value. Never cast it, as in `JSON.parse(body) as KeyRequest`. Use the schema library the repository already uses, such as zod. Declare the type, and annotate the schema with it, so the compiler checks that they agree and `isolatedDeclarations` has the type it needs. From [`src/security/schema.ts`](../examples/src/security/schema.ts):
 
 ```ts
-const KeyRequest: z.ZodType<KeyRequest> = z.object({
+const keyRequestSchema: z.ZodType<KeyRequest> = z.object({
   keyId: z.string().min(1),
   context: z.string(),
 });
@@ -25,7 +25,7 @@ export function parseKeyRequest(
   } catch {
     json = undefined;
   }
-  const parsed = KeyRequest.safeParse(json);
+  const parsed = keyRequestSchema.safeParse(json);
   if (!parsed.success) {
     return {
       failure: { type: "InvalidRequest", message: "body is not a KeyRequest" },
@@ -87,12 +87,14 @@ export function encrypt(
   plaintext: Uint8Array,
   native: (bytes: Uint8Array) => Promise<Uint8Array>,
 ): Promise<Uint8Array> {
-  // slice() copies into a new buffer that holds only these bytes, so the
-  // caller can change plaintext while the native call runs.
-  return native(plaintext.slice());
+  // new Uint8Array() copies into a new buffer that holds only these bytes, so
+  // the caller can change plaintext while the native call runs. On a Buffer,
+  // slice() returns a view, so it does not copy.
+  return native(new Uint8Array(plaintext));
 }
 ```
 
 - `subarray()` does not copy. It returns a view of the same buffer.
+- Do not copy with `slice()`. A `Buffer` is a `Uint8Array`, and its `slice()` returns a view, like `subarray()`.
 - Use `Uint8Array`, not `Buffer`, in a public API's types.
 - When you are done with a buffer that holds a key or plaintext, overwrite it with `fill(0)`. This is a best effort, because the engine may hold other copies.

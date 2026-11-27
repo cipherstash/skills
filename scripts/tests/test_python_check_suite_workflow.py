@@ -6,6 +6,7 @@ The checks every language shares come from language_drift.DriftTests; the rest a
 griffe advisory check, which runs on every pull request but never blocks.
 """
 
+import os
 from pathlib import Path
 import re
 import tempfile
@@ -45,6 +46,23 @@ def advisory_pins():
         path = Path(scratch, "checks.md")
         path.write_text("## Pinned versions\n" + section, encoding="utf-8")
         return language_drift.read_pins(path)
+
+
+def python_projects(root):
+    """Return the directories under root, relative to it, that hold a pyproject.toml project.
+
+    The walk skips .git and .venv, and any directory below root that holds its own .git, such as a nested git
+    worktree: that is another checkout, not part of this one.
+    """
+    projects = set()
+    for directory, subdirectories, files in os.walk(root):
+        here = Path(directory)
+        subdirectories[:] = [
+            name for name in subdirectories if name not in (".git", ".venv") and not (here / name / ".git").exists()
+        ]
+        if "pyproject.toml" in files:
+            projects.add(here.relative_to(root).as_posix())
+    return projects
 
 
 def commands_in(job, directory):
@@ -169,12 +187,19 @@ class PythonCheckSuiteWorkflowTests(language_drift.DriftTests, unittest.TestCase
     def test_covers_every_python_project_in_the_repository(self):
         # Every pyproject.toml project is a module that gets the full suite, and the suite runs over the examples
         # project only, so a project anywhere else would go unchecked.
-        projects = {
-            path.parent.relative_to(REPO).as_posix()
-            for path in REPO.rglob("pyproject.toml")
-            if not {".git", ".venv"} & set(path.relative_to(REPO).parts)
-        }
-        self.assertEqual(projects, {EXAMPLES})
+        self.assertEqual(python_projects(REPO), {EXAMPLES})
+
+    def test_leaves_out_projects_in_a_nested_checkout(self):
+        # A git worktree inside the clone, such as .claude/worktrees/<id>/, holds a copy of every project, but it is
+        # another checkout, not part of this one.
+        with tempfile.TemporaryDirectory() as scratch:
+            root = Path(scratch)
+            (root / ".git").mkdir()
+            for project in ("app", ".claude/worktrees/one/app", "vendored/.git/app"):
+                (root / project).mkdir(parents=True)
+                (root / project / "pyproject.toml").write_text("", encoding="utf-8")
+            (root / ".claude/worktrees/one/.git").write_text("gitdir: elsewhere\n", encoding="utf-8")
+            self.assertEqual(python_projects(root), {"app"})
 
     def test_lints_and_type_checks_every_python_file_in_the_project(self):
         # ruff and mypy are given the project, and src and tests, so every source file must sit in one of them.

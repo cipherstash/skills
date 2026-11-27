@@ -1,5 +1,7 @@
 """Examples quoted by the python-practices references."""
 
+# Package-level configuration
 import logging
 
-logging.getLogger(__name__).addHandler(logging.NullHandler())
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())

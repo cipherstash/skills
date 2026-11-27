@@ -1,22 +1,12 @@
-"""A match that mypy proves covers every member of an Enum."""
+"""An if chain that mypy proves covers every value of a Literal."""
 
-from enum import Enum
-from typing import assert_never
-
-
-class Status(Enum):
-    """An account's status."""
-
-    ACTIVE = "active"
-    SUSPENDED = "suspended"
+from typing import Literal, assert_never
 
 
-def label(status: Status) -> str:
-    """Return the label shown for a status."""
-    match status:
-        case Status.ACTIVE:
-            return "active"
-        case Status.SUSPENDED:
-            return "suspended"
-        case _:
-            assert_never(status)
+def handle_mode(mode: Literal["read", "write"]) -> str:
+    if mode == "read":
+        return "Reading"
+    if mode == "write":
+        return "Writing"
+    # Mypy will error if mode can be anything else
+    assert_never(mode)

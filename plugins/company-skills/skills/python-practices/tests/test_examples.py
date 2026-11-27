@@ -64,13 +64,28 @@ def closes(line, fence):
     return run >= len(fence) and not stripped[run:].strip()
 
 
+def swallows(line, fence):
+    """Report whether line, inside a block opened with fence, looks like a missing closer.
+
+    The line looks like a Python or TOML opener and uses the outer fence's
+    character at least as many times, so it cannot be a fence nested on purpose:
+    a nested block needs a shorter fence than the block around it. Such a line
+    almost always means the block above it has no closer of its own.
+    """
+    if not LIKE_RE.match(line):
+        return False
+    stripped = line.lstrip()
+    return len(stripped) - len(stripped.lstrip(fence[0])) >= len(fence)
+
+
 def parse_fences(text):
     """Return (blocks, problems) for the quoted Python and TOML blocks in text.
 
     blocks is a list of (line number, source path or None, code). Each code line
     has up to the opener's indent removed. problems lists, by line, each line that
-    looks like a Python or TOML fence but opens no block, and each such block
-    with no closer.
+    looks like a Python or TOML fence but opens no block, each block of any
+    language with no closer, and each line inside a block that looks like a
+    missing closer (see swallows).
     """
     blocks, problems = [], []
     lines = text.splitlines(keepends=True)
@@ -91,15 +106,16 @@ def parse_fences(text):
         body, j = [], i + 1
         while j < len(lines) and not closes(lines[j].rstrip("\n"), fence):
             content = lines[j]
+            if swallows(content.rstrip("\n"), fence):
+                problems.append(f"line {j + 1}: looks like a fence but sits inside the block opened on line {i + 1}")
             body.append(content[min(indent, len(content) - len(content.lstrip(" "))) :])
             j += 1
-        if quoted:
-            if j == len(lines):
-                problems.append(f"line {i + 1}: block has no closing fence")
-            else:
-                lead = next((l for l in reversed(lines[:i]) if l.strip()), "")
-                source = SOURCE_RE.search(lead)
-                blocks.append((i + 1, source.group(1) if source else None, "".join(body)))
+        if j == len(lines):
+            problems.append(f"line {i + 1}: block has no closing fence")
+        elif quoted:
+            lead = next((l for l in reversed(lines[:i]) if l.strip()), "")
+            source = SOURCE_RE.search(lead)
+            blocks.append((i + 1, source.group(1) if source else None, "".join(body)))
         i = j + 1
     return blocks, problems
 
@@ -274,6 +290,20 @@ class ConfigTemplateTest(unittest.TestCase):
     def test_the_lockfile_is_committed(self):
         self.assertTrue((EXAMPLES / "uv.lock").is_file())
 
+    def test_every_script_has_its_lockfile_committed(self):
+        # dependencies.md says to lock a PEP 723 script with `uv lock --script`
+        # and commit the <file>.lock it writes, so the example scripts do too.
+        scripts = [
+            path
+            for path in EXAMPLES.rglob("*.py")
+            if ".venv" not in path.relative_to(EXAMPLES).parts
+            and re.search(r"^# /// script$", path.read_text(encoding="utf-8"), re.MULTILINE)
+        ]
+        self.assertTrue(scripts, "the examples hold no PEP 723 script")
+        for script in scripts:
+            with self.subTest(script=script.relative_to(EXAMPLES)):
+                self.assertTrue(script.with_name(script.name + ".lock").is_file())
+
 
 class QuotedBlocksParserTest(unittest.TestCase):
     LINK = "From [`a.py`](../examples/src/pkg/a.py):\n\n"
@@ -359,7 +389,22 @@ class QuotedBlocksParserTest(unittest.TestCase):
 
     def test_ignores_other_languages(self):
         text = "```sh\nuv run pytest\n```\n"
-        self.assertEqual(list(quoted_blocks(text)), [])
+        self.assertEqual(parse_fences(text), ([], []))
+
+    def test_reports_any_block_with_no_closer(self):
+        for opener in ("```sh", "~~~", "```"):
+            with self.subTest(opener=opener):
+                self.assertEqual(
+                    parse_fences(f"{opener}\nuv run\n")[1], ["line 1: block has no closing fence"]
+                )
+
+    def test_reports_a_quoted_opener_swallowed_by_an_unclosed_block(self):
+        # The sh block never closes, so the python opener is its body and the python closer closes it.
+        text = "```sh\nuv run\n\n" + self.LINK + "```python\nx = 1\n```\n"
+        self.assertEqual(
+            parse_fences(text),
+            ([], ["line 6: looks like a fence but sits inside the block opened on line 1"]),
+        )
 
 
 if __name__ == "__main__":

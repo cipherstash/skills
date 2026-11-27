@@ -36,6 +36,30 @@ SOURCE_RE = re.compile(r"\]\(\.\./examples/([^)#]+\.(?:ts|tsx|mts|cts|js|mjs|cjs
 EXAMPLE_SOURCE = "src/**/*.ts"
 
 
+# A string or template literal, removed from a line before it is searched for a cast.
+STRING_RE = re.compile(r'"(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\'|`(?:[^`\\]|\\.)*`')
+# An `as` cast other than `as const`, or a `!` non-null assertion.
+CAST_RE = re.compile(r"\bas\s+(?!const\b)[\w{(\[]|[\w)\]]!(?=[.;,)\[\s]|$)")
+
+
+def uncommented_casts(source_text):
+    """Return the line numbers of casts and non-null assertions with no comment that says why they hold.
+
+    A cast's comment is on its line or on the line above. A comment above a run of lines that each cast covers the
+    whole run.
+    """
+    found, covered = [], False
+    for number, line in enumerate(source_text.splitlines(), 1):
+        code, _, comment = STRING_RE.sub('""', line).partition("//")
+        if CAST_RE.search(code):
+            covered = covered or bool(comment.strip())
+            if not covered:
+                found.append(number)
+        else:
+            covered = line.lstrip().startswith("//")
+    return found
+
+
 def minimum_versions():
     """Return (TypeScript major.minor, Node major) that the examples package targets, from its package.json."""
     package = json.loads((EXAMPLES / "package.json").read_text(encoding="utf-8"))
@@ -59,12 +83,23 @@ def closes(line, fence):
     return run >= len(fence) and not stripped[run:].strip()
 
 
+def swallowed(line, fence):
+    """Report whether line opens a fence that the block opened with fence cannot hold.
+
+    A fence of the same character, at least as long, inside the block means the block was left open: the inner
+    block's closer would close the outer block instead.
+    """
+    stripped = line.lstrip()
+    run = len(stripped) - len(stripped.lstrip(fence[0]))
+    return run >= len(fence)
+
+
 def parse_fences(text):
     """Return (blocks, problems) for the TypeScript and JavaScript blocks in text.
 
     blocks is a list of (line number, source path or None, code). Each code line has up to the opener's indent
-    removed. problems lists, by line, each line that looks like such a fence but is not a valid opener, and each such
-    block with no closer.
+    removed. problems lists, by line, each line that looks like such a fence but is not a valid opener or sits inside
+    a block that it would close, and each block of any language with no closer.
     """
     blocks, problems = [], []
     lines = text.splitlines(keepends=True)
@@ -85,15 +120,18 @@ def parse_fences(text):
         body, j = [], i + 1
         while j < len(lines) and not closes(lines[j].rstrip("\n"), fence):
             content = lines[j]
+            if LIKE_RE.match(content) and swallowed(content, fence):
+                problems.append(
+                    f"line {j + 1}: looks like a TypeScript or JavaScript fence inside the block that line {i + 1} opens"
+                )
             body.append(content[min(indent, len(content) - len(content.lstrip(" "))) :])
             j += 1
-        if counted:
-            if j == len(lines):
-                problems.append(f"line {i + 1}: block has no closing fence")
-            else:
-                lead = next((l for l in reversed(lines[:i]) if l.strip()), "")
-                source = SOURCE_RE.search(lead)
-                blocks.append((i + 1, source.group(1) if source else None, "".join(body)))
+        if j == len(lines):
+            problems.append(f"line {i + 1}: block has no closing fence")
+        elif counted:
+            lead = next((l for l in reversed(lines[:i]) if l.strip()), "")
+            source = SOURCE_RE.search(lead)
+            blocks.append((i + 1, source.group(1) if source else None, "".join(body)))
         i = j + 1
     return blocks, problems
 
@@ -188,6 +226,37 @@ class QuotedSnippetsTest(unittest.TestCase):
                 with self.subTest(reference=path.name):
                     first_section = next((l for l in lines if l.startswith("## ")), "")
                     self.assertEqual(first_section, "## Contents")
+
+
+class ExamplesFollowTheirRulesTest(unittest.TestCase):
+    def test_every_cast_says_why_it_holds(self):
+        # SKILL.md: give every `as` cast and `!` assertion a comment saying why it holds.
+        sources = sorted(EXAMPLES.glob(EXAMPLE_SOURCE))
+        self.assertTrue(sources, "no example sources found")
+        for path in sources:
+            with self.subTest(source=path.relative_to(EXAMPLES).as_posix()):
+                self.assertEqual(uncommented_casts(path.read_text(encoding="utf-8")), [])
+
+    def test_finds_an_uncommented_cast(self):
+        self.assertEqual(uncommented_casts("const a = b as A;\nconst c = d!.e;\n"), [1, 2])
+
+    def test_accepts_a_commented_cast(self):
+        self.assertEqual(uncommented_casts("// Why it holds.\nconst a = b as A;\nconst c = d!; // Why.\n"), [])
+
+    def test_a_comment_covers_the_run_of_casts_below_it(self):
+        self.assertEqual(uncommented_casts("// Why.\nconst a = b as A;\nconst c = d as C;\n\nconst e = f as E;\n"), [5])
+
+    def test_ignores_as_const_strings_and_inequality(self):
+        self.assertEqual(uncommented_casts('const a = [1] as const;\ntest("returns the port as data");\nif (a !== b) {}\n'), [])
+
+
+class TemplatesTest(unittest.TestCase):
+    def test_says_to_save_the_oxlint_template_under_the_name_oxlint_finds(self):
+        # oxlint finds .oxlintrc.json by itself, but not oxlintrc.json, so a copy kept under the template's name
+        # turns the type-aware rules off.
+        for path in (SKILL / "SKILL.md", REFERENCES / "checks.md"):
+            with self.subTest(file=path.name):
+                self.assertIn("as `.oxlintrc.json`", path.read_text(encoding="utf-8"))
 
 
 class ReferenceIndexTest(unittest.TestCase):
@@ -287,6 +356,21 @@ class QuotedBlocksParserTest(unittest.TestCase):
             with self.subTest(alias=alias):
                 self.assertEqual(parse_fences(f"```{alias}\nx;\n")[1], ["line 1: block has no closing fence"])
 
+    def test_reports_a_block_of_any_language_with_no_closer(self):
+        # An unclosed block in another language swallows every TypeScript block after it.
+        for info in ("sh", "json", "md", ""):
+            with self.subTest(info=info):
+                text = f"```{info}\nx\n\n{self.LINK}~~~ts\ny;\n~~~\n"
+                self.assertEqual(parse_fences(text), ([], ["line 1: block has no closing fence"]))
+
+    def test_reports_a_typescript_fence_that_closes_the_block_around_it(self):
+        # The ts block's closer closes the sh block, so the ts block is never read.
+        text = f"```sh\nx\n\n{self.LINK}```ts\ny;\n```\n"
+        self.assertEqual(
+            parse_fences(text),
+            ([], ["line 6: looks like a TypeScript or JavaScript fence inside the block that line 1 opens"]),
+        )
+
     def test_reports_a_fence_like_line_that_opens_nothing(self):
         for alias in sorted(LANGUAGES):
             with self.subTest(alias=alias):
@@ -298,7 +382,11 @@ class QuotedBlocksParserTest(unittest.TestCase):
     def test_a_backtick_in_the_info_string_opens_nothing(self):
         self.assertEqual(
             parse_fences("```ts `x`\ny;\n```\n")[1],
-            ["line 1: looks like a TypeScript or JavaScript fence but does not open one"],
+            # Line 1 opens nothing, so line 3 opens a block that never closes.
+            [
+                "line 1: looks like a TypeScript or JavaScript fence but does not open one",
+                "line 3: block has no closing fence",
+            ],
         )
 
     def test_ignores_a_fence_inside_another_block(self):

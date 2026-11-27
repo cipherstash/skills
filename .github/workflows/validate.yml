@@ -22,6 +22,14 @@ jobs:
         with:
           go-version: stable
           cache: false
+      # The typescript-review script tests run tsc, oxlint, and Vitest over its
+      # fixture, installed from the typescript-practices examples package's lockfile.
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: plugins/company-skills/skills/typescript-practices/examples/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
       - run: python3 scripts/validate.py
       - run: python3 -m unittest discover -s scripts/tests
       - name: Run skill script tests

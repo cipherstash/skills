@@ -7,9 +7,13 @@
 # change, and every location in expected-findings.md is exactly the line it quotes. They also check that no fixture
 # answer appears in the skill's text, so a review that finds the defects must have looked for them.
 #
-# They need no Node. The validate workflow's skill-test job installs Python and Go only, and CI runs the TypeScript
-# check suite over typescript-practices' examples package alone, never over this fixture.
+# FixtureToolsTest checks that the tools catch what expected-findings.md says they catch: it runs tsc, type-aware
+# oxlint, and Vitest over temporary copies of base/ and head/, and a probe test for each defect no tool shows. It needs
+# Node and pnpm, and installs the tools from typescript-practices' examples package and its lockfile. Without them it
+# is skipped locally, and fails when the CI environment variable is set. CI's TypeScript check suite still runs over
+# typescript-practices' examples package alone, never over this fixture.
 import filecmp
+import json
 import os
 import re
 import shutil
@@ -25,6 +29,9 @@ FIXTURE = SKILL / "tests" / "fixtures" / "seeded-change"
 BASE = FIXTURE / "base"
 HEAD = FIXTURE / "head"
 EXPECTED = FIXTURE / "expected-findings.md"
+# The fixture's tools are installed from typescript-practices' examples package, whose committed lockfile pins them.
+EXAMPLES = PRACTICES / "examples"
+OXLINT_CONFIG = PRACTICES / "assets" / "oxlintrc.json"
 
 # The areas this slice reviews, in the order of SKILL.md's areas table. #150 adds the other nine.
 AREAS = ["Error handling", "Type safety"]
@@ -205,6 +212,21 @@ class ExpectedFindingsTest(unittest.TestCase):
         self.assertNotRegex("if (!ok) {", NON_NULL)
         self.assertRegex("} catch {}", EMPTY_CATCH)
         self.assertRegex("} catch (error) {  }", EMPTY_CATCH)
+
+    def test_the_settings_a_review_reports_are_the_ones_step_3_records(self):
+        # A review graded against the answer key must not miss a setting that step 3 never tells it to record.
+        body = step(3, "Read the TypeScript version and compiler settings.")
+        recorded = set(re.findall(r"`(\w+)`", body.split("and record", 1)[1].split("Read them at the head", 1)[0]))
+        self.assertIn("strict", recorded)
+        checks = EXPECTED.read_text(encoding="utf-8").split("## Checks a correct review reports\n", 1)[1]
+        settings = re.search(r"(?m)^- The TypeScript version.*$", checks)
+        self.assertIsNotNone(settings)
+        options = set(json.loads((HEAD / "tsconfig.json").read_text(encoding="utf-8"))["compilerOptions"])
+        named = set(re.findall(r"`(\w+)`", settings.group(0))) & (options | recorded)
+        self.assertEqual(named - recorded, set(), "expected-findings.md asks for settings step 3 does not record")
+        for name in sorted(recorded & options):
+            with self.subTest(setting=name):
+                self.assertIn(name, named, f"the fixture sets {name} and step 3 records it, so the key names it")
 
     def test_changed_files_compares_contents(self):
         # A same-size edit with a matching mtime, as after extracting an archive, must still count as a change.
@@ -463,6 +485,22 @@ class ReadOnlyTest(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertIn(path, recorded)
 
+    def test_a_change_to_ci_or_tool_configuration_alone_is_still_reviewed(self):
+        # A pull request that only turns off a lint rule in `.oxlintrc.json`, or removes a check from a workflow, has
+        # no TypeScript file. It must not be reported as "no TypeScript change to review", which reads as no change.
+        body = step(1, "Resolve the target.")
+        for path in ("`.github/workflows/`", "`.github/actions/`", "`.semgrepignore`", "`.semgrep/`",
+                     "`biome.json`", "`.oxlintrc.json`", "`oxlint.config.ts`"):
+            with self.subTest(path=path):
+                self.assertIn(path, body)
+        self.assertIn("is the exception", body)
+        self.assertIn("is still reviewed", body)
+        self.assertIn("`not compared: this version has no repository standards step`", body)
+        self.assertIn("`no TypeScript file changed`", body)
+        recorded = section("references/target.md", "What to record")
+        self.assertIn("Step 1 reviews a change that touches any of them, even when it changes no TypeScript file.",
+                      recorded)
+
 
 class VersionTest(unittest.TestCase):
     def test_reads_the_typescript_version_and_tsconfig_first(self):
@@ -523,6 +561,38 @@ class ChecksTest(unittest.TestCase):
         self.assertIn("--disable-nested-config", oxlint)
         self.assertIn("`extends`", oxlint)
         self.assertIn("`overrides`", oxlint)
+
+    def test_the_configuration_guards_cover_the_whole_extends_chain(self):
+        # A file deeper in the extends chain is read from the worktree, the head, when the tool runs. If the guard
+        # covered only the files the base configuration names directly, a change could add jsPlugins to such a file and
+        # oxlint would load the change's code with no yes.
+        for tool in ("Biome", "oxlint"):
+            with self.subTest(tool=tool):
+                text = section("references/checks.md", tool, level=3)
+                first = re.search(r"(?m)^1\. .*$", text)
+                self.assertIsNotNone(first)
+                self.assertIn("any file in the base configuration's `extends` chain, read at the base", first.group(0))
+                self.assertNotIn("a file the base configuration names in `extends`", text)
+        # Plugins are code whether they are packages or relative paths, such as `./plugin.js`.
+        third = re.search(r"(?m)^3\. .*$", section("references/checks.md", "oxlint", level=3))
+        self.assertIsNotNone(third)
+        self.assertNotIn("they resolve from `node_modules`", third.group(0))
+        self.assertIn("relative path", third.group(0))
+
+    def test_the_execution_surface_is_the_one_typescript_practices_lists(self):
+        # CONTRIBUTING.md: where both skills cover a topic, the practices skill states the rule, and the review skill's
+        # copy is kept the same.
+        review = section("references/checks.md", "The execution surface")
+        practices = re.search(r"(?ms)^## The execution surface\n(.*?)(?=^## |\Z)",
+                              (PRACTICES / "references" / "checks.md").read_text(encoding="utf-8"))
+        self.assertIsNotNone(practices, "typescript-practices' checks.md has no execution surface")
+        self.assertIn("as typescript-practices' `references/checks.md` lists them", review)
+        for entry in ("`vitest.config.*`", "`vite.config.*`", "`vitest.workspace.*`", "`jsPlugins`",
+                      "`oxlint.config.ts`", "`oxlint.config.mts`", "`tsup.config.*`", "`prepare`", "`prepack`",
+                      "`postpack`"):
+            with self.subTest(entry=entry):
+                self.assertIn(entry, review)
+                self.assertIn(entry, practices.group(1))
 
     def test_tools_run_only_with_the_base_commits_configuration(self):
         for tool in ("Biome", "oxlint"):
@@ -731,3 +801,122 @@ class SnapshotCopyTest(unittest.TestCase):
         self.assertTrue((worktree / "src" / "new.ts").is_file())
         self.assertFalse((worktree / "new.ts").exists())
         self.assertIn('"b"', (worktree / "package.json").read_text(encoding="utf-8"))
+
+
+class FixtureToolsSetupTest(unittest.TestCase):
+    """What FixtureToolsTest relies on, checked without Node."""
+
+    def test_the_fixture_uses_the_versions_the_install_pins(self):
+        installed = json.loads((EXAMPLES / "package.json").read_text(encoding="utf-8"))["devDependencies"]
+        for root in (BASE, HEAD):
+            wanted = json.loads((root / "package.json").read_text(encoding="utf-8"))["devDependencies"]
+            for name, version in wanted.items():
+                with self.subTest(side=root.name, package=name):
+                    self.assertEqual(installed.get(name), version)
+
+    def test_the_skill_test_job_installs_node_and_pnpm(self):
+        # These tests fail in CI without them, so the job that runs skill script tests must set them up.
+        workflow = (REPO / ".github" / "workflows" / "validate.yml").read_text(encoding="utf-8")
+        job = re.search(r"(?ms)^  validate:\n(.*?)(?=^  [\w-]+:\n|\Z)", workflow)
+        self.assertIsNotNone(job, "validate.yml has no validate job")
+        steps = job.group(1).split("- name: Run skill script tests", 1)[0]
+        self.assertIn("uses: actions/setup-node@", steps)
+        self.assertIn("uses: pnpm/action-setup@", steps)
+        self.assertIn("package_json_file: plugins/company-skills/skills/typescript-practices/examples/package.json",
+                      steps)
+
+
+class FixtureToolsTest(unittest.TestCase):
+    """The tools catch what expected-findings.md says they catch, and the probes show what no tool shows.
+
+    The tools are installed once, with install scripts off, from typescript-practices' examples package and its
+    committed lockfile, into a temporary directory that also holds copies of base/ and head/. The fixture stays
+    unchanged. Without Node and pnpm these tests are skipped locally, and fail when the CI environment variable is set,
+    so a CI job that forgot to install them cannot pass silently.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        missing = [tool for tool in ("node", "pnpm") if shutil.which(tool) is None]
+        if missing:
+            message = f"{' and '.join(missing)} not on PATH"
+            if os.environ.get("CI"):
+                raise AssertionError(f"{message}: the skill-test job must install Node and pnpm")
+            raise unittest.SkipTest(message)
+        cls.tmp = Path(tempfile.mkdtemp())
+        try:
+            for name in ("package.json", "pnpm-lock.yaml"):
+                shutil.copy(EXAMPLES / name, cls.tmp / name)
+            install = subprocess.run(["pnpm", "install", "--frozen-lockfile", "--ignore-scripts"], cwd=cls.tmp,
+                                     capture_output=True, text=True)
+            if install.returncode != 0:
+                raise AssertionError(f"pnpm install failed:\n{install.stdout}\n{install.stderr}")
+            for side, root in (("base", BASE), ("head", HEAD), ("probe", HEAD)):
+                shutil.copytree(root, cls.tmp / side)
+        except BaseException:
+            shutil.rmtree(cls.tmp, ignore_errors=True)
+            raise
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def tool(self, side, name, *args):
+        return subprocess.run([str(self.tmp / "node_modules" / ".bin" / name), *args], cwd=self.tmp / side,
+                              capture_output=True, text=True)
+
+    def vitest(self, side):
+        """Run the side's tests and return the exit code and Vitest's JSON report."""
+        report = self.tmp / f"vitest-{side}.json"
+        result = self.tool(side, "vitest", "run", "--reporter=json", f"--outputFile={report}")
+        self.assertTrue(report.exists(), f"vitest wrote no report:\n{result.stdout}\n{result.stderr}")
+        return result.returncode, json.loads(report.read_text(encoding="utf-8"))
+
+    def oxlint(self, side):
+        return self.tool(side, "oxlint", "--type-aware", "-c", str(OXLINT_CONFIG), "--format=unix", "src")
+
+    def test_tsc_passes_at_the_base_and_the_head(self):
+        for side in ("base", "head"):
+            with self.subTest(side=side):
+                result = self.tool(side, "tsc", "--noEmit", "-p", "tsconfig.json")
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_type_aware_oxlint_reports_only_the_thrown_string(self):
+        base = self.oxlint("base")
+        self.assertEqual(base.returncode, 0, base.stdout + base.stderr)
+        head = self.oxlint("head")
+        self.assertNotEqual(head.returncode, 0, head.stdout + head.stderr)
+        diagnostics = [line for line in head.stdout.splitlines() if re.match(r"^src/[^:]+:\d+:\d+:", line)]
+        self.assertEqual(len(diagnostics), 1, head.stdout)
+        t1 = finding("Error handling")
+        self.assertTrue(diagnostics[0].startswith(f"{t1['path']}:{t1['line']}:"), diagnostics[0])
+        self.assertIn("only-throw-error", diagnostics[0])
+
+    def test_the_tests_pass_at_the_head_and_show_neither_defect(self):
+        code, report = self.vitest("head")
+        self.assertEqual(code, 0, report)
+        self.assertEqual((report["numPassedTests"], report["numTotalTests"]), (7, 7))
+
+    def test_probes_show_what_no_tool_shows(self):
+        # T1: the caller loses the reason for a missing id. T2: an untracked parcel crashes the label.
+        probe = self.tmp / "probe" / "src" / "probe.test.ts"
+        probe.write_text(
+            'import { expect, test } from "vitest";\n'
+            'import { labelText } from "./labels.js";\n'
+            'import { weightLine } from "./manifest.js";\n'
+            "\n"
+            'test("a missing id loses its reason", () => {\n'
+            '  expect(weightLine([{ id: "P-1", weightGrams: 750 }], "P-9")).toBe("P-9: something went wrong");\n'
+            "});\n"
+            "\n"
+            'test("an untracked parcel throws a TypeError", () => {\n'
+            '  const label = () => labelText({ id: "P-1", weightGrams: 750 });\n'
+            "  expect(label).toThrow(TypeError);\n"
+            "  expect(label).toThrow(\"Cannot read properties of undefined (reading 'toUpperCase')\");\n"
+            "});\n",
+            encoding="utf-8",
+        )
+        code, report = self.vitest("probe")
+        self.assertEqual(code, 0, json.dumps(report, indent=1)[:4000])
+        probes = [t for f in report["testResults"] if f["name"].endswith("probe.test.ts") for t in f["assertionResults"]]
+        self.assertEqual([t["status"] for t in probes], ["passed", "passed"])

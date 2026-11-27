@@ -42,7 +42,7 @@ Then, in a session started in `$work`, ask for a review of the last commit, for 
 
 ## Checks a correct review reports
 
-- The TypeScript version, read from `package.json`, is `7.0.2`. The `tsconfig.json` settings read are `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, and `verbatimModuleSyntax`, all on.
+- The TypeScript version, read from `package.json`, is `7.0.2`. The `tsconfig.json` settings read are `strict`, `noUncheckedIndexedAccess`, and `exactOptionalPropertyTypes`, all on, and `target` `es2024`. `useUnknownInCatchVariables` and `lib` are not set, so `strict` turns the first on and `target` sets the second.
 - `tsc --noEmit` and `oxlint --type-aware` are not run: they need the package's dependencies, which the review never installs. This is a limit. With the dependencies installed and typescript-practices' `assets/oxlintrc.json`, `tsc` passes at the base and the head, and `oxlint --type-aware` reports `typescript(only-throw-error)` at `src/manifest.ts:67` at the head and nothing at the base.
 - Biome and oxlint without type information are not run: the base commit has no configuration for either.
 - The tests are not run: they need the package's dependencies, and Vitest runs the change's code. The report gives the exact command, `vitest run`. With the dependencies installed, all seven tests pass at the head, so they show neither defect.

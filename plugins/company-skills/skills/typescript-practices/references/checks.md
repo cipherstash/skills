@@ -45,7 +45,7 @@ The oxlint-tsgolint pin moves with the TypeScript pin, in the same pull request.
 Some files run their own code when the suite's tools build, lint, or test a change. A review runs no tool that would run such a file from the change until the user says yes:
 
 - Vitest and Vite configuration files (`vitest.config.*`, `vite.config.*`, `vitest.workspace.*`), and the setup and global setup files they name.
-- oxlint JavaScript plugins named in oxlint's configuration.
+- oxlint JavaScript plugins named in oxlint's configuration (`jsPlugins`, at the top level or in `overrides`). oxlint's configuration is on the surface too when it is a TypeScript file, `oxlint.config.ts` or `oxlint.config.mts`, since oxlint runs that file to read it.
 - Build configuration and `package.json` scripts, such as `tsup.config.*`, esbuild scripts, `prepare`, `prepack`, and `postpack`. publint and attw pack the package, so they wait for the yes when a build is needed.
 
 `tsc --noEmit`, Biome, osv-scanner, and semgrep only read code.

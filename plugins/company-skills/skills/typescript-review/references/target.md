@@ -21,7 +21,7 @@ Read this in steps 1 and 2: how each kind of target becomes a base and a head, w
 - The changed files from `git diff --name-status <base> <head>`. For uncommitted changes there is no head commit: the list is `git diff --name-status HEAD` plus the untracked files from `git ls-files --others --exclude-standard`.
 - From that list, the changed TypeScript files and the packages they belong to. TypeScript files are the source files `.ts`, `.tsx`, `.mts`, and `.cts`, and the JavaScript files in a TypeScript repository, `.js`, `.mjs`, and `.cjs`. A package is the nearest directory above a file with a `package.json`. Also list a changed `package.json`, `tsconfig` file (`tsconfig.json`, `tsconfig.*.json`, or one a `tsconfig` names in `extends`), and lockfile (`pnpm-lock.yaml`, `package-lock.json`, `yarn.lock`, or `bun.lock`). A change to one of those is a TypeScript change even when no source file changes.
 - The changed files on the execution surface, as [checks.md](checks.md#the-execution-surface) lists them, and the changed tool configuration: `biome.json`, `biome.jsonc`, `.oxlintrc.json`, `.oxlintrc.jsonc`, `oxlint.config.ts`, and `oxlint.config.mts`, anywhere in the repository.
-- The changed files that CI's check suite depends on: `.semgrepignore`, and the files under `.github/workflows/`, `.github/actions/`, and `.semgrep/`.
+- The changed files that CI's check suite depends on: `.semgrepignore`, and the files under `.github/workflows/`, `.github/actions/`, and `.semgrep/`. Step 1 reviews a change that touches any of them, even when it changes no TypeScript file. It reviews a change to the tool configuration above the same way.
 
 ## Pull request
 

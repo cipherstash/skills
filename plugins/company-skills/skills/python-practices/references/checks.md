@@ -19,11 +19,11 @@ Every tool version is pinned. A repository's CI uses these versions.
 | uv | `0.13.10` | `uv` on PyPI |
 | semgrep | `1.186.0` | `semgrep` on PyPI |
 
-ruff, mypy, pytest, pytest-cov, Hypothesis, and pip-audit are exact versions in the project's `dev` dependency group. A committed `uv.lock` fixes them, and CI installs it with `uv sync --locked`. Later `uv run` commands pass `--no-sync`, so they do not lock again. The workflow pins uv through the `version` input of `astral-sh/setup-uv`. semgrep has one pin for every language. CI installs it with `pip install semgrep==<version>`.
+ruff, mypy, pytest, pytest-cov, Hypothesis, and pip-audit are exact versions in the project's `dev` dependency group. A committed `uv.lock` fixes them, and CI installs it with `uv sync --locked`. Later `uv run` commands pass `--no-sync`, so they do not lock again. The workflow pins uv through the `version` input of `astral-sh/setup-uv`. semgrep has one pin for every language. CI installs it with `pip install semgrep==<version>` on a fixed CPython, 3.13, the one the Go job uses, because semgrep can crash on a CPython newer than it supports.
 
 Start from the template [assets/pyproject-checks.toml](../assets/pyproject-checks.toml). The template has the `dev` group and the ruff, mypy, pytest, and coverage settings.
 
-Two things float by choice. CI uses the latest stable CPython, through `actions/setup-python` with `python-version: "3.x"`, and sets `UV_PYTHON_DOWNLOADS: never` so uv uses it. semgrep reads the latest `p/python` ruleset. Either can fail a pull request that did not cause the finding. Fix the finding.
+Two things float by choice. CI runs the project on the latest stable CPython, through `actions/setup-python` with `python-version: "3.x"`, and sets `UV_PYTHON_DOWNLOADS: never` so uv uses it. semgrep reads the latest `p/python` ruleset. Either can fail a pull request that did not cause the finding. Fix the finding.
 
 ## The checks
 

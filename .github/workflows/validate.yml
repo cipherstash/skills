@@ -129,6 +129,12 @@ jobs:
         run: |
           uv export --locked --no-emit-project --output-file requirements.txt
           uv run --no-sync pip-audit --strict --disable-pip --requirement requirements.txt
+      # semgrep-core can crash on a CPython newer than semgrep supports, so semgrep
+      # runs on the fixed CPython the Go job uses. The project ran on the latest
+      # stable release above; no uv step follows.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
       - name: Install semgrep
         working-directory: .
         run: python3 -m pip install semgrep==1.186.0

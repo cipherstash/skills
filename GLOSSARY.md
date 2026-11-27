@@ -117,17 +117,20 @@ The files and flags through which a change runs its own code when a tool builds,
 _Avoid_: Attack surface, hooks
 
 **Grill**:
-An interview that takes open decisions to the person, one question at a time, each with a recommended answer. It asks nothing that CONTRIBUTING.md or an ADR already settles. It drafts only GLOSSARY entries and ADRs, writes no code, and ends when the person confirms shared understanding. A "yes" in a grill is not a go-ahead to build: building waits for tickets labelled `ready-for-agent`.
+A session of questions that takes open decisions to the person, one question at a time, each with a recommended answer. The grill asks nothing that CONTRIBUTING.md or an architecture decision record (ADR) already settles. It drafts only GLOSSARY entries, ADRs, and any CONTRIBUTING.md change it settles, and writes no code. The grill ends when the person confirms shared understanding. A "yes" in a grill is not a go-ahead to build: building waits for tickets labelled `ready-for-agent`.
 _Avoid_: Interview, design review
 
 **Shared decision**:
-An open decision that every language must answer, such as how a check suite pins versions. It is settled once, in its own ticket or in one grill for every language, before any language's grill starts. A language's grill never decides it again.
+An open decision that every language must answer, such as how a check suite pins versions. ADR 0001 settled that one. A shared decision is settled once, in its own ticket or in one grill for every language, before any language's grill starts. A language's grill never decides it again.
 _Avoid_: Common decision, cross-language decision
 
 **Language-only decision**:
 An open decision that only one language must answer, such as which tools its check suite uses. That language's grill settles it.
 _Avoid_: Local decision, language decision
 
+**Shared ticket**:
+A ticket for work that every language shares: one shared decision, or a change to shared text. A shared-text ticket is one kind of shared ticket.
+
 **Shared-text ticket**:
-The ticket for a language's changes to shared text: CONTRIBUTING.md, GLOSSARY.md, the ADRs, and the process skill. The language's grill writes each GLOSSARY and ADR draft in this ticket's body, and the files change when the ticket is built. The shared-text ticket blocks the first ticket of the language's layout, so the language's own PRs never touch shared text.
-_Avoid_: Shared ticket (a ticket for one shared decision)
+A ticket that changes shared text, such as CONTRIBUTING.md, GLOSSARY.md, the ADRs, or the process skill. A language's own PRs never change shared text, so a gap found in shared text during design or build gets a shared-text ticket. A language's grill writes its drafts in the body of one shared-text ticket. The files change when that ticket is built. That ticket blocks the first ticket in the language's ticket breakdown.
+_Avoid_: Docs ticket

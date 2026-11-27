@@ -52,9 +52,14 @@ function isParcel(value: unknown): value is Parcel {
   );
 }
 
-/** Returns the total weight of the parcels, in grams. */
-export function totalWeightGrams(parcels: Parcel[]): number {
-  return parcels.reduce((sum, parcel) => sum + parcel.weightGrams, 0);
+export function totalWeight(parcels: readonly Parcel[], unit: "g" | "kg"): number {
+  const grams = parcels.reduce((sum, parcel) => sum + parcel.weightGrams, 0);
+  return unit === "kg" ? grams / 1000 : grams;
+}
+
+/** Returns the mean weight of the parcels, in grams, or 0 for an empty manifest. */
+export function meanWeightGrams(parcels: readonly Parcel[]): number {
+  return totalWeight(parcels, "g") / parcels.length;
 }
 
 /**

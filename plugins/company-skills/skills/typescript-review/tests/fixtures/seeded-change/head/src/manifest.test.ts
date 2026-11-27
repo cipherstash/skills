@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { parseManifest, totalWeightGrams, weightLine, weightOf } from "./manifest.js";
+import { meanWeightGrams, parseManifest, totalWeight, weightLine, weightOf } from "./manifest.js";
 
 describe("parseManifest", () => {
   test("reads a list of parcels", () => {
@@ -17,13 +17,22 @@ describe("parseManifest", () => {
   });
 });
 
-test("totalWeightGrams adds the weights", () => {
+test("totalWeight adds the weights", () => {
+  const parcels = [
+    { id: "P-1", weightGrams: 750 },
+    { id: "P-2", weightGrams: 1250 },
+  ];
+  expect(totalWeight(parcels, "g")).toBe(2000);
+  expect(totalWeight(parcels, "kg")).toBe(2);
+});
+
+test("meanWeightGrams averages the weights", () => {
   expect(
-    totalWeightGrams([
+    meanWeightGrams([
       { id: "P-1", weightGrams: 750 },
       { id: "P-2", weightGrams: 1250 },
     ]),
-  ).toBe(2000);
+  ).toBe(1000);
 });
 
 test("weightOf finds a parcel by id", () => {

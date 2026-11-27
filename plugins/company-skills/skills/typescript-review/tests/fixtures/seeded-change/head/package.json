@@ -1,16 +1,26 @@
 {
   "name": "parcel-manifest",
-  "version": "1.0.0",
-  "private": true,
+  "version": "0.4.0",
   "type": "module",
   "engines": {
     "node": ">=24"
   },
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
     "test": "vitest run"
   },
   "devDependencies": {
     "@types/node": "24.19.4",
+    "@vitest/coverage-v8": "^5.1.1",
     "typescript": "7.0.2",
     "vitest": "5.1.1"
   }

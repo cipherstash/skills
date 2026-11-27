@@ -11,3 +11,12 @@ export function labelText(parcel: Parcel | TrackedParcel): string {
   const tracked = parcel as unknown as TrackedParcel;
   return `${tracked.trackingCode.toUpperCase()} ${parcel.weightGrams} g`;
 }
+
+/**
+ * Returns a weight in grams as the packing sheet prints it, in kilograms with up to two decimal places, such as
+ * `1.25 kg`. The packing sheet calls it once for every parcel in a manifest.
+ */
+export function packingWeight(grams: number): string {
+  const kilograms = new Intl.NumberFormat("en-AU", { maximumFractionDigits: 2 });
+  return `${kilograms.format(grams / 1000)} kg`;
+}

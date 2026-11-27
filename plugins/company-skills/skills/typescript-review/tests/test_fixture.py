@@ -10,6 +10,7 @@
 # They need no Node. The validate workflow's skill-test job installs Python and Go only, and CI runs the TypeScript
 # check suite over typescript-practices' examples package alone, never over this fixture.
 import filecmp
+import json
 import os
 import re
 import shutil
@@ -26,8 +27,22 @@ BASE = FIXTURE / "base"
 HEAD = FIXTURE / "head"
 EXPECTED = FIXTURE / "expected-findings.md"
 
-# The areas this slice reviews, in the order of SKILL.md's areas table. #150 adds the other nine.
-AREAS = ["Error handling", "Type safety"]
+# The spec's eleven areas (#146), in its order, with the priority and the typescript-practices references the design
+# on #65 gives each one.
+SPEC_AREAS = [
+    ("Error handling", "High", ["references/error-handling.md"]),
+    ("Correctness and edge cases", "High", ["references/type-safety.md", "references/error-handling.md"]),
+    ("Type safety", "High", ["references/type-safety.md"]),
+    ("Testing and coverage", "High", ["references/testing.md"]),
+    ("Async and concurrency", "Medium", ["references/async.md"]),
+    ("Naming and style", "Medium", ["references/project-structure.md"]),
+    ("Security", "Medium", ["references/security.md"]),
+    ("Performance", "Medium", ["references/performance.md"]),
+    ("Dependency management", "Medium", ["references/dependencies.md"]),
+    ("Documentation", "Low", ["references/project-structure.md"]),
+    ("Breaking changes", "Low", ["references/project-structure.md", "references/dependencies.md"]),
+]
+AREAS = [area for area, _, _ in SPEC_AREAS]
 
 # One expected finding: "## T1 · major · error handling" and, below it,
 # "- Location: `head/<path>:<line>`" and "- Line: `<text quoted from that line>`".
@@ -45,6 +60,25 @@ CAST_THROUGH = re.compile(r"\bas\s+(?:unknown|any)\s+as\b")
 EXPLICIT_ANY = re.compile(r"(?::|<|,|\bas)\s*any\b")
 NON_NULL = re.compile(r"[\w)\]]!(?:\.|\[|\)|;|,|\s*$)")
 EMPTY_CATCH = re.compile(r"catch\s*(?:\([^)]*\))?\s*\{\s*\}")
+DIVIDE_BY_LENGTH = re.compile(r"/\s*[\w.]+\.length\b")
+ASYNC_FOREACH = re.compile(r"\.forEach\(\s*async\b")
+I_PREFIX = re.compile(r"\b(?:interface|type)\s+I[A-Z]\w*")
+SECRET_COMPARE = re.compile(r"\b\w*(?:signature|token|secret|mac|hash)\w*\s*[!=]==|[!=]==\s*\w*(?:signature|token|secret|stored)\w*\b", re.I)
+NEW_INTL = re.compile(r"\bnew\s+Intl\.\w+")
+
+
+def undocumented_exports(root):
+    """Return (path, line) for each export in root's non-test source with no `/** */` comment above it."""
+    found = []
+    for path in sorted(root.rglob("*.ts")):
+        if path.name.endswith(".test.ts"):
+            continue
+        lines = path.read_text(encoding="utf-8").splitlines()
+        for number, line in enumerate(lines, 1):
+            if re.match(r"export (?:async )?(?:function|type|interface|const|class) ", line):
+                if not (number > 1 and lines[number - 2].strip().endswith("*/")):
+                    found.append((path.relative_to(root).as_posix(), number))
+    return found
 
 
 def expected_findings():
@@ -122,7 +156,8 @@ def matches(root, pattern):
 
 class ExpectedFindingsTest(unittest.TestCase):
     def test_lists_one_finding_for_each_area(self):
-        self.assertEqual(sorted(f["area"] for f in expected_findings().values()), [a.lower() for a in AREAS])
+        # In the order of SKILL.md's areas table, one each, so T1 to T11 follow the table.
+        self.assertEqual([f["area"] for f in expected_findings().values()], [a.lower() for a in AREAS])
 
     def test_each_finding_quotes_the_line_it_names(self):
         for key, f in expected_findings().items():
@@ -145,15 +180,39 @@ class ExpectedFindingsTest(unittest.TestCase):
         for key, f in expected_findings().items():
             with self.subTest(id=key):
                 self.assertIn(f["path"], changed)
-                base_file = BASE / f["path"]
-                base_lines = base_file.read_text(encoding="utf-8").splitlines() if base_file.exists() else []
-                self.assertNotIn(f["quoted"], [line.strip() for line in base_lines], f"{key}: the base has the line")
+                lines = {}
+                for side, root in (("base", BASE), ("head", HEAD)):
+                    path = root / f["path"]
+                    lines[side] = [line.strip() for line in path.read_text(encoding="utf-8").splitlines()] if path.exists() else []
+                # A deleted line is in the base only; any other planted line is in the head only.
+                kept, gone = ("base", "head") if f["deleted"] else ("head", "base")
+                self.assertIn(f["quoted"], lines[kept], f"{key}: the {kept} lacks the line")
+                self.assertNotIn(f["quoted"], lines[gone], f"{key}: the {gone} has the line")
 
     def test_the_change_touches_only_the_planted_files(self):
         self.assertEqual(
             changed_files(),
-            ["src/labels.test.ts", "src/labels.ts", "src/manifest.test.ts", "src/manifest.ts"],
+            [
+                "package.json",
+                "src/index.ts",
+                "src/labels.test.ts",
+                "src/labels.ts",
+                "src/manifest.test.ts",
+                "src/manifest.ts",
+                "src/tracking.test.ts",
+                "src/tracking.ts",
+            ],
         )
+
+    def test_the_change_touches_no_file_on_the_execution_surface(self):
+        # The fixture's review runs no check that needs a yes for the execution surface: the change leaves the
+        # package.json scripts and the build configuration as they were, and adds no Vitest or oxlint configuration.
+        base = json.loads((BASE / "package.json").read_text(encoding="utf-8"))
+        head = json.loads((HEAD / "package.json").read_text(encoding="utf-8"))
+        self.assertEqual(base["scripts"], head["scripts"])
+        for name in changed_files():
+            with self.subTest(name=name):
+                self.assertNotRegex(name, r"(^|/)(vitest|vite|tsup)\.(config|workspace)\.|oxlint|biome|tsconfig")
 
     def test_the_error_handling_defect_throws_a_value_that_is_not_an_error(self):
         f = finding("Error handling")
@@ -167,8 +226,130 @@ class ExpectedFindingsTest(unittest.TestCase):
         self.assertRegex(f["quoted"], CAST_THROUGH)
         self.assertEqual(matches(HEAD, CAST_THROUGH), [(f["path"], f["line"])])
 
+    def test_the_correctness_defect_divides_by_a_length_that_can_be_zero(self):
+        f = finding("Correctness and edge cases")
+        self.assertEqual(f["side"], "head")
+        self.assertRegex(f["quoted"], DIVIDE_BY_LENGTH)
+        self.assertEqual(matches(HEAD, DIVIDE_BY_LENGTH), [(f["path"], f["line"])])
+        # Its documentation comment promises 0 for no parcels, so the empty case is in its contract.
+        lines = (HEAD / f["path"]).read_text(encoding="utf-8").splitlines()
+        self.assertIn("or 0 for an empty manifest", lines[f["line"] - 3])
+
+    def test_the_testing_defect_is_a_new_parser_of_untrusted_input_with_no_property_test(self):
+        f = finding("Testing and coverage")
+        self.assertEqual((f["severity"], f["side"]), ("minor", "head"))
+        name = re.match(r"export function (\w+)\(body: string", f["quoted"])
+        self.assertIsNotNone(name, f"{f['quoted']!r} does not declare a parser of a body")
+        for path in BASE.rglob("*.ts"):
+            self.assertNotIn(f"function {name.group(1)}(", path.read_text(encoding="utf-8"), "the base already has it")
+        tests = [path for path in HEAD.rglob("*.test.ts") if name.group(1) in path.read_text(encoding="utf-8")]
+        self.assertTrue(tests, "no test calls the parser at all")
+        for path in HEAD.rglob("*.ts"):
+            text = path.read_text(encoding="utf-8")
+            self.assertNotIn("test.prop", text, f"{path.name} has a property test")
+            self.assertNotIn("fast-check", text, f"{path.name} imports fast-check")
+        # Its documentation comment says the body comes from outside the process.
+        source = (HEAD / f["path"]).read_text(encoding="utf-8")
+        self.assertRegex(source, r"Reads the body of a webhook request")
+
+    def test_the_async_defect_passes_an_async_callback_to_foreach(self):
+        f = finding("Async and concurrency")
+        self.assertEqual(f["side"], "head")
+        self.assertRegex(f["quoted"], ASYNC_FOREACH)
+        self.assertEqual(matches(HEAD, ASYNC_FOREACH), [(f["path"], f["line"])])
+
+    def test_the_naming_defect_prefixes_an_interface_with_i(self):
+        f = finding("Naming and style")
+        self.assertEqual((f["severity"], f["side"]), ("minor", "head"))
+        self.assertRegex(f["quoted"], I_PREFIX)
+        self.assertEqual(matches(HEAD, I_PREFIX), [(f["path"], f["line"])])
+
+    def test_the_security_defect_compares_a_signature_with_an_operator(self):
+        f = finding("Security")
+        self.assertEqual(f["side"], "head")
+        self.assertRegex(f["quoted"], SECRET_COMPARE)
+        self.assertEqual(matches(HEAD, SECRET_COMPARE), [(f["path"], f["line"])])
+        for root in (BASE, HEAD):
+            for path in root.rglob("*.ts"):
+                self.assertNotIn("timingSafeEqual", path.read_text(encoding="utf-8"))
+
+    def test_the_performance_defect_builds_a_formatter_on_every_call(self):
+        f = finding("Performance")
+        self.assertEqual((f["severity"], f["side"]), ("minor", "head"))
+        self.assertRegex(f["quoted"], NEW_INTL)
+        self.assertEqual(matches(HEAD, NEW_INTL), [(f["path"], f["line"])])
+        line = (HEAD / f["path"]).read_text(encoding="utf-8").splitlines()[f["line"] - 1]
+        self.assertTrue(line.startswith("  "), "the formatter is built inside a function, not at module level")
+
+    def test_the_dependency_defect_is_the_one_tool_not_pinned_exactly(self):
+        f = finding("Dependency management")
+        self.assertEqual((f["severity"], f["side"], f["path"]), ("minor", "head", "package.json"))
+        for root in (BASE, HEAD):
+            manifest = json.loads((root / "package.json").read_text(encoding="utf-8"))
+            ranges = {name: version for field in ("dependencies", "devDependencies")
+                      for name, version in manifest.get(field, {}).items() if not re.fullmatch(r"\d+\.\d+\.\d+", version)}
+            if root == BASE:
+                self.assertEqual(ranges, {}, "the base pins every dependency exactly")
+            else:
+                self.assertEqual(list(ranges), ["@vitest/coverage-v8"])
+                self.assertEqual(f["quoted"], f'"@vitest/coverage-v8": "{ranges["@vitest/coverage-v8"]}",')
+                # The tool it must match is pinned exactly, so a range lets the pair drift apart.
+                self.assertEqual(manifest["devDependencies"]["vitest"], "5.1.1")
+
+    def test_the_documentation_defect_is_the_one_export_with_no_documentation_comment(self):
+        f = finding("Documentation")
+        self.assertEqual((f["severity"], f["side"]), ("minor", "head"))
+        self.assertEqual(undocumented_exports(HEAD), [(f["path"], f["line"])])
+        self.assertEqual(undocumented_exports(BASE), [])
+
+    def test_the_breaking_change_removes_an_export_of_a_published_package_below_1_0_0(self):
+        f = finding("Breaking changes")
+        self.assertEqual((f["severity"], f["side"], f["deleted"]), ("minor", "base", True))
+        name = re.match(r"export function (\w+)\(", f["quoted"]).group(1)
+        self.assertNotIn(f"function {name}(", (HEAD / f["path"]).read_text(encoding="utf-8"))
+        for root in (BASE, HEAD):
+            manifest = json.loads((root / "package.json").read_text(encoding="utf-8"))
+            with self.subTest(side=root.name):
+                self.assertNotIn("private", manifest, "a private package has no users to break")
+                self.assertEqual(manifest["exports"]["."]["types"], "./dist/index.d.ts")
+                self.assertEqual(manifest["version"], "0.4.0")
+                # The entry point exports the module the function was in.
+                self.assertIn(f'export * from "./{Path(f["path"]).stem}.js";', (root / "src" / "index.ts").read_text(encoding="utf-8"))
+        # A published package needs isolatedDeclarations, so reading gives the declarations.
+        tsconfig = json.loads((BASE / "tsconfig.json").read_text(encoding="utf-8"))["compilerOptions"]
+        self.assertTrue(tsconfig["isolatedDeclarations"])
+
+    def test_names_each_missing_ci_check(self):
+        # The fixture has no CI, so every check of the suite that CI can show is a missing line. The property-test
+        # rule is enforced by the review, not CI, so it is not one of them. Read the suite from typescript-practices.
+        suite = (PRACTICES / "references" / "checks.md").read_text(encoding="utf-8")
+        listed = suite.split("\n## The checks\n", 1)[1].split("\n## ", 1)[0]
+        checks = re.findall(r"(?m)^- \*\*([^*]+)\*\*", listed)
+        self.assertIn("Untrusted input", checks)
+        self.assertIn("CI cannot tell that a property test is missing", listed)
+        missing_line = {
+            "Type check": "`tsc --noEmit`",
+            "Format and general lint": "`biome ci`",
+            "Type-aware lint": "`oxlint --type-aware`",
+            "Tests and coverage": "`vitest run --coverage`",
+            "Vulnerabilities": "osv-scanner",
+            "SAST": "semgrep",
+            "Package shape": "publint and attw",
+        }
+        expected = re.search(r"(?m)^- The repository has no CI\. .*$", EXPECTED.read_text(encoding="utf-8"))
+        case = re.search(r"(?m)^- The fixture has no CI\. .*$", read("tests/prompts.md"))
+        for page, found in (("expected-findings.md", expected), ("prompts.md", case)):
+            self.assertIsNotNone(found, f"{page} has no line about the fixture's missing CI")
+            for check in checks:
+                with self.subTest(page=page, check=check):
+                    if check == "Untrusted input":
+                        self.assertRegex(found.group(0), r"property test[^.]*not a missing line")
+                    else:
+                        self.assertIn(check, missing_line, "a new suite check: say how its missing line names it")
+                        self.assertIn(missing_line[check], found.group(0))
+
     def test_the_head_has_no_other_planted_pattern(self):
-        # Only the two planted defects: no explicit `any`, non-null assertion, or empty catch anywhere in the head.
+        # No explicit `any`, non-null assertion, or empty catch anywhere in the head: none is planted.
         for name, pattern in (("any", EXPLICIT_ANY), ("non-null", NON_NULL), ("empty catch", EMPTY_CATCH)):
             with self.subTest(pattern=name):
                 self.assertEqual(matches(HEAD, pattern), [])
@@ -180,6 +361,11 @@ class ExpectedFindingsTest(unittest.TestCase):
             "explicit any": EXPLICIT_ANY,
             "non-null assertion": NON_NULL,
             "empty catch": EMPTY_CATCH,
+            "division by a length": DIVIDE_BY_LENGTH,
+            "async callback to forEach": ASYNC_FOREACH,
+            "interface prefixed with I": I_PREFIX,
+            "secret compared with an operator": SECRET_COMPARE,
+            "formatter built per call": NEW_INTL,
         }
         for name, pattern in patterns.items():
             with self.subTest(pattern=name):
@@ -205,6 +391,16 @@ class ExpectedFindingsTest(unittest.TestCase):
         self.assertNotRegex("if (!ok) {", NON_NULL)
         self.assertRegex("} catch {}", EMPTY_CATCH)
         self.assertRegex("} catch (error) {  }", EMPTY_CATCH)
+        self.assertRegex("return sum / items.length;", DIVIDE_BY_LENGTH)
+        self.assertNotRegex("return items.length / 2;", DIVIDE_BY_LENGTH)
+        self.assertRegex("keys.forEach(async (key) => {", ASYNC_FOREACH)
+        self.assertNotRegex("for (const key of keys) {", ASYNC_FOREACH)
+        self.assertRegex("export interface IKeyStore {", I_PREFIX)
+        self.assertNotRegex("export interface Index {", I_PREFIX)
+        self.assertRegex("if (signatureHex !== expected) {", SECRET_COMPARE)
+        self.assertRegex("return token === stored;", SECRET_COMPARE)
+        self.assertNotRegex("if (parcel === undefined) {", SECRET_COMPARE)
+        self.assertRegex('  const f = new Intl.NumberFormat("en", {});', NEW_INTL)
 
     def test_changed_files_compares_contents(self):
         # A same-size edit with a matching mtime, as after extracting an archive, must still count as a change.
@@ -230,11 +426,12 @@ class ExpectedFindingsTest(unittest.TestCase):
 
 # Words the fixture declares that are also ordinary English or TypeScript words, so they may appear in the skill text
 # for their own sake.
-COMMON_WORDS = {"data", "failure", "id", "message", "type", "value", "error", "items", "candidate"}
+COMMON_WORDS = {"data", "failure", "id", "message", "type", "value", "error", "items", "candidate", "send"}
 
 # Values from the fixture's code and expected results that are not declared names but would still give its answers
 # away.
-FIXTURE_LITERALS = ["P-1", "P-9", "zx81", "ZX81", "something went wrong", "parcel-manifest", "NotJson", "NotAParcelList"]
+FIXTURE_LITERALS = ["P-1", "P-9", "zx81", "ZX81", "something went wrong", "parcel-manifest", "NotJson", "NotAParcelList",
+                    "BadSignature", "NotAnUpdate", "in-transit", "en-AU", "test-key", "0.4.0"]
 
 
 def fixture_terms():
@@ -305,7 +502,8 @@ class AnswerKeyTest(unittest.TestCase):
 
     def test_derives_the_fixture_terms(self):
         terms = fixture_terms()
-        for term in ("weightOf", "labelText", "TrackedParcel", "trackingCode", "src/labels.ts", "Parcel"):
+        for term in ("weightOf", "labelText", "TrackedParcel", "trackingCode", "src/labels.ts", "Parcel", "parseTrackingUpdate",
+                     "INotifier", "milestone", "packingWeight", "meanWeightGrams", "src/tracking.ts"):
             self.assertIn(term, terms)
         self.assertNotIn("message", terms)
 
@@ -340,9 +538,17 @@ class DescriptionTest(unittest.TestCase):
 
 
 class AreasTableTest(unittest.TestCase):
-    def test_lists_the_areas_this_slice_reviews(self):
-        self.assertEqual([row[1] for row in areas_table()], AREAS)
-        self.assertEqual([row[0] for row in areas_table()], ["1", "3"])
+    def test_lists_the_eleven_areas_in_the_specs_order(self):
+        rows = areas_table()
+        self.assertEqual([row[1] for row in rows], AREAS)
+        self.assertEqual([row[0] for row in rows], [str(n) for n in range(1, 12)])
+
+    def test_each_area_has_the_specs_priority_and_practices_references(self):
+        rows = {row[1]: row for row in areas_table()}
+        for area, priority, practices in SPEC_AREAS:
+            with self.subTest(area=area):
+                self.assertEqual(rows[area][2], priority)
+                self.assertEqual(re.findall(r"`(references/[a-z-]+\.md)`", rows[area][4]), practices)
 
     def test_every_area_has_a_step_reference_and_a_practices_reference(self):
         for order, area, _, step_cell, practices in areas_table():
@@ -355,6 +561,7 @@ class AreasTableTest(unittest.TestCase):
                 self.assertTrue(names, f"{area}: no typescript-practices reference named")
                 body = step_file.read_text(encoding="utf-8")
                 self.assertIn(f"Area {order},", body, f"{link.group(1)} does not state its area number")
+                self.assertIn(f"# Step: {area.lower()}", body, f"{link.group(1)} does not name its area")
                 for name in names:
                     self.assertTrue((PRACTICES / name).is_file(), f"{area}: typescript-practices has no {name}")
                     self.assertIn(f"`{name}`", body, f"{link.group(1)} does not name {name}")
@@ -364,18 +571,21 @@ class AreasTableTest(unittest.TestCase):
         on_disk = {f"references/{p.name}" for p in (SKILL / "references").glob("step-*.md")}
         self.assertEqual(on_disk, named)
 
-    def test_the_other_areas_are_named_as_not_reviewed(self):
-        # The spec's eleven areas: the nine this version has no step for are each listed, so the report can name them.
-        others = ["Correctness and edge cases", "Testing and coverage", "Async and concurrency", "Naming and style",
-                  "Security", "Performance", "Dependency management", "Documentation", "Breaking changes"]
+    def test_no_area_is_left_without_a_step(self):
+        # #149 listed nine areas as "no step for this area yet". Every area has a step now, so no page says that.
+        for page in [*skill_pages(), SKILL / "tests" / "prompts.md"]:
+            with self.subTest(page=page.name):
+                self.assertNotIn("no step for this area yet", page.read_text(encoding="utf-8"))
+
+    def test_records_the_specs_reason_for_the_type_safety_area(self):
+        # The spec adds Type safety beyond Go's ten: a suite tool gives evidence for it, and the fixture can plant a
+        # defect in it. Packaging stays under Breaking changes.
         areas = section("SKILL.md", "Areas")
-        coverage = section("references/output.md", "Coverage and limits")
-        for area in others:
-            with self.subTest(area=area):
-                self.assertIn(area, areas)
-                self.assertIn(area, coverage)
-        self.assertIn("no step for this area yet", areas)
-        self.assertIn("no step for this area yet", coverage)
+        self.assertIn("beyond golang-review's ten", areas)
+        for evidence in ("`tsc`", "oxlint's unsafe `any` rules", "fixture", "unsafe cast"):
+            with self.subTest(evidence=evidence):
+                self.assertIn(evidence, areas)
+        self.assertIn("Packaging stays under Breaking changes", areas)
 
 
 class ReadingTheReferencesTest(unittest.TestCase):
@@ -388,7 +598,7 @@ class ReadingTheReferencesTest(unittest.TestCase):
 
     def test_review_step_makes_reading_the_references_mandatory(self):
         # Host runs loaded golang-practices but read none of its references, so the reads are ordered every time.
-        body = step(6, "Review each area.")
+        body = step(7, "Review each area.")
         self.assertIn("Read its step reference now", body)
         self.assertIn("then each practices reference the table names for it", body)
         self.assertIn("every time", body)
@@ -560,6 +770,102 @@ class TypeSafetyStepTest(unittest.TestCase):
                 self.assertIn(f"## {heading}", text)
         self.assertIn("`as unknown as T`", text)
         self.assertIn("hide a real case", text)
+
+
+class RepositoryStandardsTest(unittest.TestCase):
+    """Step 6 compares the repository's CI with the TypeScript check suite, as golang-review's checks.md does."""
+
+    def test_has_a_repository_standards_step_that_points_at_the_comparison(self):
+        body = step(6, "Check the repository standards.")
+        self.assertIn("[The check suite in CI](references/checks.md#the-check-suite-in-ci)", body)
+        self.assertIn("A missing check is a line in the report, not a finding", body)
+        self.assertIn("removes or weakens as a `major` finding", body)
+        self.assertIn("not compared", body.split("Completion:", 1)[1])
+
+    def test_a_missing_check_is_a_line_and_a_weakened_check_is_major(self):
+        ci = section("references/checks.md", "The check suite in CI")
+        self.assertIn("A missing check is not a finding", ci)
+        self.assertIn("as a `major` finding under testing and coverage", ci)
+        self.assertIn("typescript-practices' `references/checks.md`", ci)
+        self.assertIn("`not compared: typescript-practices not loaded`", ci)
+        # The ways a step can be weakened that typescript-practices' "When a check is in place" names.
+        for weakening in ("`continue-on-error`", "`|| true`", "`shell: bash {0}`", "`pipefail`", "`pull_request`",
+                          "`--frozen-lockfile`", "`--error-on-warnings`", "`--type-aware`", "`--deny-warnings`"):
+            with self.subTest(weakening=weakening):
+                self.assertIn(weakening, ci)
+        self.assertIn("Quote only a run whose head SHA is the reviewed head commit", section("references/checks.md", "CI's results"))
+
+    def test_compares_every_check_the_suite_lists(self):
+        # Each check of typescript-practices' suite is named in the comparison, so none is left out of the report.
+        suite = (PRACTICES / "references" / "checks.md").read_text(encoding="utf-8")
+        listed = suite.split("\n## The checks\n", 1)[1].split("\n## ", 1)[0]
+        checks = re.findall(r"(?m)^- \*\*([^*]+)\*\*", listed)
+        self.assertEqual(checks, ["Type check", "Format and general lint", "Type-aware lint", "Tests and coverage",
+                                  "Vulnerabilities", "SAST", "Package shape", "Untrusted input"])
+        ci = section("references/checks.md", "The check suite in CI")
+        for check in checks:
+            with self.subTest(check=check):
+                self.assertIn(f"**{check}**", ci)
+        self.assertRegex(ci, r"CI cannot tell that a property test is missing[^.]*\. It is not a missing line")
+
+    def test_an_exemption_adr_counts_only_at_the_base(self):
+        self.assertIn("architecture decision record (ADR) at the base commit", section("SKILL.md", "Read-only"))
+        ci = section("references/checks.md", "The check suite in CI")
+        self.assertIn("`docs/adr/`", ci)
+        self.assertIn("An ADR that the change adds does not leave a check out", ci)
+
+    def test_a_change_to_ci_alone_is_still_reviewed(self):
+        body = step(1, "Resolve the target.")
+        recorded = section("references/target.md", "What to record")
+        compared = section("references/checks.md", "The check suite in CI")
+        for page, text in (("SKILL.md", body), ("target.md", recorded), ("checks.md", compared)):
+            for path in ("`.github/workflows/`", "`.github/actions/`", "`.semgrepignore`", "`.semgrep/`"):
+                with self.subTest(page=page, path=path):
+                    self.assertIn(path, text)
+        self.assertIn("any `package.json` exists at the base", body)
+
+    def test_the_report_has_a_check_suite_section(self):
+        fields = section("references/output.md", "Fields")
+        field = re.search(r"(?m)^- \*\*Check suite in CI\*\*: .*$", fields)
+        self.assertIsNotNone(field)
+        self.assertIn("`not compared: <reason>`", field.group(0))
+        self.assertIn("A missing check is a line here, not a finding", field.group(0))
+        self.assertNotIn("this version has no repository standards step", read("references/output.md"))
+        self.assertNotIn("this version has no repository standards step", read("references/checks.md"))
+
+
+class BreakingChangesStepTest(unittest.TestCase):
+    def test_uses_publint_attw_and_a_declaration_comparison_as_evidence(self):
+        evidence = section("references/step-breaking-changes.md", "Evidence")
+        for tool in ("**The declaration comparison.**", "**publint**", "**attw**", "at the base and at the head"):
+            with self.subTest(tool=tool):
+                self.assertIn(tool, evidence)
+        rows = {row.split("|")[1].strip(): row for row in read("references/checks.md").splitlines()
+                if row.startswith("| ") and "Breaking changes" in row}
+        self.assertIn("Declaration comparison", rows)
+        self.assertIn("Package shape", rows)
+        self.assertIn("--emitDeclarationOnly", rows["Declaration comparison"])
+        self.assertIn("--declarationDir <tmp>/", rows["Declaration comparison"])
+        self.assertIn("`publint --strict`", rows["Package shape"])
+        self.assertIn("`attw --pack .", rows["Package shape"])
+
+    def test_the_declaration_comparison_is_the_one_tsc_that_writes(self):
+        never = section("references/checks.md", "Commands the review never runs")
+        self.assertIn("except the declaration comparison", never)
+
+
+class TestingStepTest(unittest.TestCase):
+    def test_a_new_parser_without_a_property_test_is_minor(self):
+        text = section("references/step-testing.md", "Parsers of untrusted input without a property test")
+        self.assertIn("A function the change adds that parses or decodes untrusted input, with no fast-check property "
+                      "test, is a `minor` finding", text)
+        self.assertIn("`test.prop`", text)
+        self.assertIn("A function that existed before the change", text)
+
+    def test_a_weakened_suite_check_is_major(self):
+        text = section("references/step-testing.md", "A check of the suite removed or weakened")
+        self.assertIn("report it as `major`", text)
+        self.assertIn("The check suite in CI", text)
 
 
 GOLANG_REVIEW = SKILL.parent / "golang-review"

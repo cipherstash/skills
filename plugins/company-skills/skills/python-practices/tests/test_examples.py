@@ -290,6 +290,20 @@ class ConfigTemplateTest(unittest.TestCase):
     def test_the_lockfile_is_committed(self):
         self.assertTrue((EXAMPLES / "uv.lock").is_file())
 
+    def test_every_script_has_its_lockfile_committed(self):
+        # dependencies.md says to lock a PEP 723 script with `uv lock --script`
+        # and commit the <file>.lock it writes, so the example scripts do too.
+        scripts = [
+            path
+            for path in EXAMPLES.rglob("*.py")
+            if ".venv" not in path.relative_to(EXAMPLES).parts
+            and re.search(r"^# /// script$", path.read_text(encoding="utf-8"), re.MULTILINE)
+        ]
+        self.assertTrue(scripts, "the examples hold no PEP 723 script")
+        for script in scripts:
+            with self.subTest(script=script.relative_to(EXAMPLES)):
+                self.assertTrue(script.with_name(script.name + ".lock").is_file())
+
 
 class QuotedBlocksParserTest(unittest.TestCase):
     LINK = "From [`a.py`](../examples/src/pkg/a.py):\n\n"

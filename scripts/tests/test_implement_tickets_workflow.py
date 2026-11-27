@@ -58,7 +58,7 @@ function canned(label, prompt) {
     return { headSha: 'b' + n, unresolved: [], needsDecision: [], ci: 'passed',
              counts: { total: 0, unresolved: 0, addressed: 0, refuted: 0, needsDecision: 0 }, deviations: [] };
   }
-  if (label === 'sync stack') return { merges: [], decisions: [], deviations: [] };
+  if (label === 'sync chain') return { merges: [], decisions: [], deviations: [] };
   if (label === 'run report') return { status: 'ok', report: 'report' };
   throw new Error('no canned result for ' + label);
 }
@@ -137,7 +137,53 @@ class ImplementTicketsWorkflowTest(unittest.TestCase):
         if not NODE:
             self.fail("node is required in CI to test the implement-tickets workflow")
 
-    def test_stacks_each_ticket_on_its_blocker(self):
+    def test_every_agent_reads_the_chain_rule(self):
+        r = run([ticket(2), ticket(3, [2])])
+        for c in r["calls"]:
+            self.assertIn("Never run `gh stack`", c["prompt"], c["label"])
+
+    def test_each_pr_gets_its_place_in_the_chain_from_the_bottom(self):
+        r = run([ticket(2), ticket(3, [2]), ticket(4, [3])])
+        for n, place in ((2, 1), (3, 2), (4, 3)):
+            text = " ".join(prompt(r, f"pr #{n}").split())
+            self.assertIn(f"PR {place} of the chain, counting from the bottom", text)
+        self.assertEqual({2: 1, 3: 2, 4: 3}, {n: t["place"]["height"] for n, t in by_ticket(r).items()})
+
+    def test_the_pr_prompt_and_the_report_state_the_same_place_rule(self):
+        r = run([ticket(2), ticket(3, [2])])
+        rule = "PR 1 is the one whose base is `main`, and each other PR is one more than the highest PR it depends on"
+        self.assertIn(rule, " ".join(prompt(r, "pr #3").split()))
+        self.assertIn(rule, " ".join(prompt(r, "run report").split()))
+
+    def test_a_pr_with_two_blockers_is_above_the_higher_one(self):
+        for blockers in ([2, 3], [3, 2]):
+            r = run([ticket(2), ticket(3, [2]), ticket(4, blockers)])
+            self.assertEqual(3, by_ticket(r)[4]["place"]["height"], blockers)
+
+    def test_places_above_a_blocker_outside_the_run_count_from_it(self):
+        outside = [{"number": 9, "state": "open", "openPrBranch": "feat/9"}]
+        r = run([ticket(5, [9]), ticket(6, [5])], blocker_states=outside)
+        self.assertIn("PR 1 above the PR for `feat/9`, which is outside this run",
+                      " ".join(prompt(r, "pr #5").split()))
+        self.assertIn("PR 2 above the PR for `feat/9`, which is outside this run",
+                      " ".join(prompt(r, "pr #6").split()))
+        self.assertEqual({"height": 2, "anchor": "feat/9"}, by_ticket(r)[6]["place"])
+
+    def test_the_place_follows_the_base_the_build_returns(self):
+        build3 = {"status": "done", "branch": "feat/3", "base": "main", "headSha": "b3",
+                  "criteria": [{"criterion": "c", "met": True}], "checks": [], "decisions": [], "deviations": []}
+        r = run([ticket(2), ticket(3, [2])], overrides={"build #3": build3})
+        self.assertIn("PR 1 of the chain", " ".join(prompt(r, "pr #3").split()))
+        texts = [e["text"] for e in r["out"]["ledger"] if e["kind"] == "deviation"]
+        self.assertTrue(any("not the planned `feat/2`" in t for t in texts), texts)
+
+    def test_wait_and_report_agents_get_only_the_chain_rule(self):
+        r = run([ticket(2)])
+        for c in r["calls"]:
+            if c["label"].startswith("wait") or c["label"] == "run report":
+                self.assertNotIn("Rules for every step of this run", c["prompt"], c["label"])
+
+    def test_bases_each_ticket_on_its_blocker(self):
         r = run([ticket(2), ticket(3, [2]), ticket(4, [3])])
         self.assertIsNone(r["error"])
         bases = {n: t["base"] for n, t in by_ticket(r).items()}
@@ -147,7 +193,7 @@ class ImplementTicketsWorkflowTest(unittest.TestCase):
         # A blocked ticket starts once its blocker's PR is open, not after its review.
         self.assertLess(r["calls"].index(next(c for c in r["calls"] if c["label"] == "pr #2")),
                         r["calls"].index(next(c for c in r["calls"] if c["label"] == "build #3")))
-        self.assertIn("sync stack", labels(r, "sync"))
+        self.assertIn("sync chain", labels(r, "sync"))
 
     def test_runs_at_most_four_agents_at_once(self):
         r = run([ticket(n) for n in range(2, 12)])
@@ -188,7 +234,7 @@ class ImplementTicketsWorkflowTest(unittest.TestCase):
         self.assertIn("merge `origin/feat/3`", p)
         self.assertEqual(by_ticket(r)[4]["base"], "feat/2")
 
-    def test_stacks_on_an_open_blocker_outside_the_run(self):
+    def test_bases_on_an_open_blocker_outside_the_run(self):
         r = run([ticket(2, [9])], [{"number": 9, "state": "open", "openPrBranch": "feat/9"}])
         self.assertEqual(by_ticket(r)[2]["base"], "feat/9")
 

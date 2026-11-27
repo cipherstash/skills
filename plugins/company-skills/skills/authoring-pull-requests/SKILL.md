@@ -92,6 +92,7 @@ The PR title follows the commit-subject convention.
 - Do not fix review findings or reply to review comments here; fixing them is review-fix, and auditing them is review-audit.
 - Do not file issues here; that is filing-github-issues.
 - Pull requests that build on each other go in a GitHub stack. Follow stacking-pull-requests for those. It uses these rules for each pull request.
+- A chain of pull requests is the exception. In a chain, each branch's base is the branch below it, without a GitHub stack. The implement-tickets workflow and building-language-skills build chains. When the instructions say the work is a chain, never run `gh stack` or follow stacking-pull-requests.
 
 ## Report
 

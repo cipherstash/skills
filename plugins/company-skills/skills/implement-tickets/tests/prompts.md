@@ -24,4 +24,6 @@
 - When the run ends, the reply gives the run report and lists each PR with its place in the chain, CI state, and open findings.
 - In a repository without `.github/workflows/claude-review.yml`, the run requests no review from `cipherstash-agent` and does not wait for one. A haiku step waits for CI only, and each fix round audits the independent review, the PR's threads and CI.
 - Without the `mattpocock-skills` plugin, the build and review agents follow its `tdd` and `code-review` steps themselves and record a deviation.
+- No agent in the run runs `gh stack` or follows stacking-pull-requests. `gh api repos/{owner}/{repo}/stacks` lists no stack for the run's PRs, and each PR's base is the branch of the ticket that blocks it.
+- Each PR body gives its place in the chain, counting from the bottom.
 - The session never merges a PR, marks one ready, or changes its tickets while the run is going.

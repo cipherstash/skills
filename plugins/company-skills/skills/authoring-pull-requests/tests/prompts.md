@@ -28,3 +28,4 @@
 - Without a GitHub MCP server, the `gh` CLI is used instead and the report says so.
 - The agent never merges, closes, or marks the PR ready for review unless asked.
 - For a pull request whose base is not the default branch, the agent does not rely on `Closes #N`. The agent links the pull request to its issue with linking-github-issues.
+- Inside the implement-tickets workflow, whose prompt says the work is a chain and forbids `gh stack`, the PR opens on the blocker's branch. The agent does not load stacking-pull-requests or run any `gh stack` command.

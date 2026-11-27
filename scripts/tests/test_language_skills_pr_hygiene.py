@@ -51,20 +51,20 @@ def gotcha(title):
     return text.split(marker, 1)[1].split("\n- ", 1)[0].split("\n#", 1)[0]
 
 
-STACK_GOTCHA = "Fix a PR's findings where the line was added, never on a later branch."
+CHAIN_GOTCHA = "Fix a PR's findings where the line was added, never on a later branch."
 
 
-class StackGotchaTest(unittest.TestCase):
+class ChainGotchaTest(unittest.TestCase):
     def test_review_fixes_stay_on_the_reviewed_prs_branch(self):
-        text = gotcha(STACK_GOTCHA)
+        text = gotcha(CHAIN_GOTCHA)
         for phrase in ("that PR's branch", "never on a later one", "one job", "#91", "#92"):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, text)
 
     def test_review_fixes_may_land_on_the_open_earlier_branch_that_added_the_line(self):
-        # A stacked PR's diff can show an earlier branch's lines. The gotcha sends the fix there while that PR is
+        # A PR's diff in a chain can show an earlier branch's lines. The gotcha sends the fix there while that PR is
         # open, and back to the reviewed PR's branch once it has merged.
-        text = gotcha(STACK_GOTCHA)
+        text = gotcha(CHAIN_GOTCHA)
         for phrase in ("`git blame`", "earlier PR", "still open", "has already merged"):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, text)
@@ -74,16 +74,16 @@ class StackGotchaTest(unittest.TestCase):
         gotchas = read(SKILL_DIR / "references" / "gotchas.md")
         self.assertNotIn("- **Fix where the line was added.**", gotchas)
         self.assertNotIn("- **Fix a PR's findings on its own branch.**", gotchas)
-        for title in ("Review each PR", "Merge fixes through the stack"):
+        for title in ("Review each PR", "Merge fixes through the chain"):
             _, _, body = build_step(title)
             with self.subTest(step=title):
-                self.assertIn(f"**{STACK_GOTCHA[:-1]}**", body)
+                self.assertIn(f"**{CHAIN_GOTCHA[:-1]}**", body)
                 self.assertNotIn("the earlier branch whose commit added the line", body)
                 self.assertNotIn("Fix each line on the branch that added it", body)
 
-    def test_the_gotcha_sits_under_the_stack(self):
-        stack = read(SKILL_DIR / "references" / "gotchas.md").split("\n## The stack\n", 1)[1].split("\n## ", 1)[0]
-        self.assertIn(f"- **{STACK_GOTCHA}**", stack)
+    def test_the_gotcha_sits_under_the_chain(self):
+        chain = read(SKILL_DIR / "references" / "gotchas.md").split("\n## The chain\n", 1)[1].split("\n## ", 1)[0]
+        self.assertIn(f"- **{CHAIN_GOTCHA}**", chain)
 
 
 class DeferredFindingsTest(unittest.TestCase):

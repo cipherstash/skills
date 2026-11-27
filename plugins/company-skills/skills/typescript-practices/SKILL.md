@@ -51,7 +51,7 @@ Rules for writing TypeScript, and the JavaScript files in a TypeScript repositor
 - Parse untrusted input with a schema where it enters. Never cast it to a type.
 - Never copy keys from untrusted input into a plain object one by one, or build a regular expression that can run for a very long time on it.
 - Keep keys, tokens, and plaintext out of logs and errors. Compare secrets with `crypto.timingSafeEqual`.
-- Copy a `Uint8Array` with `slice()` before passing it to an async native call.
+- Copy a `Uint8Array` with `new Uint8Array(bytes)` before passing it to an async native call. On a `Buffer`, `slice()` returns a view, not a copy.
 
 ### Dependencies
 

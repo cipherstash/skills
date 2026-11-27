@@ -1,0 +1,54 @@
+Python practices skill for Claude Code and Codex
+
+This directory contains material adapted from the python-pro skill in
+Jeffallan/claude-skills (https://github.com/Jeffallan/claude-skills), path
+skills/python-pro, at commit 36f3fe8052da7c57083783268c6ea3265d075265
+(release v0.4.20). That material is distributed under the MIT License,
+copied in LICENSE.
+
+The references are written fresh. They take in only the upstream examples
+listed below, which the audit on cipherstash/skills#64 kept. Each example now
+lives as Python source in examples/, with a test, where CI runs the Python
+check suite over it. Defect numbers are the audit's.
+
+Modifications in this copy
+--------------------------
+
+CipherStash made these changes:
+
+- references/typing.md takes these examples from
+  skills/python-pro/references/type-system.md:
+  These five follow upstream's examples, which the audit found no defect in.
+  Their names and docstrings are this project's own:
+  - a Protocol with a class that satisfies it by its shape
+    (examples/src/practices/protocols.py);
+  - a TypedDict with a NotRequired key (examples/src/practices/records.py);
+  - a builder whose methods return Self (examples/src/practices/builder.py);
+  - an @overload whose return type follows its argument type
+    (examples/src/practices/overloads.py);
+  - assert_never for an exhaustive match
+    (examples/src/practices/exhaustive.py).
+  These four are fixed:
+  - the ParamSpec decorator (examples/src/practices/decorators.py), fixed
+    for D9: it is written in PEP 695 syntax, def logged[**P, R], with no
+    TypeVar or ParamSpec declaration, which ruff's UP047 rejects at 3.12;
+  - the generic Cache[K, V] (examples/src/practices/cache.py), fixed for D9:
+    it is written as class Cache[K, V] with no TypeVar or Generic base,
+    which ruff's UP046 rejects at 3.12;
+  - the custom type guard (examples/src/practices/guards.py), fixed for D8:
+    it returned bool, which narrows nothing; it now returns
+    TypeIs[list[str]], from typing_extensions below Python 3.13;
+  - the mypy configuration (the [tool.mypy] table in examples/pyproject.toml),
+    fixed for D11: python_version is 3.12, not 3.11, and strict = true
+    replaces the flags that strict already sets.
+  Upstream's other type-system.md examples are not taken, so D6 (NumT bound
+  to numbers.Number) and D7 (the type[MISSING] sentinel) leave with them.
+  Every TypeAlias and TypeVar generic upstream writes is replaced by the
+  PEP 695 rule (D9).
+- references/errors.md is new, except the library logger that adds only a
+  NullHandler (examples/src/practices/__init__.py), which follows the
+  example in skills/python-pro/references/standard-library.md. The audit
+  found no defect in it.
+- references/checks.md, assets/pyproject-checks.toml, SKILL.md and the tests
+  are new. Upstream's frontmatter metadata, persona, workflow, output
+  templates, and links to skills that do not exist here are dropped.

@@ -1,0 +1,50 @@
+# The python-practices examples project. The references quote its source, and the
+# validate workflow's python-check-suite job runs the Python check suite over it.
+# Every table after [build-system] is a copy of assets/pyproject-checks.toml.
+
+[project]
+name = "practices"
+version = "0.1.0"
+description = "Examples quoted by the python-practices references."
+requires-python = ">=3.12"
+dependencies = ["typing-extensions>=4.10"]
+
+[build-system]
+requires = ["uv_build==0.13.10"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "hypothesis==6.170.17",
+    "mypy==2.4.1",
+    "pip-audit==2.10.1",
+    "pytest==9.2.0",
+    "pytest-cov==7.1.0",
+    "ruff==0.17.6",
+]
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF", "PT",
+    "ASYNC", "DTZ", "BLE", "TRY", "PTH", "PGH", "C4", "PERF", "RET", "TC",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+
+[tool.pytest.ini_options]
+addopts = ["--strict-markers", "--strict-config"]
+testpaths = ["tests"]
+xfail_strict = true
+filterwarnings = ["error"]
+
+[tool.coverage.run]
+branch = true
+source = ["src", "tests"]
+
+[tool.coverage.report]
+show_missing = true

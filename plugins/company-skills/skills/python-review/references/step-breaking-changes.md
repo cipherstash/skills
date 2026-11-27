@@ -29,11 +29,11 @@ Record which one gave the result. With no griffe step in CI, the report's adviso
 ## What breaks callers
 
 - A public name removed or renamed, including one dropped from `__all__` or from `__init__.py`.
-- A parameter removed, renamed, or made required. A keyword parameter made positional-only, or parameters reordered where callers pass them by position.
+- A parameter removed, renamed, or made required, including a new parameter with no default. A keyword parameter made positional-only, or parameters reordered where callers pass them by position.
 - A parameter's type narrowed, or a return type widened, such as `-> str` to `-> str | None`.
 - A method added to a `Protocol` that callers implement, or an abstract method added to a base class they subclass.
 - An exception the function raised replaced by one of a type callers do not catch.
-- An entry point removed or renamed, `requires-python` raised, or an extra removed.
+- An entry point removed or renamed, `requires-python` raised, an extra removed, or a dependency's lower bound raised, which drops its old versions.
 - Behaviour a caller relies on that the docstring promised. Report that as a correctness finding and mention it here.
 
 Additions are not breaking: a new name, a new optional keyword parameter, or a parameter type widened.

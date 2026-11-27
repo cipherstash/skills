@@ -40,7 +40,7 @@ The practices references hold the rules and commands. This file says what to loo
 
 ## A lockfile out of step
 
-`uv lock --check --offline` is the evidence. It reports whether `uv.lock` matches `pyproject.toml`, writes nothing, and reads only uv's cache. For a script with a PEP 723 header, the same check is `uv lock --check --offline --script <file>`, against `<file>.lock`. `checks.md` runs both.
+`uv lock --check --offline` is the evidence. It reports whether `uv.lock` matches `pyproject.toml`, writes nothing, and reads only uv's cache. It runs without `UV_NO_CONFIG`, so it reads the resolver settings in `[tool.uv]` and `uv.toml`, as CI does. When the change edits those settings, `checks.md` does not run it, and the review reads the `uv.lock` diff. For a script with a PEP 723 header, the same check is `uv lock --check --offline --script <file>`, against `<file>.lock`. `checks.md` runs both.
 
 `uv lock --check` resolves the project's own metadata. When that metadata is dynamic, or comes from a build backend, it runs the backend.
 

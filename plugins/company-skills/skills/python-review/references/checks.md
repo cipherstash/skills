@@ -26,11 +26,11 @@ Run every tool by its absolute path, as `<tool dir>/bin/<tool>`, never as `pytho
 | `PYTHONSAFEPATH=1` | Python never puts the working directory or the script's directory first on `sys.path`. |
 | `PYTHONDONTWRITEBYTECODE=1` | No `__pycache__` is written into the worktree. |
 | `PIP_NO_INPUT=1` | pip never stops to ask a question. |
-| `UV_NO_CONFIG=1` | uv reads no `uv.toml` and no `[tool.uv]` table, so the change cannot pick its index, its Python, or its settings. |
+| `UV_NO_CONFIG=1` | uv reads no `uv.toml` and no `[tool.uv]` table, so the change cannot pick its index, its Python, or its settings. Set for every uv command except the lockfile check, as [The checks](#the-checks) says. |
 | `UV_OFFLINE=1` | uv downloads nothing. A package missing from uv's cache fails the command, which is a limit. |
 | `UV_PYTHON_DOWNLOADS=never` | uv never downloads a Python to match `requires-python` or `.python-version`. |
 
-The one exception is the fetch of a suite tool, as [Fetching a suite tool](#fetching-a-suite-tool) describes.
+There are two exceptions. The fetch of a suite tool runs as [Fetching a suite tool](#fetching-a-suite-tool) describes. The lockfile check runs without `UV_NO_CONFIG`, as [The checks](#the-checks) describes.
 
 Write every file a check produces, such as a cache or a coverage file, to a temporary directory outside the repository and outside the worktree (`mktemp -d`), and remove it with the worktree. Pass each tool its cache option, as the checks table below does, so `git -C <worktree> status --short` shows the same before and after each check.
 
@@ -92,11 +92,13 @@ From the base commit's pytest configuration, take only these options: `testpaths
 | Lint | `ruff check --no-cache --no-fix --output-format=concise --config <config> <changed files>` | Error handling, correctness, concurrency and async, naming and style, security, performance | Rule violations at file and line, such as `B904`, `RUF006`, `S501`, and `PERF401` |
 | Type check | `mypy --strict --cache-dir=<tmp>/mypy --python-version <floor> --config-file <config> <scope>` | Typing, correctness, error handling | Type errors at file and line, such as `no-any-return` and `unused-ignore`. Errors that a missing dependency causes are a limit |
 | Tests with coverage | `COVERAGE_FILE=<tmp>/.coverage pytest -p no:cacheprovider --cov --cov-branch --cov-report=term-missing <testpaths>`, only as [Before running tests](#before-running-tests) allows | Testing and coverage, correctness, error handling | Failing tests, and coverage per file |
-| Lockfile | `uv lock --check --offline --directory <module root>` for a project; `uv lock --check --offline --script <file>` for a script with a PEP 723 header | Dependency management | A `uv.lock` or `<file>.lock` that does not match its metadata, or is missing. Waits for a yes when the change touches the build backend or dynamic metadata |
+| Lockfile | `uv lock --check --offline --directory <module root>` for a project; `uv lock --check --offline --script <file>` for a script with a PEP 723 header | Dependency management | A `uv.lock` or `<file>.lock` that does not match its metadata, or is missing. Waits for a yes when the change touches the build backend or dynamic metadata. Not run when the change edits uv's settings |
 | Vulnerabilities | `pip-audit`, only as [Network](#network) allows | Dependency management, security | Known vulnerabilities in the locked dependencies |
 | SAST | `semgrep`, only as [Network](#network) allows | Security | Rule matches at file and line |
 
-The lockfile check runs with the settings for every command, so `UV_NO_CONFIG` and `UV_OFFLINE` hold. It writes nothing. A package missing from uv's cache fails it, which is a limit. Run it only for a module whose metadata or lockfile the change touches, or a script whose header has dependencies.
+The lockfile check runs without `UV_NO_CONFIG`. The lock depends on the resolver settings in `[tool.uv]` and `uv.toml`, such as `exclude-newer`, `prerelease`, indexes, overrides, and constraints, and CI's `uv sync --locked` reads them. Without them, `--check` reports a current lock as stale. `UV_OFFLINE=1` and `UV_PYTHON_DOWNLOADS=never` still hold, so it fetches nothing. It writes nothing. A package missing from uv's cache fails it, which is a limit. Run it only for a module whose metadata or lockfile the change touches, or a script whose header has dependencies.
+
+When the change adds, edits, or deletes a `[tool.uv]` table or a `uv.toml`, including a `[tool.uv]` table in a script's PEP 723 header, the change would pick the settings its own lock is checked with. Compare the tables at the base and the head, not the whole file, as [Configuration from the base commit](#configuration-from-the-base-commit) does. Do not run the check: record it as `not run: the change edits uv's settings`, which is a limit, and read the `uv.lock` diff instead, as `step-dependencies.md` describes. uv also reads the user's own `uv.toml`, which CI does not have. When the check fails and that file sets resolver options, the failure is a limit, not evidence.
 
 mypy and ruff each take the config from [Configuration from the base commit](#configuration-from-the-base-commit), or its replacement flags. Pass `--python-version` only when that config sets no `python_version`.
 

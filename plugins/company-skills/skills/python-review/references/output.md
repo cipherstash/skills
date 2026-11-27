@@ -48,9 +48,9 @@ Skills: `python-review`, `python-practices`
 
 Compared the public names and `__all__` of `mailer` at the base and the head; CI runs no griffe check.
 
-- Changed: `send(message: Message) -> None` is now `send(message: Message, *, retries: int) -> None` (`mailer/send.py:22`). `retries` has no default, so every existing call fails with `TypeError`.
+- Changed: `send(message: Message, *, retries: int = 3) -> None` is now `send(message: Message, *, retries: int) -> None` (`mailer/send.py:22`). `retries` lost its default, so every call that leaves it out fails with `TypeError`.
 - Added: `TemplateError`, `load_templates`.
-- Version: 2.3.0 (`[project] version`). The change needs a new major version, or a default for `retries`.
+- Version: 2.3.0 (`[project] version`). The change needs a new major version, or the default for `retries` restored.
 
 ## Coverage and limits
 
@@ -72,14 +72,14 @@ Compared the public names and `__all__` of `mailer` at the base and the head; CI
 
 ## Findings
 
-### P1 · major · `mailer/send.py:22` · new required parameter breaks every caller
+### P1 · major · `mailer/send.py:22` · optional parameter made required breaks every caller
 
 - Area: breaking changes
-- Cause: the change adds `retries` to `send` as a keyword-only parameter with no default.
-- Trigger and consequence: every caller of `send` written for 2.3.0, such as `send(message)`, raises `TypeError: send() missing 1 required keyword-only argument: 'retries'` after an upgrade to the next minor release.
+- Cause: the change removes the default `3` from `send`'s keyword-only parameter `retries`.
+- Trigger and consequence: every caller of `send` written for 2.3.0 that leaves `retries` out, such as `send(message)`, raises `TypeError: send() missing 1 required keyword-only argument: 'retries'` after an upgrade to the next minor release.
 - Rule: python-practices project structure, "making an optional parameter required ... breaks users".
 - Evidence: the signatures at the base and the head, compared (observed); `[project] version = "2.3.0"` and no major bump (observed).
-- Fix: give `retries` a default, such as `retries: int = 3`.
+- Fix: restore the default, `retries: int = 3`.
 - Source: python-review · <model ID>
 
 ### P2 · major · `mailer/templates.py:18` · decoded template map returned as `Any`

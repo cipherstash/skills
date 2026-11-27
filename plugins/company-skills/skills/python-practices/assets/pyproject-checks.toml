@@ -1,0 +1,40 @@
+# The Python check suite's configuration, from python-practices' references/checks.md.
+# Copy these tables into the project's pyproject.toml. A project may add ruff rule
+# families, but may not drop these, and its tests may ignore only S101, S105 and S106.
+# Set mypy's python_version to the lowest version in the project's requires-python.
+
+[dependency-groups]
+dev = [
+    "hypothesis==6.170.17",
+    "mypy==2.4.1",
+    "pip-audit==2.10.1",
+    "pytest==9.2.0",
+    "pytest-cov==7.1.0",
+    "ruff==0.17.6",
+]
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF", "PT",
+    "ASYNC", "DTZ", "BLE", "TRY", "PTH", "PGH", "C4", "PERF", "RET", "TC",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+
+[tool.pytest.ini_options]
+addopts = ["--strict-markers", "--strict-config"]
+testpaths = ["tests"]
+xfail_strict = true
+filterwarnings = ["error"]
+
+[tool.coverage.run]
+branch = true
+source = ["src", "tests"]
+
+[tool.coverage.report]
+show_missing = true

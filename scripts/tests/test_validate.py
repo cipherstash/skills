@@ -276,7 +276,7 @@ class PackagingTests(unittest.TestCase):
                 path.unlink()
 
     def test_bare_reference_to_another_plugins_skill_fails(self):
-        for text in ("Invoke the `python-pro` skill.\n", "Load the `python-*` skills.\n"):
+        for text in ("Invoke the `python-pro` skill.\n", "Load the `upstream-*` skills.\n"):
             with self.subTest(text=text):
                 self.add_reference(text)
                 self.check_result(1, "is not a company-skills skill")

@@ -94,6 +94,7 @@ The check suite:
 - Each reference states the minimum language version it targets. CI floats the latest stable or LTS release.
 - A language's review skill may add review areas beyond Go's ten when a suite tool gives evidence for the area and the review fixture can plant a defect in it. The spec records why.
 - Every language's drift test reads the pinned-versions table with one shared parser in `scripts/tests/`. Do not write a parser of your own. #129 adds the parser and moves Go's drift test onto it.
+- A language may add advisory checks (see [GLOSSARY.md](GLOSSARY.md#language-skills) and [ADR 0006](docs/adr/0006-advisory-checks-report-without-blocking.md)). Its `checks.md` lists each one, with its pinned version and the evidence it gives, in a `## Advisory checks` table of its own, apart from the pinned-versions table that the shared drift parser reads. The language's own drift test checks that each advisory check runs on `pull_request` at its pinned version. It does not check that the step blocks.
 
 When a check is in place:
 

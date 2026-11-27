@@ -112,6 +112,10 @@ _Avoid_: User input, external data
 A check is in place when it is a GitHub Actions step that runs on `pull_request`, blocks when it fails, covers every module except fixtures with planted defects, and pins its version. Nothing may ignore its exit status: no `continue-on-error`, even when a later step enforces its result; no `|| true`; and no other way, such as a shell without `-e` or a pipe without `pipefail`. A path-filtered trigger counts only alongside a changes job that fails closed. A version is pinned when it is exact, or fixed by a committed lockfile that CI installs frozen or locked. The language runtime floats.
 _Avoid_: Enabled, configured, present
 
+**Conditional check**:
+A check in a language's check suite that applies only to a module or crate with a named property, such as Rust's Miri for crates that contain `unsafe`. Where the property holds, the check must be in place like any other.
+_Avoid_: Optional check, tier 2
+
 **Execution surface**:
 The files and flags through which a change runs its own code when a tool builds, lints, or tests it, such as Python's `conftest.py`, Rust's `build.rs`, or Go's `-toolexec`. Each language's skills list theirs. When a change touches its execution surface, an agent runs no tool that would run the change's code until the user says yes.
 _Avoid_: Attack surface, hooks

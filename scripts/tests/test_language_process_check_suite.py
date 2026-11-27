@@ -191,8 +191,10 @@ class OptionTwoTest(unittest.TestCase):
     """With tickets 1 and 2 dropped, no ticket builds the suite, so the paragraph must say what happens to it."""
 
     def test_it_says_the_pair_has_no_check_suite(self):
+        # #153: CONTRIBUTING.md exempts no language any more, so the shared-text ticket must state the exemption.
         text = option_two()
-        for phrase in ("no check suite", "Rust exemption", "CONTRIBUTING.md"):
+        self.assertNotIn("Rust exemption", text)
+        for phrase in ("no check suite", "the shared-text ticket's CONTRIBUTING.md change", "exempt"):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, text)
 

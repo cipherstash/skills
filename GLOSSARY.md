@@ -109,8 +109,12 @@ Bytes that come from outside the process, such as a request body, a file, or a m
 _Avoid_: User input, external data
 
 **In place**:
-A check is in place when it is a GitHub Actions step that runs on `pull_request`, blocks when it fails, covers every module except fixtures with planted defects, and pins its version. Nothing may ignore its exit status: no `continue-on-error`, even when a later step enforces its result; no `|| true`; and no other way, such as a shell without `-e` or a pipe without `pipefail`. A path-filtered trigger counts only alongside a changes job that fails closed. A version is pinned when it is exact, or fixed by a committed lockfile that CI installs frozen or locked. The language runtime floats.
+A check is in place when it is a GitHub Actions step that runs on `pull_request`, blocks when it fails, covers every module except fixtures with planted defects, and pins its version. Nothing may ignore its exit status: no `continue-on-error`, even when a later step enforces its result; no `|| true`; and no other way, such as a shell without `-e` or a pipe without `pipefail`. A path-filtered trigger counts only alongside a changes job that fails closed. A version is pinned when it is exact, or fixed by a committed lockfile that CI installs frozen or locked. The language runtime floats. Each language's `checks.md` says what counts as a module for that language, such as a Go module, or a Python project or script.
 _Avoid_: Enabled, configured, present
+
+**Advisory check**:
+A check that a language's `checks.md` pins and that CI runs on every `pull_request`, but that never blocks the merge. A review quotes its result as evidence, as it does for a check suite check, and judges what the result means. An advisory check is not part of the check suite. It does not count toward **In place**, and the rules against ignoring an exit status do not apply to it. When a repository lacks an advisory check that its language's `checks.md` lists, the review reports it as one line in its own part of the report, never as a finding.
+_Avoid_: Optional check, soft gate, non-blocking check
 
 **Execution surface**:
 The files and flags through which a change runs its own code when a tool builds, lints, or tests it, such as Python's `conftest.py`, Rust's `build.rs`, or Go's `-toolexec`. Each language's skills list theirs. When a change touches its execution surface, an agent runs no tool that would run the change's code until the user says yes.

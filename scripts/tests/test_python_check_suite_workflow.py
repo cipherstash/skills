@@ -6,6 +6,7 @@ The checks every language shares come from language_drift.DriftTests; the rest a
 griffe advisory check, which runs on every pull request but never blocks.
 """
 
+import os
 from pathlib import Path
 import re
 import tempfile
@@ -45,6 +46,23 @@ def advisory_pins():
         path = Path(scratch, "checks.md")
         path.write_text("## Pinned versions\n" + section, encoding="utf-8")
         return language_drift.read_pins(path)
+
+
+def python_projects(root):
+    """Return the directories under root, relative to it, that hold a pyproject.toml project.
+
+    The walk skips .git and .venv, and any directory below root that holds its own .git, such as a nested git
+    worktree: that is another checkout, not part of this one.
+    """
+    projects = set()
+    for directory, subdirectories, files in os.walk(root):
+        here = Path(directory)
+        subdirectories[:] = [
+            name for name in subdirectories if name not in (".git", ".venv") and not (here / name / ".git").exists()
+        ]
+        if "pyproject.toml" in files:
+            projects.add(here.relative_to(root).as_posix())
+    return projects
 
 
 def commands_in(job, directory):
@@ -90,11 +108,30 @@ class PythonCheckSuiteWorkflowTests(language_drift.DriftTests, unittest.TestCase
         self.assertNotIn("defaults", WORKFLOW)
         self.assertEqual(WORKFLOW["jobs"][SUITE_JOB]["defaults"], {"run": {"working-directory": EXAMPLES}})
 
-    def test_uses_the_latest_stable_cpython_and_no_other(self):
-        self.assertEqual(step_using(SUITE_JOB, "actions/setup-python")["with"]["python-version"], "3.x")
-        self.assertNotIn("allow-prereleases", step_using(SUITE_JOB, "actions/setup-python")["with"])
+    def test_runs_the_project_on_the_latest_stable_cpython(self):
+        # The first setup-python step sets the CPython that every uv step runs the project on.
+        steps = WORKFLOW["jobs"][SUITE_JOB]["steps"]
+        setups = steps_using(SUITE_JOB, "actions/setup-python")
+        self.assertTrue(setups, f"no step of {SUITE_JOB} uses actions/setup-python")
+        self.assertEqual(setups[0]["with"], {"python-version": "3.x"})
+        first_uv = next(i for i, step in enumerate(steps) if (step.get("run") or "").startswith("uv "))
+        self.assertLess(steps.index(setups[0]), first_uv)
         # uv uses the CPython that setup-python installed, never one it downloads itself.
         self.assertEqual(WORKFLOW["jobs"][SUITE_JOB]["env"]["UV_PYTHON_DOWNLOADS"], "never")
+
+    def test_runs_semgrep_on_the_go_jobs_fixed_cpython_after_every_uv_step(self):
+        # semgrep-core can crash on a CPython newer than semgrep supports, so semgrep runs on the fixed CPython the
+        # Go job uses, set up after the last uv step so the project still runs on the latest stable release.
+        steps = WORKFLOW["jobs"][SUITE_JOB]["steps"]
+        setups = steps_using(SUITE_JOB, "actions/setup-python")
+        self.assertEqual(len(setups), 2, f"want a latest and a fixed setup-python step in {SUITE_JOB}")
+        go_setup = step_using("go-check-suite", "actions/setup-python")
+        self.assertEqual(setups[1]["with"], go_setup["with"])
+        self.assertNotEqual(setups[1]["with"]["python-version"], "3.x")
+        install = next(i for i, step in enumerate(steps) if "pip install semgrep" in (step.get("run") or ""))
+        last_uv = max(i for i, step in enumerate(steps) if "uv " in (step.get("run") or ""))
+        self.assertLess(last_uv, steps.index(setups[1]))
+        self.assertLess(steps.index(setups[1]), install)
 
     def test_installs_uv_at_the_pinned_version(self):
         self.assertEqual(step_using(SUITE_JOB, "astral-sh/setup-uv")["with"]["version"], PINS["uv"])
@@ -150,12 +187,19 @@ class PythonCheckSuiteWorkflowTests(language_drift.DriftTests, unittest.TestCase
     def test_covers_every_python_project_in_the_repository(self):
         # Every pyproject.toml project is a module that gets the full suite, and the suite runs over the examples
         # project only, so a project anywhere else would go unchecked.
-        projects = {
-            path.parent.relative_to(REPO).as_posix()
-            for path in REPO.rglob("pyproject.toml")
-            if not {".git", ".venv"} & set(path.relative_to(REPO).parts)
-        }
-        self.assertEqual(projects, {EXAMPLES})
+        self.assertEqual(python_projects(REPO), {EXAMPLES})
+
+    def test_leaves_out_projects_in_a_nested_checkout(self):
+        # A git worktree inside the clone, such as .claude/worktrees/<id>/, holds a copy of every project, but it is
+        # another checkout, not part of this one.
+        with tempfile.TemporaryDirectory() as scratch:
+            root = Path(scratch)
+            (root / ".git").mkdir()
+            for project in ("app", ".claude/worktrees/one/app", "vendored/.git/app"):
+                (root / project).mkdir(parents=True)
+                (root / project / "pyproject.toml").write_text("", encoding="utf-8")
+            (root / ".claude/worktrees/one/.git").write_text("gitdir: elsewhere\n", encoding="utf-8")
+            self.assertEqual(python_projects(root), {"app"})
 
     def test_lints_and_type_checks_every_python_file_in_the_project(self):
         # ruff and mypy are given the project, and src and tests, so every source file must sit in one of them.

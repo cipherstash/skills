@@ -4,8 +4,8 @@ This reference targets Python 3.12. Read the project's `requires-python` first. 
 
 ## Rules
 
-- Model a record as a `@dataclass`. Make it `frozen=True` unless something must change it after it is built. A frozen dataclass is hashable, and safe to share between tasks and threads. Change one with `dataclasses.replace`.
-- Give a dataclass field a mutable default only through `field(default_factory=...)`. A plain `= []` shares one list between every instance, and `dataclass` rejects it. Never give a function parameter a mutable default either: ruff's `B006` flags it. Default to `None` and build the value inside.
+- Model a record as a `@dataclass`. Make it `frozen=True` unless something must change it after it is built. A frozen dataclass whose fields are all immutable, such as tuples and other frozen dataclasses, is hashable and safe to share between tasks and threads. Freezing is shallow: a list field can still change, and hashing the instance raises `TypeError`. Change one with `dataclasses.replace`.
+- Give a dataclass field a mutable default only through `field(default_factory=...)`. A plain `= []` would share one list between every instance, so `dataclass` rejects it when the class is defined. Never give a function parameter a mutable default either: ruff's `B006` flags it. Default to `None` and build the value inside.
 - Use `TypedDict` for a dict whose shape is fixed by something outside your code, such as JSON. Use a dataclass for your own records. [typing.md](typing.md) covers `TypedDict`.
 - Use an `Enum` for a closed set of values, not string constants. Read a value back with `Status(value)`, which raises `ValueError` for an unknown one. Match on the members, and end the match with `assert_never`, as [typing.md](typing.md) shows.
 - Validate in `__post_init__`, and raise there, so no invalid instance exists.

@@ -42,9 +42,9 @@ claude plugin update company-skills@company
 
 Updating from a release before 0.15.0 leaves the removed `golang-pro` plugin installed but failing to load. Uninstall it as described in [Bundled language practice skills](#bundled-language-practice-skills).
 
-The release that adds `python-practices` and `python-review` removes the `python-pro` plugin from the marketplace. If you installed `python-pro`, updating leaves it installed but failing to load. Uninstall it as described in [Bundled language practice skills](#bundled-language-practice-skills).
+The release that adds `python-practices` and `python-review` removes the `python-pro` plugin from the marketplace. If `python-pro` is installed, whether you installed it by name or 0.12.0 to 0.18.0 installed it as a dependency, updating leaves it installed but failing to load, and `claude plugin prune` removes nothing until it is gone. Uninstall it as described in [Bundled language practice skills](#bundled-language-practice-skills).
 
-Updating from 0.12.0 to 0.18.0 keeps the five plugins those releases installed as dependencies, but Claude Code now treats them as orphans, so `claude plugin prune` removes them. To keep one, run its `claude plugin install` line above, which marks it as installed by you. Checked with Claude Code 2.1.332 by updating 0.18.0 to 0.18.1.
+Updating from 0.12.0 to 0.18.0 keeps the five plugins those releases installed as dependencies, but Claude Code now treats them as orphans, so `claude plugin prune` removes them. One of the five, `python-pro`, cannot be kept: once you take the release that removes it, uninstall it first, or `claude plugin prune` removes nothing. To keep any of the other four, run its `claude plugin install` line above, which marks it as installed by you. Checked with Claude Code 2.1.332 by updating 0.18.0 to 0.18.1.
 
 Updating company-skills does not update the bundled plugins. When a release moves the pinned commit of a bundled plugin, update that plugin by name as well:
 
@@ -144,13 +144,13 @@ claude plugin uninstall golang-pro@company
 
 `claude plugin prune` works again once `golang-pro` is gone. It removes any other auto-installed dependency that nothing needs. Add `--dry-run` to list them first. Checked with Claude Code 2.1.329 by updating 0.13.0 to a pre-release build of this release, made before it was renumbered from 0.14.0 to 0.15.0.
 
-The release that adds `python-practices` and `python-review` removes the bundled `python-pro` plugin, which they replace. If you installed `python-pro`, updating leaves it installed, but it no longer loads, because the marketplace no longer lists it: `claude plugin list` reports it as failed to load, with `Plugin python-pro not found in marketplace company`. `claude plugin prune` does not remove it, because you installed it by name. Uninstall it by name:
+The release that adds `python-practices` and `python-review` removes the bundled `python-pro` plugin, which they replace. `python-pro` is installed if you installed it by name, or if company-skills 0.12.0 to 0.18.0 installed it as a dependency and you have not run `claude plugin prune` since. Either way, updating leaves it installed, but it no longer loads, because the marketplace no longer lists it: `claude plugin list` reports it as failed to load, with `Plugin python-pro not found in marketplace company`. While it is installed, `claude plugin prune` removes nothing and reports `cannot determine orphans`. Uninstall it by name:
 
 ```sh
 claude plugin uninstall python-pro@company
 ```
 
-Checked with Claude Code 2.1.332 by installing `python-pro` by name from a local copy of the marketplace, then removing it from the catalog and refreshing the marketplace.
+`claude plugin prune` works again once `python-pro` is gone. Checked with Claude Code 2.1.332 by installing `python-pro` by name from a local copy of the marketplace, then removing it from the catalog and refreshing the marketplace. The prune block was checked with Claude Code 2.1.332 on a test marketplace, by installing a plugin that pulls in a dependency, then dropping the dependency from the plugin and from the catalog.
 
 ## Develop locally
 

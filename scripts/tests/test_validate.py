@@ -388,6 +388,24 @@ class ReplacedUpstreamPluginTests(unittest.TestCase):
                 for skill in replacements:
                     self.assertIn(f"`{skill}`", bundled)
 
+    def test_replaced_plugin_note_says_prune_is_blocked_until_it_is_uninstalled(self):
+        # A replaced plugin left installed fails to load, and then `claude plugin prune` removes nothing.
+        bundled = readme_section("Bundled language practice skills")
+        for plugin in self.REPLACED:
+            with self.subTest(plugin=plugin):
+                notes = [p for p in bundled.split("\n\n") if f"Plugin {plugin} not found in marketplace company" in p]
+                self.assertEqual(len(notes), 1, f"no single uninstall note for {plugin}")
+                self.assertIn("cannot determine orphans", notes[0])
+
+    def test_python_pro_note_covers_installs_made_as_a_dependency(self):
+        # company-skills 0.12.0 to 0.18.0 installed python-pro as a dependency, so users who never chose it have it.
+        bundled = readme_section("Bundled language practice skills")
+        note = next(p for p in bundled.split("\n\n") if "Plugin python-pro not found in marketplace company" in p)
+        self.assertIn("0.12.0 to 0.18.0", note)
+        self.assertNotIn("because you installed it by name", note)
+        update = next(p for p in (REPO / "README.md").read_text().split("\n\n") if p.startswith("Updating from 0.12.0 to 0.18.0"))
+        self.assertIn("`python-pro`", update, "the prune paragraph must say python-pro cannot be kept")
+
 
 if __name__ == "__main__":
     unittest.main()

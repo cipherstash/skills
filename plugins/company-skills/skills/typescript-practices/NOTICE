@@ -19,7 +19,8 @@ posted on cipherstash/skills#65.
   - the branded type from SKILL.md is reformatted by Biome and exported,
     and getOrder has an explicit return type and returns a lookup key
     instead of an empty body, so that it compiles under isolatedDeclarations
-    and passes the lint suite;
+    and passes the lint suite, and its constructors have a comment saying
+    why their casts hold, as the skill's rules require;
   - the exhaustive switch from SKILL.md is reformatted by Biome and
     exported, its isSuccess guard is left out, and its error message passes
     the never value through JSON.stringify, which oxlint's

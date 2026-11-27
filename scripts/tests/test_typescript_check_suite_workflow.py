@@ -20,6 +20,7 @@ REPO = language_drift.REPO
 PRACTICES = REPO / "plugins/company-skills/skills/typescript-practices"
 EXAMPLES = "plugins/company-skills/skills/typescript-practices/examples"
 LOCKFILE = f"{EXAMPLES}/pnpm-lock.yaml"
+REVIEW_FIXTURES = "plugins/company-skills/skills/typescript-review/tests/fixtures"
 WORKFLOW = yaml.safe_load((REPO / ".github/workflows/validate.yml").read_text())
 SUITE_JOB = "typescript-check-suite"
 SUITE = WORKFLOW["jobs"].get(SUITE_JOB, {"steps": []})
@@ -200,9 +201,17 @@ class CheckSuiteWorkflowTests(language_drift.DriftTests, unittest.TestCase):
         self.assertTrue(test_files)
         self.assertEqual(semgrep_ignored(ignore.read_text(encoding="utf-8"), test_files), [])
 
-    def test_covers_every_package(self):
-        # Every check runs over the examples package only, so a package anywhere else would go unchecked.
-        self.assertEqual(package_directories(), {EXAMPLES})
+    def test_leaves_out_the_typescript_review_fixture(self):
+        # The fixture holds planted defects, so the suite would fail on it.
+        self.assertNotIn("typescript-review", yaml.safe_dump(SUITE))
+
+    def test_covers_every_package_except_the_typescript_review_fixture(self):
+        # Every check runs over the examples package only, so a package anywhere else would go unchecked. The
+        # typescript-review fixture is the one exception: a check is in place when it covers every package except
+        # fixtures with planted defects.
+        fixtures = REVIEW_FIXTURES + "/"
+        self.assertEqual({d for d in package_directories() if not d.startswith(fixtures)}, {EXAMPLES})
+        self.assertTrue(any(d.startswith(fixtures) for d in package_directories()), "the fixture has no package.json")
 
     def test_tsconfig_template_sets_the_required_compiler_settings(self):
         options = read_json(PRACTICES / "assets/tsconfig.json")["compilerOptions"]

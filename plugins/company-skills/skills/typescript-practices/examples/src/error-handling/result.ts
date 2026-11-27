@@ -8,8 +8,8 @@ export type PortFailure = {
 };
 
 export function parsePort(input: string): Result<number, PortFailure> {
-  const port = Number(input);
-  if (!Number.isInteger(port)) {
+  // Number() also accepts "", " 80 ", "0x50", and "1e3", so check the text first.
+  if (!/^[0-9]+$/.test(input)) {
     return {
       failure: {
         type: "NotANumber",
@@ -17,6 +17,7 @@ export function parsePort(input: string): Result<number, PortFailure> {
       },
     };
   }
+  const port = Number(input);
   if (port < 1 || port > 65535) {
     return {
       failure: {

@@ -31,7 +31,7 @@ export async function poll(
 - The caller makes the signal: `AbortSignal.timeout(ms)` for a deadline, an `AbortController` to cancel by hand, and `AbortSignal.any([a, b])` for whichever comes first.
 - When the signal aborts, the waiting call rejects. Node's own APIs reject with an error named `AbortError` whose `cause` is the signal's `reason`. `fetch` rejects with the `reason` itself, which `AbortSignal.timeout` makes a `TimeoutError`. Let the rejection reach the caller. Catch it only to clean up, then rethrow it.
 - In a loop of steps that take no signal, call `signal.throwIfAborted()` before each step.
-- Remove an `abort` event listener when the work finishes, or pass `{ once: true }`, so a long-lived signal does not keep every listener alive.
+- Remove an `abort` event listener in a `finally` when the work finishes. Or register it with `{ signal }` from an `AbortController` made for the call, and abort that controller when the work finishes. Otherwise a long-lived signal that never aborts keeps every listener alive. `{ once: true }` does not prevent this: it removes the listener only after the event fires.
 - A public function may make the signal optional, as `fetch` does. Under `exactOptionalPropertyTypes`, declare it as `signal?: AbortSignal | undefined` in an options object if callers pass `undefined` through.
 
 ## `Promise.all` or `Promise.allSettled`

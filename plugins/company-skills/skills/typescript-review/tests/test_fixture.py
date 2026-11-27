@@ -679,7 +679,8 @@ class VersionTest(unittest.TestCase):
         body = step(3, "Read the TypeScript version and compiler settings.")
         self.assertIn("before applying any rule that depends on them", body)
         for setting in ("`strict`", "`noUncheckedIndexedAccess`", "`exactOptionalPropertyTypes`",
-                        "`useUnknownInCatchVariables`", "`extends`", "`lib`"):
+                        "`useUnknownInCatchVariables`", "`verbatimModuleSyntax`", "`isolatedDeclarations`",
+                        "`module`", "`extends`", "`lib`"):
             with self.subTest(setting=setting):
                 self.assertIn(setting, body)
         self.assertIn("`typescript`", body)
@@ -744,6 +745,15 @@ class ChecksTest(unittest.TestCase):
         for flag in ("`--fix`", "`--write`", "`--fix-dangerously`"):
             with self.subTest(flag=flag):
                 self.assertIn(flag, never)
+
+    def test_biome_checks_formatting_without_writing(self):
+        # `biome lint` runs the linter only, so it passes an unformatted file. The Lint row and step-naming promise
+        # formatting findings, so the Biome command must be one that checks formatting and writes nothing.
+        biome = section("references/checks.md", "Biome", level=3)
+        self.assertIn("`<tools>/biome ci --config-path=<worktree root> <changed files>`", biome)
+        self.assertNotIn("`<tools>/biome lint", biome)
+        self.assertIn("checks formatting", biome)
+        self.assertIn("https://biomejs.dev/reference/cli", biome)
 
     def test_runs_the_changes_tests_only_when_the_user_says_yes(self):
         tests = section("references/checks.md", "Before running tests")
@@ -848,6 +858,12 @@ class BreakingChangesStepTest(unittest.TestCase):
         self.assertIn("--declarationDir <tmp>/", rows["Declaration comparison"])
         self.assertIn("`publint --strict`", rows["Package shape"])
         self.assertIn("`attw --pack .", rows["Package shape"])
+
+    def test_reading_gives_the_declarations_only_under_isolated_declarations(self):
+        evidence = section("references/step-breaking-changes.md", "Evidence")
+        self.assertIn("only when step 3 recorded `isolatedDeclarations` on", evidence)
+        self.assertIn("limit of the API comparison", evidence)
+        self.assertNotIn("which a published package sets, every export states its type", evidence)
 
     def test_the_declaration_comparison_is_the_one_tsc_that_writes(self):
         never = section("references/checks.md", "Commands the review never runs")

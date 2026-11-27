@@ -59,7 +59,7 @@ A new package publishes ESM only. Its `exports` map names each entry point, with
 - Biome formats every file. Do not format by hand or argue about layout in review.
 - Name types, interfaces, and classes in `PascalCase`, and functions, values, and parameters in `camelCase`. Do not prefix an interface with `I`. Name a type parameter `T`, or a word starting with `T`, such as `TKey`.
 - Write an acronym as a word, such as `keyId`, `parseJson`, and `HttpClient`.
-- Name a file in `kebab-case`, after what it exports, such as `all-settled.ts`.
+- Name a file in `kebab-case`, after what it does, such as `all-settled.ts`.
 - Use named exports. A default export is only for a file that a tool requires to have one, such as `vitest.config.ts`.
 - Name a boolean as a question, such as `isValid` or `hasKey`. Take a `readonly` array as a parameter you do not change.
 

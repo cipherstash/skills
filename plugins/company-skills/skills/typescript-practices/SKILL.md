@@ -51,7 +51,7 @@ Rules for writing TypeScript, and the JavaScript files in a TypeScript repositor
 - Parse untrusted input with a schema where it enters. Never cast it to a type.
 - Never copy keys from untrusted input into a plain object one by one, or build a regular expression that can run for a very long time on it.
 - Keep keys, tokens, and plaintext out of logs and errors. Compare secrets with `crypto.timingSafeEqual`.
-- Copy a `Uint8Array` with `slice()` before passing it to an async native call.
+- Copy a `Uint8Array` with `new Uint8Array(bytes)` before passing it to an async native call. On a `Buffer`, `slice()` returns a view, not a copy.
 
 ### Dependencies
 
@@ -87,4 +87,4 @@ Read the reference for each area the change touches. Each one states the TypeScr
 | [references/project-structure.md](references/project-structure.md) | A new package, `package.json` `type`, `files`, and `exports`, ESM or CommonJS, imports and module resolution, `tsconfig` files and `paths`, `isolatedDeclarations`, publint and attw, names, files, exports, and documentation comments |
 | [references/checks.md](references/checks.md) | The checks CI runs on every pull request: `tsc`, Biome, oxlint, Vitest with coverage, osv-scanner, semgrep, publint and attw, property tests for code that parses untrusted input, their pinned versions, and the files that run code during a check |
 
-The templates in `assets/` are [tsconfig.json](assets/tsconfig.json), [biome.json](assets/biome.json), and [oxlintrc.json](assets/oxlintrc.json), for oxlint.
+The templates in `assets/` are [tsconfig.json](assets/tsconfig.json), [biome.json](assets/biome.json), and [oxlintrc.json](assets/oxlintrc.json), for oxlint. Save the oxlint copy as `.oxlintrc.json` at the package or repository root: oxlint finds that name by itself, but not `oxlintrc.json`, and without it the type-aware rules are off.

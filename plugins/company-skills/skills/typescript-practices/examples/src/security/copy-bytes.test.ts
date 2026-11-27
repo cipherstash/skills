@@ -20,3 +20,12 @@ test("the native call gets a buffer that holds only the bytes", async () => {
   const sent = await encrypt(pool.subarray(1, 3), nativeEncrypt);
   expect(sent.buffer.byteLength).toBe(2);
 });
+
+test("a Buffer is copied too, though its own slice() is a view", async () => {
+  const plaintext = Buffer.from([1, 2, 3]);
+  const encrypting = encrypt(plaintext, nativeEncrypt);
+  plaintext.fill(0);
+  const sent = await encrypting;
+  expect(sent).toEqual(new Uint8Array([1, 2, 3]));
+  expect(sent.buffer.byteLength).toBe(sent.length);
+});

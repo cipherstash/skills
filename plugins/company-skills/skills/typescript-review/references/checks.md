@@ -107,7 +107,7 @@ Biome only reads code. Run it only with the base commit's configuration:
 
 1. If the change adds, edits, renames, or deletes a Biome configuration file anywhere in the repository (`biome.json` or `biome.jsonc`), or a file the base configuration names in `extends`, do not run Biome: Biome reads its configuration and nested configuration files from the worktree, which holds the head, so the files must be the base's. Record it as `not run: the change edits the Biome configuration`.
 2. If the base commit has no Biome configuration at the repository root, record Biome as `not run: no Biome configuration at the base`.
-3. Otherwise run `<tools>/biome lint --config-path=<worktree root> <changed files>`. Never pass `--write`, `--fix`, or `--unsafe`.
+3. Otherwise run `<tools>/biome ci --config-path=<worktree root> <changed files>`. `biome ci` checks formatting as well as the lint rules, and changes no file; `biome lint` runs the linter only, so it passes a file that is not formatted. Source, read on 2026-11-27: [the command line](https://biomejs.dev/reference/cli). Record each file it says is not formatted, with its diff, for the naming and style area. Never pass `--write`, `--fix`, or `--unsafe`.
 
 ### oxlint
 

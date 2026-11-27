@@ -347,6 +347,20 @@ class LicenseDeclarationTests(unittest.TestCase):
                 self.assertIn(name, section)
 
 
+def readme_section(heading):
+    readme = (REPO / "README.md").read_text()
+    return readme.split(f"\n## {heading}\n", 1)[1].split("\n## ", 1)[0]
+
+
+class ReadmeSkillListTests(unittest.TestCase):
+    # AGENTS.md: a published skill is done when the README is current for both hosts.
+    def test_readme_lists_every_published_skill(self):
+        section = readme_section("Available skills")
+        for skill in sorted(path.name for path in (REPO / "plugins/company-skills/skills").iterdir() if path.is_dir()):
+            with self.subTest(skill=skill):
+                self.assertIn(f"| `{skill}` |", section)
+
+
 class ReplacedUpstreamPluginTests(unittest.TestCase):
     # Each bundled upstream plugin that company-skills' own language skills replaced.
     REPLACED = {"golang-pro": ("golang-practices", "golang-review"), "python-pro": ("python-practices", "python-review")}
@@ -360,6 +374,19 @@ class ReplacedUpstreamPluginTests(unittest.TestCase):
         for plugin in self.REPLACED:
             with self.subTest(plugin=plugin):
                 self.assertNotIn(plugin, validate.CLAUDE_BUNDLED_PLUGINS | validate.CODEX_BUNDLED_PLUGINS)
+
+    def test_readme_tells_users_to_uninstall_a_replaced_plugin_and_never_to_install_it(self):
+        readme = (REPO / "README.md").read_text()
+        bundled = readme_section("Bundled language practice skills")
+        for plugin, replacements in self.REPLACED.items():
+            with self.subTest(plugin=plugin):
+                for verb in ("install", "update"):
+                    command = f"claude plugin {verb} {plugin}@company"
+                    self.assertFalse(command in readme, f"README still says {command!r}")
+                self.assertNotIn(f"| `{plugin}` |", bundled)
+                self.assertIn(f"claude plugin uninstall {plugin}@company", bundled)
+                for skill in replacements:
+                    self.assertIn(f"`{skill}`", bundled)
 
 
 if __name__ == "__main__":

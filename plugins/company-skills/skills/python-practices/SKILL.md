@@ -1,6 +1,6 @@
 ---
 name: python-practices
-description: Applies CipherStash conventions for writing Python — type annotations and mypy, errors, exception groups, cancellation and logging, and the Python check suite (ruff, mypy, pytest with coverage, pip-audit, semgrep) with its pinned versions. Use when writing or changing Python in any repository, including a script in a Rust, Go or TypeScript repository — .py and .pyi files, tests, pyproject.toml, uv.lock, requirements*.txt or .python-version — such as adding a function, class, error type, exception handler, logger, test, or CI step for Python. Does not apply to other languages, Jupyter notebooks, Cython, or reviewing a Python change.
+description: Applies CipherStash conventions for writing Python — type annotations and mypy, errors and logging, tests with pytest and Hypothesis, asyncio and threads, dataclasses and enums, security, dependencies with uv, project layout and the public API, performance, pyo3 and maturin extensions, and the Python check suite (ruff, mypy, pytest with coverage, pip-audit, semgrep) with its pinned versions. Use when writing or changing Python in any repository, including a script in a Rust, Go or TypeScript repository — .py and .pyi files, tests, pyproject.toml, uv.lock, requirements*.txt or .python-version — such as adding a function, class, error type, test, async task, SQL query, dependency, package entry point, or CI step for Python. Does not apply to other languages, Jupyter notebooks, Cython, or reviewing a Python change.
 user-invocable: false
 ---
 
@@ -39,9 +39,24 @@ Rules for writing Python. Apply them to every Python change, and read the refere
 - A library adds only a `NullHandler` to its package logger. The library never calls `logging.basicConfig`.
 - Call `logger.exception` only inside `except`.
 
-### Untrusted input
+### Tests
 
+- Write pytest functions with annotated fixtures. Give each `parametrize` case an id. Mock an awaitable with `AsyncMock`, and mark an async test `@pytest.mark.asyncio`.
 - A function that parses or decodes untrusted input gets a Hypothesis `@given` test with `@example` seeds, as [references/checks.md](references/checks.md) says.
+- Coverage is reported with no threshold.
+
+### Async and threads
+
+- Run concurrent tasks in an `asyncio.TaskGroup`, not `gather`. Put deadlines on waits with `asyncio.timeout`.
+- Keep a reference to every task until it is done.
+- Keep no mutable state at module level. Guard state shared between threads with a lock, even under the GIL.
+
+### Data, security and dependencies
+
+- Model records as frozen dataclasses. A mutable field default goes through `field(default_factory=...)`.
+- Pass values to SQL as parameters. Make tokens with `secrets` and an explicit length, and compare them with `hmac.compare_digest`. Run programs with an argument list and no shell.
+- Never load untrusted input with `pickle` or `yaml.load`, or pass it to `eval`. Keep secrets out of `repr` and logs.
+- Manage dependencies with uv. Commit `uv.lock`, and install it in CI with `uv sync --locked`.
 
 ## References
 
@@ -51,4 +66,12 @@ Read the reference for each area the change touches. Each one states the Python 
 | --- | --- |
 | [references/typing.md](references/typing.md) | Annotations, `Protocol`, `TypedDict`, `Self`, `@overload`, `assert_never`, generics and `ParamSpec`, `TypeIs`, `Any` and `cast`, `# type: ignore`, mypy configuration |
 | [references/errors.md](references/errors.md) | Raising, catching, chaining or re-raising exceptions, error classes, `ExceptionGroup` and `except*`, `CancelledError`, logging in a library or application |
+| [references/testing.md](references/testing.md) | Tests, fixtures, `parametrize`, mocks and `AsyncMock`, async tests and fixtures, Hypothesis strategies and `@given` tests for a parser of untrusted input, pytest and coverage settings |
+| [references/async.md](references/async.md) | `asyncio` tasks, `TaskGroup` and `gather`, timeouts, `Semaphore` and `Lock`, async context managers, background tasks, threads, `ContextVar`, free-threaded Python |
+| [references/data-modelling.md](references/data-modelling.md) | Dataclasses, frozen records, field defaults, `Enum`, `ExitStack` and other context managers, cached results, file paths |
+| [references/security.md](references/security.md) | SQL queries, tokens and `secrets`, comparing secrets, `subprocess`, `pickle`, `yaml` and `eval` on untrusted input, secrets in `repr` or logs, network calls, archives |
+| [references/dependencies.md](references/dependencies.md) | Adding, upgrading or removing a dependency, uv, dependency groups, `uv.lock`, `requires-python`, `.python-version`, PEP 723 script headers, pip-audit findings |
+| [references/project-structure.md](references/project-structure.md) | Package layout, `py.typed`, `[project.scripts]`, the package version, naming and formatting, docstrings, `__all__`, deprecating or changing a public name |
+| [references/performance.md](references/performance.md) | Making code faster or use less memory, profiling, data structures, caching, CPU-bound work |
+| [references/native-extensions.md](references/native-extensions.md) | A package with a Rust core built with pyo3 and maturin: abi3 wheels, `.pyi` stubs, the build backend, releasing the GIL, fuzzing the Rust side |
 | [references/checks.md](references/checks.md) | The checks CI runs on every pull request: ruff, mypy, pytest with coverage, pip-audit, semgrep, Hypothesis for code that parses untrusted input, their pinned versions, the `pyproject.toml` template, and the griffe advisory check |

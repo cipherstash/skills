@@ -47,5 +47,34 @@ class UpstreamPluginRemovedTests(unittest.TestCase):
                 self.assertNotIn(UPSTREAM, names)
 
 
+def readme_section(heading: str) -> str:
+    readme = (REPO / "README.md").read_text(encoding="utf-8")
+    marker = f"\n## {heading}\n"
+    if marker not in readme:
+        raise AssertionError(f"README.md has no '## {heading}' section")
+    return readme.split(marker, 1)[1].split("\n## ", 1)[0]
+
+
+class ReadmeTests(unittest.TestCase):
+    def test_available_skills_lists_both_typescript_skills(self):
+        rows = [line for line in readme_section("Available skills").splitlines() if line.startswith("| `")]
+        for skill in ("typescript-practices", "typescript-review"):
+            with self.subTest(skill=skill):
+                self.assertTrue(any(row.startswith(f"| `{skill}` |") for row in rows), f"no table row for {skill}")
+
+    def test_readme_no_longer_installs_or_updates_the_upstream_plugin(self):
+        readme = (REPO / "README.md").read_text(encoding="utf-8")
+        for command in (f"plugin install {UPSTREAM}@company", f"plugin update {UPSTREAM}@company"):
+            with self.subTest(command=command):
+                self.assertNotIn(command, readme)
+        table = readme_section("Bundled language practice skills")
+        self.assertNotIn(f"| `{UPSTREAM}` |", table)
+
+    def test_readme_gives_uninstall_steps_for_the_upstream_plugin(self):
+        section = readme_section("Bundled language practice skills")
+        self.assertIn(f"claude plugin uninstall {UPSTREAM}@company", section)
+        self.assertIn("typescript-practices", section)
+
+
 if __name__ == "__main__":
     unittest.main()

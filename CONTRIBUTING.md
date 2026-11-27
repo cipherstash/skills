@@ -57,9 +57,7 @@ A programming language gets two skills with the language as the shared prefix: `
 
 To build a new language's skills, follow the [`building-language-skills`](.claude/skills/building-language-skills/SKILL.md) project skill. It takes a language ticket through research, an audit, a grill on the language's own decisions, and tickets to the main PR.
 
-Rust already has convention skills: `rust-sdk-dx`, `rust-security`, and `rust-testing`. Rust is exempt from the practices-skill rules below for now. A `rust-review` skill may read those three as they are, with no check suite, `examples/` module, script test, or short `SKILL.md`. The exemption ends when a `rust-practices` skill is added.
-
-Any other language that already has convention skills needs a decision like this before you build its skills.
+A language that already has convention skills needs a grill decision on what happens to them before you build its skills. Rust folded its three into `rust-practices` ([ADR 0007](docs/adr/0007-fold-the-rust-convention-skills-into-rust-practices.md)).
 
 - Name the review skill `<lang>-review`, not `review-<lang>`. This guide groups skills by what they are about. A language review is about the language. The `review-` prefix stays reserved for skills that work on a review's findings, such as `review-fix` and `review-post`.
 - Put all knowledge about the language in the practices skill. The practices skill is a convention skill, so the rules above apply to it.
@@ -119,7 +117,7 @@ Scope:
 
 Pull requests:
 
-- A language's PRs change only its own skill directories, its own CI job, and its own drift test, so several languages can build at once. The drift test may use the shared parser; it does not change it. Two exceptions: the main PR bumps the version, as [Releases](#releases) says, after merging `main`; and the release ticket PR updates the catalogs, the company-skills dependencies, and the README, as [Taking in upstream material](#taking-in-upstream-material) says.
+- A language's PRs change only its own skill directories, its own CI job, and its own drift test, so several languages can build at once. The drift test may use the shared parser; it does not change it. Three exceptions: the main PR bumps the version, as [Releases](#releases) says, after merging `main`; the release ticket PR updates the catalogs, the company-skills dependencies, and the README, as [Taking in upstream material](#taking-in-upstream-material) says; and when a language's skills replace released convention skills, the release ticket PR may also update other skills that name them, as Rust's does for `aws-service-architecture` and `review-post`.
 - Shared text, such as this file, GLOSSARY.md, and the process skill, changes only through its own ticket. A language that finds a gap in shared text files a ticket for it.
 
 ### Taking in upstream material

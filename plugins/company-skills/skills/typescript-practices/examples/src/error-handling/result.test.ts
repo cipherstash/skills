@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { expect, expectTypeOf, test } from "vitest";
 import { parsePort } from "./result.js";
 
 test("returns the port as data", () => {
@@ -41,4 +41,12 @@ test("narrows on failure", () => {
   }
   const port: number = result.data;
   expect(port).toBe(443);
+});
+
+test("types data as a number once failure is ruled out", () => {
+  const result = parsePort("443");
+  expectTypeOf(result.data).toEqualTypeOf<number | undefined>();
+  if (!result.failure) {
+    expectTypeOf(result.data).toEqualTypeOf<number>();
+  }
 });

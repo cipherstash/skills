@@ -48,7 +48,8 @@ posted on cipherstash/skills#65.
 - references/checks.md, the templates in assets/, examples/, and tests/
   are new.
 - SKILL.md is new: a rule list and an index of references. Its type safety
-  rules draw on the upstream SKILL.md constraints list. The upstream
+  rules draw on the upstream SKILL.md constraints list. Its rules for
+  the other areas are new. The upstream
   frontmatter metadata, persona line, workflow, output template, and
   related skills are not carried over. It targets TypeScript 7.0, not
   TypeScript 5.0 (defect 4), and drops tRPC from the description and
@@ -56,6 +57,43 @@ posted on cipherstash/skills#65.
 - skills/typescript-pro/references/patterns.md and
   skills/typescript-pro/references/utility-types.md are not ported, so
   defects 16 to 19 in patterns.md leave with them.
-- skills/typescript-pro/references/configuration.md is not ported here.
-  The tsconfig.json template in assets/ replaces its compiler settings and
-  the recommended tsconfig.json in the upstream SKILL.md.
+- references/project-structure.md is adapted in part from
+  skills/typescript-pro/references/configuration.md and the constraints
+  list in skills/typescript-pro/SKILL.md. Its rules on build and test
+  tsconfig files, path mapping, module resolution, declaration files, and
+  documentation comments draw on them, stated in prose with no code
+  examples, and these changes are made:
+  - the rule "Mix type-only and value imports" was ambiguous; it is
+    reworded as the verbatimModuleSyntax rule, under which a type-only
+    import is marked with import type or an inline type modifier
+    (defect 2);
+  - the recommended tsconfig.json in SKILL.md used isolatedModules instead
+    of verbatimModuleSyntax and set skipLibCheck to false; the
+    tsconfig.json template in assets/ replaces it, and the reference
+    points to the template (defect 3);
+  - allowImportingTsExtensions was set with declaration emit, and in the
+    bundler block without noEmit, which TypeScript rejects (TS5096); the
+    reference allows it only with noEmit or rewriteRelativeImportExtensions
+    (defects 6 and 7);
+  - the moduleResolution "node" block is dropped, and the reference says
+    TypeScript 7 removes "node" and "node10" (defect 8);
+  - baseUrl, which TypeScript 7 removes, is dropped; the reference
+    prefers package.json imports, and writes paths targets relative
+    (defect 9);
+  - the test configuration named Jest types; the house runner is Vitest,
+    which needs none, so the reference says to name no test runner types
+    unless its globals are used (defect 10);
+  - the compiler API example is dropped, because TypeScript 7 has no
+    compiler API, and the reference says to run tsc instead (defect 11);
+  - the other compiler settings, project references, framework configs,
+    custom type definitions, build optimization settings, and quick
+    reference in configuration.md are not ported. The tsconfig.json
+    template in assets/ replaces its compiler settings.
+- references/performance.md is new. Its type-check speed rules draw on
+  the performance monitoring section of
+  skills/typescript-pro/references/configuration.md, which named tsc's
+  diagnostics flags; the reference names only --extendedDiagnostics,
+  which TypeScript 7 supports.
+- references/async.md, references/testing.md, references/security.md, and
+  references/dependencies.md are new. Upstream has no reference for these
+  areas.

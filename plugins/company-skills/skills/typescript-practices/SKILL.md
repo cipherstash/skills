@@ -44,4 +44,4 @@ Read the reference for each area the change touches. Each one states the TypeScr
 | [references/error-handling.md](references/error-handling.md) | Returning or handling an expected failure, the result union, throwing, wrapping, or catching errors, `cause`, `Error` subclasses |
 | [references/checks.md](references/checks.md) | The checks CI runs on every pull request: `tsc`, Biome, oxlint, Vitest with coverage, osv-scanner, semgrep, publint and attw, property tests for code that parses untrusted input, their pinned versions, and the files that run code during a check |
 
-The templates in `assets/` are [tsconfig.json](assets/tsconfig.json), [biome.json](assets/biome.json), and [oxlintrc.json](assets/oxlintrc.json), for oxlint.
+The templates in `assets/` are [tsconfig.json](assets/tsconfig.json), [biome.json](assets/biome.json), and [oxlintrc.json](assets/oxlintrc.json), for oxlint. Save the oxlint copy as `.oxlintrc.json` at the package or repository root: oxlint finds that name by itself, but not `oxlintrc.json`, and without it the type-aware rules are off.

@@ -14,6 +14,26 @@ test("returns each expected failure as a failure", () => {
   });
 });
 
+test("rejects text that is not only digits", () => {
+  for (const input of [
+    "",
+    " ",
+    "0x50",
+    "0x1F90",
+    "1e3",
+    " 80 ",
+    "80.0",
+    "-1",
+  ]) {
+    expect(parsePort(input)).toEqual({
+      failure: {
+        type: "NotANumber",
+        message: `port "${input}" is not a number`,
+      },
+    });
+  }
+});
+
 test("narrows on failure", () => {
   const result = parsePort("443");
   if (result.failure) {

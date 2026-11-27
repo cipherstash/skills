@@ -49,6 +49,72 @@ CipherStash made these changes:
   NullHandler (examples/src/practices/__init__.py), which follows the
   example in skills/python-pro/references/standard-library.md. The audit
   found no defect in it.
+- references/testing.md takes these examples from
+  skills/python-pro/references/testing.md, in examples/tests/test_testing.py:
+  These three follow upstream's examples, which the audit found no defect in:
+  - the yield fixture with teardown, which now yields an SQLite connection;
+  - parametrize with ids, which now passes its names as a tuple, as ruff's
+    PT006 asks;
+  - AsyncMock checked with assert_awaited_once_with.
+  These three are fixed:
+  - the async fixture, fixed for D21: it uses @pytest_asyncio.fixture, not
+    @pytest.fixture, which pytest 9 rejects for an async function;
+  - the factory fixture, fixed for D22: it and the function it returns are
+    annotated, with a MakeUser type alias;
+  - the @composite strategy, fixed for D22: draw is annotated as st.DrawFn.
+  The @given test with @example seeds is new. D23 (markers not registered)
+  is fixed by the rule to register every custom marker, and D2 and D24
+  (the 90% threshold, and TOML inside a Python string) by pointing to
+  assets/pyproject-checks.toml, which sets no threshold.
+- references/async.md takes these examples from
+  skills/python-pro/references/async-patterns.md, in
+  examples/src/practices/concurrency.py:
+  These three follow upstream's examples, which the audit found no defect in:
+  - the Semaphore rate limiter, which now runs any awaitable job;
+  - the Lock around a read-modify-write, which now counts int values in
+    place of Any, and returns the new total;
+  - the async context manager that commits, rolls back and closes, which
+    now takes the session it manages.
+  These three are fixed:
+  - the TaskGroup batch, fixed for D17: the unused results list is gone;
+  - the asyncio.timeout example: the timeout parameter that ruff's ASYNC109
+    flags is gone, the deadline is a module constant, and the caller handles
+    TimeoutError;
+  - the background task set, fixed for D15: spawn is called only from inside
+    a coroutine, and no task is created at module level.
+  The ContextVar example is new. D5 (gather around a shared client) leaves as
+  a rule to use a TaskGroup and open the client outside it. safe_fetch_all
+  (D12), robust_processing (D13), run_pipeline (D14) and AsyncRange (D16)
+  are not taken.
+- references/data-modelling.md takes these examples from
+  skills/python-pro/references/standard-library.md, in
+  examples/src/practices/models.py:
+  - the frozen dataclass Point, fixed: distance uses math.hypot, because
+    (...) ** 0.5 returns Any, which mypy --strict rejects as the return of a
+    float function;
+  - field(default_factory=list), as upstream's ShoppingCart, without its
+    metadata field typed dict[str, Any];
+  - the Status Enum, as upstream wrote it;
+  - ExitStack, fixed: it opens files with Path.open, not open(), which
+    ruff's PTH123 flags, and returns what it reads in place of calling an
+    undefined process().
+  D19 (the exists() check and the unused binary read) and D20 (lru_cache
+  returning a shared dict) are not taken. Rules say the opposite.
+- references/project-structure.md takes these examples from
+  skills/python-pro/references/packaging.md:
+  - the src layout tree, trimmed to the files this skill names, with uv.lock
+    added;
+  - the [project.scripts] table (in examples/pyproject.toml), as upstream
+    wrote it, naming this project's function;
+  - get_version, fixed for D27: package_version
+    (examples/src/practices/about.py) reads importlib.metadata.version,
+    since pyproject.toml is not in the wheel and tomli is not needed.
+  D1 (os.path called deprecated) and D3 (black) do not carry over. Nothing
+  else from packaging.md is taken, so D25, D26, D28, D29 and D30 leave
+  with it.
+- references/security.md, references/dependencies.md (with its PEP 723
+  script, examples/src/practices/count_lines.py),
+  references/performance.md and references/native-extensions.md are new.
 - references/checks.md, assets/pyproject-checks.toml, SKILL.md and the tests
   are new. Upstream's frontmatter metadata, persona, workflow, output
   templates, and links to skills that do not exist here are dropped.

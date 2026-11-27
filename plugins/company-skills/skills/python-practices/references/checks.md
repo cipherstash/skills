@@ -21,7 +21,7 @@ Every tool version is pinned. A repository's CI uses these versions.
 
 ruff, mypy, pytest, pytest-cov, Hypothesis, and pip-audit are exact versions in the project's `dev` dependency group. A committed `uv.lock` fixes them, and CI installs it with `uv sync --locked`. Later `uv run` commands pass `--no-sync`, so they do not lock again. The workflow pins uv through the `version` input of `astral-sh/setup-uv`. semgrep has one pin for every language. CI installs it with `pip install semgrep==<version>`.
 
-Start from the template [assets/pyproject-checks.toml](../assets/pyproject-checks.toml). The template has the `dev` group and the ruff, mypy, pytest, and coverage settings.
+Start from the template [assets/pyproject-checks.toml](../assets/pyproject-checks.toml). The template has the `dev` group and the ruff, mypy, pytest, and coverage settings. Its `dev` group also pins pytest-asyncio, which runs async tests, as [testing.md](testing.md) says. pytest-asyncio is a test dependency, not a check.
 
 Two things float by choice. CI uses the latest stable CPython, through `actions/setup-python` with `python-version: "3.x"`, and sets `UV_PYTHON_DOWNLOADS: never` so uv uses it. semgrep reads the latest `p/python` ruleset. Either can fail a pull request that did not cause the finding. Fix the finding.
 

@@ -103,23 +103,6 @@
       },
       "strict": false,
       "skills": ["./"]
-    },
-    {
-      "name": "typescript-pro",
-      "source": {
-        "source": "git-subdir",
-        "url": "https://github.com/Jeffallan/claude-skills.git",
-        "path": "./skills/typescript-pro",
-        "sha": "36f3fe8052da7c57083783268c6ea3265d075265"
-      },
-      "description": "Jeffallan's TypeScript language practice skill and references.",
-      "license": "MIT",
-      "author": {
-        "name": "Jeffallan",
-        "url": "https://github.com/Jeffallan"
-      },
-      "strict": false,
-      "skills": ["./"]
     }
   ]
 }

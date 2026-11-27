@@ -44,6 +44,8 @@ Updating from a release before 0.15.0 leaves the removed `golang-pro` plugin ins
 
 Updating from 0.12.0 to 0.18.0 keeps the five plugins those releases installed as dependencies, but Claude Code now treats them as orphans, so `claude plugin prune` removes them. To keep one, run its `claude plugin install` line above, which marks it as installed by you. Checked with Claude Code 2.1.332 by updating 0.18.0 to 0.18.1.
 
+One of the five, `typescript-pro`, is no longer in the catalog. While it is installed, `claude plugin prune` removes nothing. Run `claude plugin uninstall typescript-pro@company` before you prune, as [Bundled language practice skills](#bundled-language-practice-skills) describes.
+
 Updating company-skills does not update the bundled plugins. When a release moves the pinned commit of a bundled plugin, update that plugin by name as well:
 
 ```sh
@@ -140,7 +142,12 @@ The release that adds `typescript-practices` and `typescript-review` removes the
 claude plugin uninstall typescript-pro@company
 ```
 
-`claude plugin prune` does not remove it, because you installed it by name. Checked with Claude Code 2.1.332 by installing `typescript-pro` from this repository's catalog, then refreshing the marketplace to the catalog without it.
+`claude plugin prune` does not remove it, however it was installed:
+
+- If you installed it by name, `claude plugin prune --dry-run` reports `Nothing to prune`.
+- If 0.12.0 to 0.18.0 installed it as a dependency of company-skills, `claude plugin prune` removes nothing and reports `cannot determine orphans: typescript-pro@company failed to load`. Once you uninstall `typescript-pro`, `claude plugin prune` works again and removes the other plugins those releases installed as dependencies.
+
+Checked with Claude Code 2.1.332 in two ways. First, by installing `typescript-pro` by name from this repository's catalog, then refreshing the marketplace to the catalog without it. Second, by installing company-skills 0.18.0, updating it to 0.18.1, then refreshing the marketplace to the catalog without `typescript-pro`.
 
 0.15.0 removes the bundled `golang-pro` plugin. company-skills' `golang-practices` and `golang-review` replace it. Updating an install from an earlier release leaves `golang-pro` installed. It no longer loads, because the marketplace no longer lists it: `claude plugin list` reports it as failed to load, with `Plugin golang-pro not found in marketplace company`. While it is installed, `claude plugin prune` removes nothing and reports `cannot determine orphans`. Uninstall it by name:
 

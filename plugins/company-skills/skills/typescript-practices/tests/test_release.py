@@ -75,6 +75,21 @@ class ReadmeTests(unittest.TestCase):
         self.assertIn(f"claude plugin uninstall {UPSTREAM}@company", section)
         self.assertIn("typescript-practices", section)
 
+    def test_uninstall_note_covers_typescript_pro_installed_as_a_dependency(self):
+        # 0.12.0 to 0.18.0 installed typescript-pro as a company-skills dependency. On Claude Code 2.1.332, once the
+        # catalog drops it, `claude plugin prune` refuses to run ("cannot determine orphans") until it is uninstalled.
+        section = readme_section("Bundled language practice skills")
+        note = section.split("removes the bundled `typescript-pro` plugin", 1)[1]
+        note = note.split("removes the bundled `golang-pro`", 1)[0]
+        self.assertIn("0.12.0 to 0.18.0", note)
+        self.assertIn("cannot determine orphans", note)
+
+    def test_prune_advice_says_to_uninstall_typescript_pro_first(self):
+        # The update section tells 0.12.0 to 0.18.0 users to run prune, which fails while typescript-pro is installed.
+        readme = (REPO / "README.md").read_text(encoding="utf-8")
+        advice = readme.split("\nUpdating from 0.12.0 to 0.18.0", 1)[1].split("\nUpdating company-skills does not", 1)[0]
+        self.assertIn(f"claude plugin uninstall {UPSTREAM}@company", advice)
+
 
 if __name__ == "__main__":
     unittest.main()

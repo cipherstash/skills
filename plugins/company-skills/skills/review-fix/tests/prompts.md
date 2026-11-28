@@ -5,6 +5,7 @@
 - `/review-fix` immediately after a code review in the same session produced findings.
 - "Fix those findings" right after a code review in the same session.
 - "Work through these and fix what's real" with findings pasted from parallel review agents, in a session that has no review of its own.
+- `/review-fix findings.md` where `findings.md` holds a long findings list from parallel review agents — the skill reads the file in full and works its findings.
 - "Now fix them" right after review-audit reported unresolved feedback on PR 12 in the same session.
 - "Fix the review comments on PR 12" with no audit in the session — the skill runs review-audit on PR 12 first, then works its Unresolved entries.
 - "Fix the review findings" with no review in the session, no PR named, and nothing pasted — the skill stops and asks for findings.
@@ -25,6 +26,7 @@
 - A review-audit report in the session is used: its Unresolved entries become ledger entries sourced by their comment URLs, its Needs decision entries end `needs-decision` with the audit's question, and its Addressed and Refuted entries are not worked. Findings from a session review or pasted input merge into the same ledger, a defect raised in both being one entry.
 - Asked to fix a PR's feedback with no audit report in the session, the skill runs review-audit first instead of reading PR comments itself.
 - Fixed entries from an audit report list their comment URLs in the report; no thread is resolved or replied to.
+- Findings are never passed in the skill's arguments: they are already in the conversation, or in a file whose path is the argument, so a long list cannot truncate the skill.
 - Every input finding lands in one ledger exactly once; a defect reported by two sources is one entry listing both, at the higher normalised severity.
 - The done bar runs on the untouched tree before any delegate starts, and its failures are recorded as the baseline; with a pull request open, only a completed CI run for the checked-out commit is added — a stale or in-progress run is not used.
 - The baseline records `git status`; files already dirty are flagged before any commit, never committed silently with the fixes.

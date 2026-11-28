@@ -1,7 +1,7 @@
 ---
 name: review-cross-check
 description: Verifies new code review findings (this session's or pasted from parallel agents) against a pull request's head and its existing review feedback, and reports which are new, which add to existing threads, and which are covered or refuted. Use after reviewing a PR, or when asked to check findings against existing PR comments or drop findings reviewers already raised. Takes a PR number or URL. Does not perform the review, fix code, or post to the PR (review-post).
-argument-hint: "<PR number or URL> [pasted findings]"
+argument-hint: "<PR number or URL> [path to a findings file]"
 ---
 
 # review-cross-check
@@ -11,7 +11,7 @@ Reduce a fresh set of review findings to what the existing review has not said. 
 ## Inputs
 
 - A PR number or URL. Without one, stop and ask.
-- The new findings: those already in this session's context (a review run earlier in the conversation), merged with any pasted into the invocation. With neither, stop and ask for findings — producing them is a review's job.
+- The new findings: those already in this session's context (a review run earlier in the conversation), merged with any pasted into the conversation or in a findings file the invocation names. Keep the arguments short: they load into the prompt with this skill, so a findings list pasted there can truncate it. Findings already in the conversation need no arguments; pass a long list as a file path. With neither, stop and ask for findings — producing them is a review's job.
 
 This skill writes nothing to the PR; posting is review-post's job.
 

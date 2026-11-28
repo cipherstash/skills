@@ -226,6 +226,7 @@ class ImplementTicketsWorkflowTest(unittest.TestCase):
                           "decisions": [], "deviations": []},
         })
         self.assertIn('"F1"', prompt(r, "fix #2 r1"))
+        self.assertIn("with no arguments", prompt(r, "fix #2 r1"))
         self.assertIn('"F1"', prompt(r, "audit #2 r1"))
         self.assertIn("head f2", prompt(r, "wait #2 r1.1"))
         self.assertEqual(by_ticket(r)[2]["status"], "clean")

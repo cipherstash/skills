@@ -1,7 +1,7 @@
 ---
 name: review-post
 description: Posts a finished code review to a GitHub pull request as one review: an inline comment per finding, or a reply on an existing thread it adds to, and an attestation summary, posted even with no findings. Use when asked to post or leave review findings or a review attestation on a PR. Takes a PR number or URL. Does not perform, verify, or cross-check the review (review-cross-check), or resolve threads (review-audit).
-argument-hint: "<PR number or URL> [pasted findings]"
+argument-hint: "<PR number or URL> [path to a findings file]"
 ---
 
 # review-post
@@ -11,7 +11,7 @@ Publish a review as an **attestation**: a durable record on the PR that a named 
 ## Inputs
 
 - A PR number or URL. Without one, stop and ask.
-- The findings: this session's review, merged with any pasted. Each carries file:line or range (none for a design-level finding), claim, severity, and source — the skill or agent and the model that produced it. A source not stated is `unattributed`; never guess one. A finding may carry a **reply target** — an existing comment's URL — when it adds to feedback already on the PR (review-cross-check's Adds to existing); it then carries only the addition.
+- The findings: this session's review, merged with any pasted into the conversation or in a findings file the invocation names. Keep the arguments short: they load into the prompt with this skill, so a findings list pasted there can truncate it. Findings already in the conversation need no arguments; pass a long list as a file path. Each carries file:line or range (none for a design-level finding), claim, severity, and source — the skill or agent and the model that produced it. A source not stated is `unattributed`; never guess one. A finding may carry a **reply target** — an existing comment's URL — when it adds to feedback already on the PR (review-cross-check's Adds to existing); it then carries only the addition.
 - The **reviewed commit**: the commit the findings were checked against. Take review-cross-check's stated head commit verified; for this session's own review, the commit it read, as recorded when it ran — if it was not recorded, run `git rev-parse HEAD` and `git status --porcelain` now only when nothing in the session has committed, edited, or checked out since the review, and accept HEAD only with a clean tree; for pasted findings, the commit they name. Otherwise it is `unknown`.
 - The posting session's provenance: host (Claude Code, Codex), model ID, effort level when one was set. Any value the session does not reveal is `unknown`.
 

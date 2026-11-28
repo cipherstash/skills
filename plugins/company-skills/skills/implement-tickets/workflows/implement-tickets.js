@@ -506,6 +506,8 @@ Check out the PR's head branch \`${o.branch}\` in your worktree (fetch it from o
 claim: verify it first. Fix each confirmed behavioral defect red first, with a regression test that fails
 before the fix. Commit with the \`company-skills:authoring-pull-requests\` commit rules and push to
 \`${o.branch}\` only. Do not reply to or resolve threads.
+Load \`company-skills:review-fix\` with no arguments: the findings below are already in this prompt, and
+pasting them into the skill's arguments overflows the prompt and truncates the skill.
 Findings:
 ${JSON.stringify(pending, null, 2)}`, {
           label: `fix #${t.number} r${round}`, phase: 'Fix', model: OPUS, isolation: 'worktree', schema: FIX_SCHEMA,

@@ -1,7 +1,7 @@
 ---
 name: review-fix
 description: Verifies and fixes code review findings, each confirmed defect fixed red first with a regression test where one can be written. Use when asked to fix or work through findings from this session's review, from a PR's unresolved review feedback (audited with review-audit), or pasted from review agents. Does not perform the review, reply to or resolve PR threads, or audit a PR's existing feedback (review-audit).
-argument-hint: "[pasted findings]"
+argument-hint: "[PR number, or path to a findings file]"
 ---
 
 # review-fix
@@ -14,7 +14,9 @@ Every source of findings present, merged:
 
 - **A code review** run earlier in this conversation.
 - **A review-audit report** in this conversation: take its **Unresolved** entries as findings, each sourced by its comment URLs and carrying the audit's evidence into the verify batch. Carry its **Needs decision** entries straight to `needs-decision` with the audit's question, unless the user has since answered it. Skip **Addressed** and **Refuted** entries — the audit has already settled them.
-- **Findings pasted** into the invocation — that is how parallel agents' findings arrive.
+- **Findings handed over** by the user or by parallel review agents: in the conversation, or in a file whose path the invocation names. Read a named file in full before step 1.
+
+Keep the skill's arguments short: a PR number or a file path. Arguments load into the prompt with this skill, so a findings list pasted there can overflow the prompt and truncate the skill. Findings already in the conversation need no arguments; write a long list to a file and pass its path.
 
 Asked to fix a pull request's review feedback with no review-audit report for it in this conversation, run review-audit on that PR first — it changes nothing until approved — and take its report as above. With no source at all, stop and ask for findings: this skill works a list of findings, and producing that list is a review's job.
 
